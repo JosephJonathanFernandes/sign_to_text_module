@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+venv/
+
+# Processed data & model artifacts
+processed/
+model.pth
+hand_landmarker.task
+
+# Dataset videos (too large for git)
+Dataset/
+assets/
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# IDE
+.vscode/
+.idea/

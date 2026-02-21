@@ -1,0 +1,7 @@
+# ISL Word Recognition Pipeline — Requirements
+# CPU-optimized for Intel Iris Xe
+
+torch
+numpy
+opencv-python
+mediapipe
