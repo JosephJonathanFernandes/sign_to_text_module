@@ -17,7 +17,7 @@ from mediapipe.tasks.python.vision import (
 from config import (
     DATASET_DIR, ASSETS_DIR, PROCESSED_DIR, NUM_FRAMES,
     NUM_LANDMARKS, NUM_COORDS, VIDEO_EXTENSIONS,
-    HAND_LANDMARKER_MODEL,
+    HAND_LANDMARKER_MODEL, USE_VELOCITY, LANDMARK_DIM,
 )
 
 
@@ -107,8 +107,13 @@ def extract_hand_landmarks(
 
     landmarker.close()
 
-    # ── Normalize: center on wrist, scale by hand size ──
+    # -- Normalize: center on wrist, scale by hand size --
     sequence = _normalize_landmarks(sequence)
+
+    # -- Append velocity (frame-to-frame deltas) --
+    if USE_VELOCITY:
+        sequence = _add_velocity(sequence)
+
     return sequence
 
 
@@ -147,6 +152,22 @@ def _normalize_landmarks(sequence: np.ndarray) -> np.ndarray:
         out[i] = frame.flatten()
 
     return out
+
+
+def _add_velocity(sequence: np.ndarray) -> np.ndarray:
+    """
+    Compute frame-to-frame velocity (deltas) and concatenate with position.
+
+    Args:
+        sequence: (num_frames, 63) normalized landmark positions.
+
+    Returns:
+        (num_frames, 126) array with [position | velocity] per frame.
+    """
+    velocity = np.zeros_like(sequence)
+    velocity[1:] = sequence[1:] - sequence[:-1]
+    # First frame velocity stays zero
+    return np.concatenate([sequence, velocity], axis=1).astype(np.float32)
 
 
 def preprocess_dataset() -> dict:
@@ -198,30 +219,41 @@ def preprocess_dataset() -> dict:
 
         stats[label] = count
 
-    # ── Also scan assets/ folder for matching class videos ──
+    # ── Also scan assets/ folder for WORD videos ──
+    # Skip single-letter (A-Z) and single-digit (0-9) videos;
+    # those belong to the image/letter pipeline.
     if os.path.isdir(ASSETS_DIR):
-        # Collect all known class labels
-        all_labels = set(stats.keys())
         asset_files = [
             f for f in os.listdir(ASSETS_DIR)
             if f.lower().endswith(VIDEO_EXTENSIONS)
         ]
-        matched = 0
+        added = 0
+        skipped = 0
         for af in asset_files:
             name = os.path.splitext(af)[0].strip().lower()
-            if name in all_labels:
-                vid_path = os.path.join(ASSETS_DIR, af)
-                sequence = extract_hand_landmarks(vid_path)
-                save_dir = os.path.join(PROCESSED_DIR, name)
-                os.makedirs(save_dir, exist_ok=True)
-                npy_name = "asset_" + os.path.splitext(af)[0] + ".npy"
-                np.save(os.path.join(save_dir, npy_name), sequence)
-                stats[name] = stats.get(name, 0) + 1
-                matched += 1
-                print(f"  [Assets] Added '{af}' -> class '{name}'")
-        print(f"[Preprocess] Assets: {matched} matching videos added")
+            # Skip single letters and digits (a-z, 0-9)
+            if len(name) == 1 and (name.isalpha() or name.isdigit()):
+                skipped += 1
+                continue
+            vid_path = os.path.join(ASSETS_DIR, af)
+            save_dir = os.path.join(PROCESSED_DIR, name)
+            os.makedirs(save_dir, exist_ok=True)
+            sequence = extract_hand_landmarks(vid_path)
+            npy_name = "asset_" + os.path.splitext(af)[0] + ".npy"
+            np.save(
+                os.path.join(save_dir, npy_name), sequence
+            )
+            stats[name] = stats.get(name, 0) + 1
+            added += 1
+        print(
+            f"[Preprocess] Assets: {added} word videos added, "
+            f"{skipped} letter/digit videos skipped"
+        )
     else:
-        print(f"[Preprocess] Assets dir not found, skipping: {ASSETS_DIR}")
+        print(
+            f"[Preprocess] Assets dir not found: "
+            f"{ASSETS_DIR}"
+        )
 
     print(f"[Preprocess] Done. Saved to: {PROCESSED_DIR}")
     return stats

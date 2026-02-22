@@ -12,29 +12,33 @@ DATASET_DIR = os.path.join(BASE_DIR, "Dataset")
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
 PROCESSED_DIR = os.path.join(BASE_DIR, "processed")
 MODEL_SAVE_PATH = os.path.join(BASE_DIR, "model.pth")
+ENSEMBLE_DIR = os.path.join(BASE_DIR, "ensemble")  # K-fold models
+NUM_FOLDS = 5                 # K-fold cross-validation
 
 # ─── Preprocessing ──────────────────────────────────────────────────
-NUM_FRAMES = 20              # Frames sampled per video (CPU-optimized)
+NUM_FRAMES = 30              # Frames sampled per video (more temporal detail)
 NUM_LANDMARKS = 21           # MediaPipe hand landmarks
 NUM_COORDS = 3               # x, y, z per landmark
-INPUT_SIZE = NUM_LANDMARKS * NUM_COORDS  # 63
+LANDMARK_DIM = NUM_LANDMARKS * NUM_COORDS  # 63
+USE_VELOCITY = True           # Append frame-to-frame deltas
+INPUT_SIZE = LANDMARK_DIM * 2 if USE_VELOCITY else LANDMARK_DIM  # 126 or 63
 VIDEO_EXTENSIONS = (".mp4", ".mov", ".avi", ".mkv")
 HAND_LANDMARKER_MODEL = os.path.join(BASE_DIR, "hand_landmarker.task")
 
 # ─── Model ───────────────────────────────────────────────────────────
-HIDDEN_SIZE = 128
+HIDDEN_SIZE = 96
 NUM_LAYERS = 2
 BIDIRECTIONAL = True
-DROPOUT = 0.4
+DROPOUT = 0.45
 
 # ─── Training ────────────────────────────────────────────────────────
 BATCH_SIZE = 8
-NUM_EPOCHS = 50
+NUM_EPOCHS = 100
 LEARNING_RATE = 1e-3
-WEIGHT_DECAY = 1e-4            # L2 regularization
+WEIGHT_DECAY = 3e-4            # L2 regularization
 LABEL_SMOOTHING = 0.1          # Softens targets
-PATIENCE = 10                  # Early stopping patience
-SCHEDULER_PATIENCE = 5         # LR scheduler patience
+PATIENCE = 20                  # Early stopping patience
+SCHEDULER_PATIENCE = 7         # LR scheduler patience
 GRAD_CLIP = 1.0                # Gradient clipping max norm
 VAL_SPLIT = 0.2              # 80/20 train/val split
 RANDOM_SEED = 42

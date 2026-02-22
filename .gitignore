@@ -12,11 +12,18 @@ venv/
 # Processed data & model artifacts
 processed/
 model.pth
+model_image.pth
+ensemble/
+ensemble_image/
 hand_landmarker.task
 
 # Dataset videos (too large for git)
 Dataset/
 assets/
+archive (1)/
+archive (2)/
+archive/
+
 
 # OS
 Thumbs.db

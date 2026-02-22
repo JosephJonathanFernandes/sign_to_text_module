@@ -1,135 +1,244 @@
 """
-Main entry point for the ISL Word Recognition Pipeline.
+Main entry point for ISL Sign Language Recognition Pipeline.
+
+Two pipelines:
+  --mode word   (default) Video-based word recognition (BiGRU)
+  --mode letter           Image-based letter/number recognition (CNN)
 
 Usage:
-    python main.py                  # Run full pipeline (preprocess + train)
-    python main.py --preprocess     # Only preprocess videos
-    python main.py --train          # Only train (requires processed/ to exist)
-    python main.py --predict VIDEO  # Predict class for a single video
+    python main.py                          # preprocess + train word model
+    python main.py --preprocess             # preprocess videos only
+    python main.py --train                  # train word model
+    python main.py --kfold                  # K-fold word ensemble
+    python main.py --predict VIDEO          # predict word from video
+    python main.py --webcam                 # live webcam (auto-detect)
+
+    python main.py --mode letter --train    # train letter model
+    python main.py --mode letter --kfold    # K-fold letter ensemble
+    python main.py --mode letter --predict IMG  # predict letter from image
 """
 
 import argparse
 import os
 import sys
-import torch
 
-from config import DEVICE, MODEL_SAVE_PATH, PROCESSED_DIR
+
+# ── Word-mode functions (video pipeline) ─────────────────────────
 
 
 def run_preprocess():
-    """Run the preprocessing pipeline."""
+    """Run the video preprocessing pipeline."""
     from preprocess import preprocess_dataset
     print("=" * 60)
-    print("  STEP 1: Preprocessing Videos -> Landmarks (.npy)")
+    print("  Preprocessing Videos -> Landmarks (.npy)")
     print("=" * 60)
     stats = preprocess_dataset()
     total = sum(stats.values())
-    print(f"\nTotal processed: {total} videos across {len(stats)} classes\n")
+    print(
+        f"\nTotal processed: {total} videos "
+        f"across {len(stats)} classes\n"
+    )
     return stats
 
 
-def run_train():
-    """Run the training pipeline."""
+def run_train_word():
+    """Train single word model."""
+    from config import PROCESSED_DIR
     from train import create_data_loaders, train
 
     print("=" * 60)
-    print("  STEP 2: Training Bidirectional GRU + Attention")
+    print("  Training Word Model (BiGRU + Attention)")
     print("=" * 60)
 
     if not os.path.exists(PROCESSED_DIR):
-        print(f"[ERROR] Processed directory not found: {PROCESSED_DIR}")
-        print("        Run with --preprocess first.")
+        print("[ERROR] Run --preprocess first.")
         sys.exit(1)
 
-    train_loader, val_loader, num_classes = create_data_loaders()
-    model = train(train_loader, val_loader, num_classes)
-    print("\nTraining complete!\n")
-    return model
+    tl, vl, nc, cw = create_data_loaders()
+    train(tl, vl, nc, cw)
+    print("\nWord training complete!\n")
 
 
-def run_predict(video_path: str):
-    """Predict the class of a single video."""
+def run_kfold_word():
+    """K-fold word ensemble training."""
+    from config import PROCESSED_DIR
+    from train import train_kfold
+
+    print("=" * 60)
+    print("  K-Fold Word Ensemble Training")
+    print("=" * 60)
+
+    if not os.path.exists(PROCESSED_DIR):
+        print("[ERROR] Run --preprocess first.")
+        sys.exit(1)
+
+    train_kfold()
+    print("\nK-fold word training complete!\n")
+
+
+def run_predict_word(video_path: str):
+    """Predict word from a video file."""
     from preprocess import extract_hand_landmarks
-    from model import SignLanguageGRU
-
-    if not os.path.exists(MODEL_SAVE_PATH):
-        print(f"[ERROR] No saved model found at: {MODEL_SAVE_PATH}")
-        print("        Train the model first.")
-        sys.exit(1)
+    from ensemble import load_ensemble, ensemble_predict
 
     if not os.path.exists(video_path):
         print(f"[ERROR] Video not found: {video_path}")
         sys.exit(1)
 
-    # Load checkpoint
-    checkpoint = torch.load(MODEL_SAVE_PATH, map_location=DEVICE, weights_only=False)
-    num_classes = checkpoint["num_classes"]
-
-    # Reconstruct class list from processed/
-    classes = sorted([
-        d for d in os.listdir(PROCESSED_DIR)
-        if os.path.isdir(os.path.join(PROCESSED_DIR, d))
-    ])
-
-    # Build model and load weights
-    model = SignLanguageGRU(num_classes=num_classes).to(DEVICE)
-    model.load_state_dict(checkpoint["model_state_dict"])
-    model.eval()
-
-    # Extract landmarks
+    models, classes, _ = load_ensemble()
     print(f"Processing: {video_path}")
     sequence = extract_hand_landmarks(video_path)
-    tensor = torch.from_numpy(sequence).unsqueeze(0).to(DEVICE)  # (1, 20, 63)
+    pred_idx, conf, probs = ensemble_predict(
+        models, sequence, use_tta=True,
+    )
 
-    # Predict
-    with torch.no_grad():
-        logits = model(tensor)
-        probs = torch.softmax(logits, dim=1)
-        pred_idx = logits.argmax(dim=1).item()
-        confidence = probs[0, pred_idx].item()
-
-    pred_class = classes[pred_idx] if pred_idx < len(classes) else f"class_{pred_idx}"
+    pred_class = (
+        classes[pred_idx]
+        if pred_idx < len(classes) else "?"
+    )
     print(f"\nPrediction: {pred_class}")
-    print(f"Confidence: {confidence:.2%}")
+    print(f"Confidence: {conf:.2%}")
     print("\nAll probabilities:")
     for i, cls in enumerate(classes):
-        print(f"  {cls:>12}: {probs[0, i].item():.4f}")
+        print(f"  {cls:>12}: {probs[i]:.4f}")
+
+
+# ── Letter-mode functions (image pipeline) ───────────────────────
+
+
+def run_train_letter():
+    """Train single letter/number image model."""
+    from train_image import train_image_model
+
+    print("=" * 60)
+    print("  Training Letter/Number Model (CNN)")
+    print("=" * 60)
+    train_image_model()
+    print("\nLetter training complete!\n")
+
+
+def run_kfold_letter():
+    """K-fold letter ensemble training."""
+    from train_image import train_image_kfold
+
+    print("=" * 60)
+    print("  K-Fold Letter Ensemble Training")
+    print("=" * 60)
+    train_image_kfold()
+    print("\nK-fold letter training complete!\n")
+
+
+def run_predict_letter(image_path: str):
+    """Predict letter/number from an image file."""
+    import cv2
+    from ensemble_image import (
+        load_image_ensemble, preprocess_image,
+        image_ensemble_predict,
+    )
+
+    if not os.path.exists(image_path):
+        print(f"[ERROR] Image not found: {image_path}")
+        sys.exit(1)
+
+    models, classes, _ = load_image_ensemble()
+    img = cv2.imread(image_path)
+    if img is None:
+        print(f"[ERROR] Cannot read image: {image_path}")
+        sys.exit(1)
+
+    img_chw = preprocess_image(img)
+    pred_idx, conf, probs = image_ensemble_predict(
+        models, img_chw,
+    )
+
+    pred_class = (
+        classes[pred_idx]
+        if pred_idx < len(classes) else "?"
+    )
+    print(f"\nPrediction: {pred_class}")
+    print(f"Confidence: {conf:.2%}")
+    print("\nTop-5 probabilities:")
+    top5 = sorted(
+        enumerate(probs), key=lambda x: -x[1]
+    )[:5]
+    for idx, p in top5:
+        print(f"  {classes[idx]:>3}: {p:.4f}")
+
+
+# ── Main ─────────────────────────────────────────────────────────
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="ISL Word Recognition Pipeline (INCLUDE Dataset)"
+        description="ISL Sign Language Recognition Pipeline"
+    )
+    parser.add_argument(
+        "--mode", choices=["word", "letter"],
+        default="word",
+        help="word = video-based word recognition, "
+             "letter = image-based letter/number",
     )
     parser.add_argument(
         "--preprocess", action="store_true",
-        help="Only run preprocessing (video -> .npy)",
+        help="Preprocess videos (word mode only)",
     )
     parser.add_argument(
         "--train", action="store_true",
-        help="Only run training (requires processed/ to exist)",
+        help="Train a single model",
+    )
+    parser.add_argument(
+        "--kfold", action="store_true",
+        help="K-fold CV ensemble training",
     )
     parser.add_argument(
         "--predict", type=str, default=None,
-        help="Predict class for a single video file",
+        help="Predict from a video (word) or image (letter)",
+    )
+    parser.add_argument(
+        "--webcam", action="store_true",
+        help="Live webcam recognition (auto-detects letters & words)",
     )
     args = parser.parse_args()
 
-    # If --predict, run prediction and exit
-    if args.predict:
-        run_predict(args.predict)
+    # ── Webcam (always dual mode) ──
+    if args.webcam:
+        from webcam import run_webcam
+        run_webcam()
         return
 
-    # If neither flag specified, run full pipeline
+    # ── Letter mode ──
+    if args.mode == "letter":
+        if args.predict:
+            run_predict_letter(args.predict)
+        elif args.kfold:
+            run_kfold_letter()
+        elif args.train:
+            run_train_letter()
+        else:
+            # Default: train letter model
+            run_train_letter()
+        return
+
+    # ── Word mode (default) ──
+    if args.predict:
+        run_predict_word(args.predict)
+        return
+
+    if args.kfold:
+        run_kfold_word()
+        return
+
+    # Default: preprocess + train
     if not args.preprocess and not args.train:
         run_preprocess()
-        run_train()
+        run_train_word()
         return
 
     if args.preprocess:
         run_preprocess()
 
     if args.train:
-        run_train()
+        run_train_word()
 
 
 if __name__ == "__main__":

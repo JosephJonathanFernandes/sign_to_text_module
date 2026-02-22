@@ -76,15 +76,12 @@ class SignLanguageGRU(nn.Module):
         self.attention = Attention(self.hidden_dim)
         self.dropout = nn.Dropout(DROPOUT)
 
-        # Deeper FC head
+        # FC head: moderate depth to balance capacity vs overfitting
         self.fc = nn.Sequential(
-            nn.Linear(self.hidden_dim, 128),
+            nn.Linear(self.hidden_dim, 96),
             nn.ReLU(),
             nn.Dropout(DROPOUT),
-            nn.Linear(128, 64),
-            nn.ReLU(),
-            nn.Dropout(DROPOUT * 0.5),
-            nn.Linear(64, num_classes),
+            nn.Linear(96, num_classes),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
