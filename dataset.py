@@ -1,6 +1,6 @@
 """
 Custom PyTorch Dataset for loading preprocessed .npy landmark sequences.
-Includes data augmentation for training.
+Includes data augmentation and balanced oversampling for training.
 """
 
 import os
@@ -13,13 +13,11 @@ from config import PROCESSED_DIR
 class ISLDataset(Dataset):
     """
     Loads .npy files from processed/ directory.
-    Each .npy file is a (NUM_FRAMES, 63) array of hand landmarks.
+    Each .npy file is a (NUM_FRAMES, feat_dim) array of hand landmarks.
 
-    Supports on-the-fly augmentation for training:
-      - Gaussian noise on landmarks
-      - Random scaling
-      - Temporal shift (roll along time axis)
-      - Random frame dropout (zero out some frames)
+    Supports:
+      - On-the-fly augmentation (noise, scale, rotate, warp, dropout)
+      - Balanced oversampling (repeat minority classes to match majority)
     """
 
     def __init__(
@@ -27,13 +25,15 @@ class ISLDataset(Dataset):
         root_dir: str = PROCESSED_DIR,
         augment: bool = False,
         min_samples: int = 1,
+        oversample: bool = False,
     ):
         """
         Args:
             root_dir: Path to the processed/ directory.
             augment: Whether to apply data augmentation.
-            min_samples: Minimum samples per class to include (default 1).
-                         Set higher (e.g. 3) to filter out single-sample classes.
+            min_samples: Minimum samples per class to include.
+            oversample: Whether to oversample minority classes to
+                        balance the dataset (repeat samples).
         """
         self.augment = augment
         self.samples = []   # List of (file_path, label_index)
@@ -79,22 +79,49 @@ class ISLDataset(Dataset):
             cls: i for i, cls in enumerate(filtered_dirs)
         }
 
-        # Collect all .npy file paths with labels
+        # Collect all .npy file paths with labels, grouped by class
+        class_samples = {i: [] for i in range(len(filtered_dirs))}
         for cls_name in filtered_dirs:
             cls_dir = os.path.join(root_dir, cls_name)
+            cls_idx = self.class_to_idx[cls_name]
             for fname in os.listdir(cls_dir):
                 if fname.endswith(".npy"):
                     fpath = os.path.join(cls_dir, fname)
-                    self.samples.append(
-                        (fpath, self.class_to_idx[cls_name])
-                    )
+                    class_samples[cls_idx].append((fpath, cls_idx))
+
+        # Balanced oversampling: repeat minority class samples
+        if oversample and class_samples:
+            max_count = max(len(v) for v in class_samples.values())
+            for cls_idx, items in class_samples.items():
+                if not items:
+                    continue
+                n = len(items)
+                if n < max_count:
+                    # Repeat samples to reach max_count
+                    repeats = (max_count // n)
+                    remainder = max_count % n
+                    oversampled = items * repeats + items[:remainder]
+                    class_samples[cls_idx] = oversampled
+
+        # Flatten to single list
+        for cls_idx in sorted(class_samples.keys()):
+            self.samples.extend(class_samples[cls_idx])
+
+        # Print distribution
+        label_counts = {}
+        for _, lbl in self.samples:
+            label_counts[lbl] = label_counts.get(lbl, 0) + 1
 
         print(
             f"[Dataset] {len(self.samples)} samples, "
             f"{len(self.classes)} classes "
-            f"(augment={self.augment})"
+            f"(augment={self.augment}, oversample={oversample})"
         )
-        print(f"[Dataset] Classes: {self.classes}")
+        dist = ", ".join(
+            f"{self.classes[i]}={label_counts.get(i,0)}"
+            for i in range(len(self.classes))
+        )
+        print(f"[Dataset] Distribution: {dist}")
 
     def __len__(self) -> int:
         return len(self.samples)

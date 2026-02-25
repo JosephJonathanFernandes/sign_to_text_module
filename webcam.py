@@ -1,32 +1,26 @@
 """
-Live webcam ISL recognition -- automatic dual mode.
+Live webcam ISL recognition -- rolling-window prediction via landmarks.
 
-The system automatically detects what you're signing:
-  - STATIC hand pose held steady ~1s -> letter/number (CNN)
-  - Press SPACE to record a gesture   -> word (BiGRU)
+Uses a continuous sliding window of NUM_FRAMES and predicts every frame.
+Stability is improved with majority voting over recent predictions.
 
 Controls:
-    SPACE  - Record a word gesture (30 frames)
     Q/ESC  - Quit
 """
 
 import cv2
 import numpy as np
 import time
+from collections import Counter, deque
 import mediapipe as mp
-from mediapipe.tasks.python import BaseOptions
-from mediapipe.tasks.python.vision import (
-    HandLandmarker,
-    HandLandmarkerOptions,
-    RunningMode,
-)
 
 from config import (
-    NUM_FRAMES, NUM_LANDMARKS, NUM_COORDS,
-    HAND_LANDMARKER_MODEL, USE_VELOCITY,
+    NUM_FRAMES, NUM_LANDMARKS, NUM_COORDS, NUM_HANDS,
+    LANDMARK_DIM, FRAME_FEAT_DIM,
+    USE_VELOCITY, CONFIDENCE_THRESHOLD,
+    PREDICTION_SMOOTHING_WINDOW,
 )
-from config_image import IMG_SIZE
-from preprocess import _normalize_landmarks, _add_velocity
+from preprocess import _normalize_landmarks, _add_velocity, create_landmarker
 
 
 # ── Hand landmark drawing connections ──
@@ -46,12 +40,6 @@ WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 YELLOW = (0, 255, 255)
 CYAN = (255, 255, 0)
-ORANGE = (0, 165, 255)
-
-# Auto-detection thresholds
-STILL_THRESHOLD = 0.8       # seconds hand must be still for letter
-MOVE_THRESH = 0.04           # normalised landmark movement threshold
-LETTER_COOLDOWN = 2.0        # seconds between auto-letter fires
 
 
 def _draw_landmarks(frame, hand_landmarks, w, h):
@@ -68,63 +56,47 @@ def _draw_landmarks(frame, hand_landmarks, w, h):
 
 
 def _extract_frame_landmarks(landmarker, frame):
-    """Extract 63-dim landmark vector from a frame."""
-    feat_dim = NUM_LANDMARKS * NUM_COORDS
+    """Extract FRAME_FEAT_DIM-dim landmark vector from a frame (both hands)."""
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
     result = landmarker.detect(mp_image)
 
-    landmarks_vec = np.zeros(feat_dim, dtype=np.float32)
-    hand_lm = None
+    landmarks_vec = np.zeros(FRAME_FEAT_DIM, dtype=np.float32)
+    # Return all detected hands for drawing; first hand for status check
+    all_hands = result.hand_landmarks  # list of hand landmark lists
+    hand_lm = all_hands[0] if all_hands else None
 
-    if result.hand_landmarks:
-        hand_lm = result.hand_landmarks[0]
+    hand_slots = {"Right": 0, "Left": 1}
+    for hand, handedness_list in zip(
+        result.hand_landmarks,
+        result.handedness,
+    ):
+        label = handedness_list[0].display_name  # "Right" or "Left"
+        slot = hand_slots.get(label, 0)
+        start = slot * LANDMARK_DIM
         coords = []
-        for lm in hand_lm:
+        for lm in hand:
             coords.extend([lm.x, lm.y, lm.z])
-        landmarks_vec = np.array(coords, dtype=np.float32)
+        landmarks_vec[start:start + LANDMARK_DIM] = np.array(
+            coords, dtype=np.float32
+        )
 
-    return landmarks_vec, hand_lm
-
-
-def _crop_hand_region(frame, hand_landmarks, w, h):
-    """Crop the hand region from frame for letter prediction."""
-    xs = [int(lm.x * w) for lm in hand_landmarks]
-    ys = [int(lm.y * h) for lm in hand_landmarks]
-    x1, x2 = min(xs), max(xs)
-    y1, y2 = min(ys), max(ys)
-
-    pad_x = int((x2 - x1) * 0.3)
-    pad_y = int((y2 - y1) * 0.3)
-    x1 = max(0, x1 - pad_x)
-    y1 = max(0, y1 - pad_y)
-    x2 = min(w, x2 + pad_x)
-    y2 = min(h, y2 + pad_y)
-
-    size = max(x2 - x1, y2 - y1)
-    cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
-    x1 = max(0, cx - size // 2)
-    y1 = max(0, cy - size // 2)
-    x2 = min(w, x1 + size)
-    y2 = min(h, y1 + size)
-
-    crop = frame[y1:y2, x1:x2]
-    if crop.size == 0:
-        crop = frame
-    return crop
+    return landmarks_vec, all_hands, hand_lm
 
 
 def run_webcam():
     """
-    Main webcam loop with automatic detection.
+        Main webcam loop for continuous word recognition.
 
-    - Hold hand still ~1s  -> auto letter/number classification (CNN)
-    - Press SPACE           -> record 30-frame gesture -> word (BiGRU)
+        Pipeline per frame:
+            1) Extract landmarks.
+            2) Append to rolling window (size = NUM_FRAMES).
+            3) Once full, normalize exactly like training + optional velocity.
+            4) Predict and smooth with majority vote over recent predictions.
     """
 
     # ── Lazy model loading ──
     word_models = word_classes = None
-    letter_models = letter_classes = None
 
     def ensure_word_models():
         nonlocal word_models, word_classes
@@ -134,33 +106,13 @@ def run_webcam():
             word_models, word_classes, _ = load_ensemble()
         return word_models, word_classes
 
-    def ensure_letter_models():
-        nonlocal letter_models, letter_classes
-        if letter_models is None:
-            print("Loading letter models...")
-            from ensemble_image import load_image_ensemble
-            letter_models, letter_classes, _ = load_image_ensemble()
-        return letter_models, letter_classes
-
-    # Try pre-loading both
     try:
         ensure_word_models()
     except FileNotFoundError:
         print("[WARN] No word model found  -- train first")
-    try:
-        ensure_letter_models()
-    except FileNotFoundError:
-        print("[WARN] No letter model found -- train first")
 
-    # ── Landmarker ──
-    options = HandLandmarkerOptions(
-        base_options=BaseOptions(model_asset_path=HAND_LANDMARKER_MODEL),
-        running_mode=RunningMode.IMAGE,
-        num_hands=1,
-        min_hand_detection_confidence=0.3,
-        min_hand_presence_confidence=0.3,
-    )
-    landmarker = HandLandmarker.create_from_options(options)
+    # ── Landmarker — uses the same settings as preprocess.py ──
+    landmarker = create_landmarker(num_hands=NUM_HANDS)
 
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
@@ -170,21 +122,16 @@ def run_webcam():
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
     # ── State ──
-    recording = False
-    recorded_frames = []
+    sequence_buffer = deque(maxlen=NUM_FRAMES)
+    prediction_history = deque(maxlen=PREDICTION_SMOOTHING_WINDOW)
     prediction_text = "Show a sign"
     confidence_text = ""
     prob_lines = []
-    detected_type = ""          # "LETTER" or "WORD"
-
-    # Still-detection state
-    prev_landmarks = None
-    still_start = None
-    next_letter_time = 0.0      # cooldown timestamp
 
     print("\n=== ISL Sign Language Recognition ===")
-    print("  Auto-detects letters (hold hand still)")
-    print("  SPACE  - Record word gesture")
+    print(f"  Sliding window: {NUM_FRAMES} frames")
+    print(f"  Smoothing window: {PREDICTION_SMOOTHING_WINDOW} predictions")
+    print(f"  Confidence threshold: {CONFIDENCE_THRESHOLD:.0%}")
     print("  Q/ESC  - Quit")
     print("=====================================\n")
 
@@ -198,158 +145,85 @@ def run_webcam():
         now = time.time()
 
         # Detect hand
-        landmarks_vec, hand_lm = _extract_frame_landmarks(landmarker, frame)
-        if hand_lm:
-            _draw_landmarks(frame, hand_lm, w, h)
+        landmarks_vec, all_hands, hand_lm = _extract_frame_landmarks(landmarker, frame)
+        for hand in all_hands:
+            _draw_landmarks(frame, hand, w, h)
 
-        # ── Auto letter detection (hand held still) ──
-        if hand_lm and not recording:
-            if prev_landmarks is not None:
-                diff = np.linalg.norm(landmarks_vec - prev_landmarks)
-                if diff < MOVE_THRESH:
-                    if still_start is None:
-                        still_start = now
-                    elif (now - still_start >= STILL_THRESHOLD
-                          and now >= next_letter_time):
-                        # Classify as letter
-                        still_start = None
-                        next_letter_time = now + LETTER_COOLDOWN
-                        try:
-                            models, classes = ensure_letter_models()
-                            crop = _crop_hand_region(frame, hand_lm, w, h)
-                            crop_r = cv2.resize(crop, (IMG_SIZE, IMG_SIZE))
-                            from ensemble_image import (
-                                preprocess_image,
-                                image_ensemble_predict,
-                            )
-                            img_chw = preprocess_image(crop_r)
-                            idx, conf, probs = image_ensemble_predict(
-                                models, img_chw,
-                            )
-                            pc = classes[idx] if idx < len(classes) else "?"
-                            detected_type = "LETTER"
-                            prediction_text = pc
-                            confidence_text = f"Conf: {conf:.1%}"
-                            top5 = sorted(
-                                enumerate(probs), key=lambda x: -x[1],
-                            )[:5]
-                            prob_lines = [
-                                f"{classes[i]}: {p:.1%}" for i, p in top5
-                            ]
-                            print(f"  [LETTER] {pc} ({conf:.1%})")
-                        except FileNotFoundError:
-                            pass
-                else:
-                    still_start = None
-            prev_landmarks = landmarks_vec.copy()
-        else:
-            if not recording:
-                prev_landmarks = None
-                still_start = None
+        # ── Continuous sliding-window inference ──
+        sequence_buffer.append(landmarks_vec.copy())
+        if len(sequence_buffer) == NUM_FRAMES:
+            seq = np.array(sequence_buffer, dtype=np.float32)
+            seq = _normalize_landmarks(seq)
+            if USE_VELOCITY:
+                seq = _add_velocity(seq)
 
-        # ── WORD recording (SPACE triggered) ──
-        if recording:
-            recorded_frames.append(landmarks_vec.copy())
-            progress = len(recorded_frames)
-
-            cv2.circle(frame, (30, 30), 12, RED, -1)
-            cv2.putText(
-                frame, f"Recording: {progress}/{NUM_FRAMES}",
-                (50, 38), cv2.FONT_HERSHEY_SIMPLEX, 0.7, RED, 2,
-            )
-            bar_w = 200
-            bar_x = w - bar_w - 20
-            filled = int(bar_w * progress / NUM_FRAMES)
-            cv2.rectangle(frame, (bar_x, 50), (bar_x + bar_w, 70), WHITE, 2)
-            cv2.rectangle(frame, (bar_x, 50), (bar_x + filled, 70), GREEN, -1)
-
-            if progress >= NUM_FRAMES:
-                recording = False
-                seq = np.array(
-                    recorded_frames[:NUM_FRAMES], dtype=np.float32,
+            try:
+                from ensemble import ensemble_predict
+                models, classes = ensure_word_models()
+                idx, conf, probs = ensemble_predict(
+                    models, seq, use_tta=False,
                 )
-                seq = _normalize_landmarks(seq)
-                if USE_VELOCITY:
-                    seq = _add_velocity(seq)
-                try:
-                    from ensemble import ensemble_predict
-                    models, classes = ensure_word_models()
-                    idx, conf, probs = ensemble_predict(
-                        models, seq, use_tta=True,
-                    )
-                    pc = classes[idx] if idx < len(classes) else "?"
-                    detected_type = "WORD"
-                    prediction_text = pc.upper()
-                    confidence_text = f"Conf: {conf:.1%}"
-                    prob_lines = [
-                        f"{c}: {probs[i]:.1%}"
-                        for i, c in enumerate(classes)
-                    ]
-                    print(f"  [WORD] {pc} ({conf:.1%})")
-                except FileNotFoundError:
-                    prediction_text = "No word model"
-                    confidence_text = ""
-                    prob_lines = []
-                recorded_frames = []
+                predicted = classes[idx] if idx < len(classes) else "?"
 
-        # ── Still-detection progress indicator ──
-        if still_start is not None and not recording:
-            elapsed = now - still_start
-            pct = min(elapsed / STILL_THRESHOLD, 1.0)
-            bar_w = 150
-            cv2.rectangle(
-                frame, (w - bar_w - 20, 15), (w - 20, 35), WHITE, 2,
-            )
-            cv2.rectangle(
-                frame, (w - bar_w - 20, 15),
-                (w - bar_w - 20 + int(bar_w * pct), 35), ORANGE, -1,
-            )
-            cv2.putText(
-                frame, "Detecting letter...",
-                (w - bar_w - 20, 50),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.4, ORANGE, 1,
-            )
+                if conf >= CONFIDENCE_THRESHOLD:
+                    prediction_history.append(predicted.upper())
+                    prediction_text = Counter(
+                        prediction_history
+                    ).most_common(1)[0][0]
+                    confidence_text = (
+                        f"Conf: {conf:.1%} | Smooth: {len(prediction_history)}"
+                    )
+                else:
+                    prediction_text = "..."
+                    confidence_text = (
+                        f"Low conf: {conf:.1%} (< {CONFIDENCE_THRESHOLD:.0%})"
+                    )
+
+                top5 = sorted(
+                    enumerate(probs), key=lambda x: -x[1],
+                )[:5]
+                prob_lines = [
+                    f"{classes[i]}: {probs[i]:.1%}"
+                    for i, _ in top5
+                ]
+            except FileNotFoundError:
+                prediction_text = "No word model"
+                confidence_text = ""
+                prob_lines = []
 
         # ── Prediction panel ──
         overlay = frame.copy()
-        panel_h = 160
+        panel_h = 140
         cv2.rectangle(overlay, (0, h - panel_h), (280, h), BLACK, -1)
         cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
 
-        if detected_type:
-            badge_color = CYAN if detected_type == "WORD" else ORANGE
-            cv2.putText(
-                frame, detected_type,
-                (10, h - panel_h + 20),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, badge_color, 2,
-            )
-
         cv2.putText(
             frame, prediction_text,
-            (10, h - panel_h + 45),
+            (10, h - panel_h + 30),
             cv2.FONT_HERSHEY_SIMPLEX, 0.9, YELLOW, 2,
         )
         if confidence_text:
             cv2.putText(
                 frame, confidence_text,
-                (10, h - panel_h + 65),
+                (10, h - panel_h + 50),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, WHITE, 1,
             )
         for idx, line in enumerate(prob_lines[:6]):
             cv2.putText(
                 frame, line,
-                (10, h - panel_h + 82 + idx * 15),
+                (10, h - panel_h + 67 + idx * 15),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.35, WHITE, 1,
             )
 
-        if not recording:
-            cv2.putText(
-                frame, "SPACE: Record word | Q: Quit",
-                (10, h - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.4, GREEN, 1,
-            )
+        cv2.putText(
+            frame,
+            f"Window: {len(sequence_buffer)}/{NUM_FRAMES} | Q: Quit",
+            (10, h - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.4, GREEN, 1,
+        )
 
-        status = "Hand OK" if hand_lm else "Show hand"
-        color = GREEN if hand_lm else RED
+        n_hands = len(all_hands)
+        status = f"{n_hands} hand{'s' if n_hands != 1 else ''} OK" if n_hands else "Show hand"
+        color = GREEN if n_hands else RED
         cv2.putText(
             frame, status,
             (w - 120, h - 8),
@@ -361,13 +235,6 @@ def run_webcam():
         key = cv2.waitKey(1) & 0xFF
         if key == ord("q") or key == 27:
             break
-        elif key == ord(" ") and not recording:
-            recording = True
-            recorded_frames = []
-            prediction_text = "Recording..."
-            confidence_text = ""
-            prob_lines = []
-            detected_type = ""
 
     cap.release()
     landmarker.close()

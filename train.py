@@ -2,6 +2,7 @@
 Training and validation pipeline for ISL word recognition.
 CPU-optimized with LR scheduling, early stopping, and augmentation.
 Supports both single-split and K-fold cross-validation with ensemble.
+Uses weighted CrossEntropyLoss + Mixup for handling class imbalance.
 """
 
 import os
@@ -9,8 +10,12 @@ import time
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from sklearn.model_selection import StratifiedShuffleSplit, StratifiedKFold, KFold, ShuffleSplit
+from sklearn.model_selection import (
+    StratifiedShuffleSplit, StratifiedKFold,
+    KFold, ShuffleSplit,
+)
 from config import (
     DEVICE, BATCH_SIZE, NUM_EPOCHS, LEARNING_RATE,
     VAL_SPLIT, RANDOM_SEED, MODEL_SAVE_PATH,
@@ -22,15 +27,50 @@ from dataset import ISLDataset
 from model import SignLanguageGRU
 
 
+def _compute_inverse_class_weights(
+    labels: np.ndarray,
+    num_classes: int,
+) -> torch.Tensor:
+    """
+    Compute inverse-frequency class weights:
+        w_c = 1 / count_c
+    Normalized so average weight ~= 1 for stable optimization.
+    """
+    class_counts = np.bincount(labels, minlength=num_classes)
+    class_weights = 1.0 / (class_counts + 1e-6)
+    class_weights = class_weights / class_weights.sum() * num_classes
+    return torch.FloatTensor(class_weights).to(DEVICE)
+
+
+# ── Mixup Utility ─────────────────────────────────────────────────
+
+def mixup_data(x, y, alpha=0.3):
+    """Mixup: interpolate random training pairs."""
+    if alpha > 0:
+        lam = np.random.beta(alpha, alpha)
+    else:
+        lam = 1.0
+    idx = torch.randperm(x.size(0)).to(x.device)
+    mixed = lam * x + (1 - lam) * x[idx]
+    return mixed, y, y[idx], lam
+
+
+def mixup_criterion(criterion, logits, y_a, y_b, lam):
+    """Loss for mixup: weighted sum of both targets."""
+    return (lam * criterion(logits, y_a)
+            + (1 - lam) * criterion(logits, y_b))
+
+
 def create_data_loaders() -> tuple:
     """
-    Create train (with augmentation) and val datasets using
-    **stratified** split to ensure every class is represented.
+    Create train (with augmentation + oversampling) and val datasets
+    using **stratified** split to ensure every class is represented.
 
     Returns:
-        (train_loader, val_loader, num_classes, class_weights)
+        (train_loader, val_loader, num_classes, class_weights, full_ds)
     """
-    full_ds = ISLDataset(augment=False, min_samples=2)
+    # Load without oversampling first for splitting
+    full_ds = ISLDataset(augment=False, min_samples=2, oversample=False)
     total = len(full_ds)
 
     # Extract labels for stratification
@@ -51,8 +91,8 @@ def create_data_loaders() -> tuple:
         train_idx, val_idx = next(splitter.split(np.zeros(total)))
         print("[Data] Using non-stratified split (some classes have <2 samples)")
 
-    # Wrap with augmentation for train, plain for val
-    train_ds = _AugmentedSubset(full_ds, train_idx.tolist())
+    # Wrap with augmentation + oversampling for train, plain for val
+    train_ds = _BalancedAugSubset(full_ds, train_idx.tolist())
     val_ds = _PlainSubset(full_ds, val_idx.tolist())
 
     train_loader = DataLoader(
@@ -70,31 +110,59 @@ def create_data_loaders() -> tuple:
         pin_memory=False,
     )
 
-    # Compute class weights (inverse frequency) for balanced loss
+    # Compute class weights (inverse frequency)
     train_labels = labels[train_idx]
-    class_counts = np.bincount(train_labels, minlength=full_ds.num_classes)
-    class_weights = 1.0 / (class_counts + 1e-6)
-    class_weights = class_weights / class_weights.sum() * full_ds.num_classes
-    class_weights = torch.FloatTensor(class_weights).to(DEVICE)
+    class_weights = _compute_inverse_class_weights(
+        train_labels, full_ds.num_classes,
+    )
 
-    print(f"[Data] Train: {len(train_idx)} (aug, stratified) | Val: {len(val_idx)}")
+    print(f"[Data] Train: {len(train_ds)} (balanced+aug) | Val: {len(val_idx)}")
     print(f"[Data] Class weights: {[f'{w:.2f}' for w in class_weights.tolist()]}")
-    return train_loader, val_loader, full_ds.num_classes, class_weights
+    return train_loader, val_loader, full_ds.num_classes, class_weights, full_ds
 
 
-class _AugmentedSubset(torch.utils.data.Dataset):
-    """Wraps a subset of ISLDataset with augmentation on."""
+class _BalancedAugSubset(torch.utils.data.Dataset):
+    """
+    Wraps a subset of ISLDataset with:
+      - Balanced oversampling (minority classes repeated to match majority)
+      - Data augmentation on every sample
+    """
 
     def __init__(self, parent: ISLDataset, indices: list):
         self.parent = parent
-        self.indices = indices
+
+        # Group indices by class
+        class_indices = {}
+        for i in indices:
+            _, label = parent.samples[i]
+            class_indices.setdefault(label, []).append(i)
+
+        # Oversample to match the largest class
+        max_count = max(len(v) for v in class_indices.values())
+        self.balanced_indices = []
+        for cls, idxs in sorted(class_indices.items()):
+            n = len(idxs)
+            repeats = max_count // n
+            remainder = max_count % n
+            oversampled = idxs * repeats + idxs[:remainder]
+            self.balanced_indices.extend(oversampled)
+
+        original = len(indices)
+        balanced = len(self.balanced_indices)
+        per_class = {}
+        for i in self.balanced_indices:
+            _, lbl = parent.samples[i]
+            per_class[lbl] = per_class.get(lbl, 0) + 1
+        print(f"[BalancedAug] {original} -> {balanced} samples (oversampled)")
+        print(f"[BalancedAug] Per class: {dict(sorted(per_class.items()))}")
 
     def __len__(self):
-        return len(self.indices)
+        return len(self.balanced_indices)
 
     def __getitem__(self, idx):
         import numpy as np
-        fpath, label = self.parent.samples[self.indices[idx]]
+        real_idx = self.balanced_indices[idx]
+        fpath, label = self.parent.samples[real_idx]
         seq = np.load(fpath).astype(np.float32)
         seq = ISLDataset._augment(seq)
         return (
@@ -128,8 +196,9 @@ def train_one_epoch(
     loader: DataLoader,
     criterion: nn.Module,
     optimizer: torch.optim.Optimizer,
+    use_mixup: bool = True,
 ) -> tuple:
-    """Train for one epoch. Returns (avg_loss, accuracy%)."""
+    """Train for one epoch with optional Mixup. Returns (avg_loss, accuracy%)."""
     model.train()
     running_loss = 0.0
     correct = 0
@@ -140,8 +209,22 @@ def train_one_epoch(
         labels = labels.to(DEVICE)
 
         optimizer.zero_grad()
-        logits = model(sequences)
-        loss = criterion(logits, labels)
+
+        if use_mixup and np.random.rand() < 0.5:
+            # Mixup 50% of batches
+            mixed_x, y_a, y_b, lam = mixup_data(sequences, labels, alpha=0.3)
+            logits = model(mixed_x)
+            loss = mixup_criterion(criterion, logits, y_a, y_b, lam)
+            # Accuracy on original labels (approximate)
+            preds = logits.argmax(dim=1)
+            correct += (lam * (preds == y_a).float().sum().item()
+                        + (1 - lam) * (preds == y_b).float().sum().item())
+        else:
+            logits = model(sequences)
+            loss = criterion(logits, labels)
+            preds = logits.argmax(dim=1)
+            correct += (preds == labels).sum().item()
+
         loss.backward()
 
         # Gradient clipping
@@ -152,8 +235,6 @@ def train_one_epoch(
         optimizer.step()
 
         running_loss += loss.item() * sequences.size(0)
-        preds = logits.argmax(dim=1)
-        correct += (preds == labels).sum().item()
         total += labels.size(0)
 
     return running_loss / total, 100.0 * correct / total
@@ -191,10 +272,12 @@ def train(
     val_loader: DataLoader,
     num_classes: int,
     class_weights: torch.Tensor = None,
+    classes_list: list = None,
 ) -> SignLanguageGRU:
     """
-    Full training loop with:
-      - Label smoothing
+        Full training loop with:
+            - Weighted CrossEntropyLoss (inverse class frequency)
+      - Mixup augmentation
       - AdamW with weight decay
       - ReduceLROnPlateau scheduler
       - Early stopping
@@ -260,7 +343,7 @@ def train(
                 "optimizer_state_dict": optimizer.state_dict(),
                 "val_acc": va_acc,
                 "num_classes": num_classes,
-                "classes": full_ds.classes,
+                "classes": classes_list or [],
             }, MODEL_SAVE_PATH)
             marker = " *"
         else:
@@ -304,11 +387,13 @@ def _train_fold(
     save_path: str,
 ) -> float:
     """
-    Train a single fold. Returns best validation accuracy.
+    Train a single fold with balanced oversampling + weighted CE loss.
+    Returns best validation accuracy.
     """
     labels = np.array([lbl for _, lbl in full_ds.samples])
 
-    train_ds = _AugmentedSubset(full_ds, train_idx.tolist())
+    # Balanced oversampling for training split
+    train_ds = _BalancedAugSubset(full_ds, train_idx.tolist())
     val_ds = _PlainSubset(full_ds, val_idx.tolist())
 
     train_loader = DataLoader(
@@ -320,16 +405,16 @@ def _train_fold(
         num_workers=0, pin_memory=False,
     )
 
-    # Class weights from this fold's training set
+    # Class weights from this fold's training set (inverse frequency)
     train_labels = labels[train_idx]
-    class_counts = np.bincount(train_labels, minlength=num_classes)
-    class_weights = 1.0 / (class_counts + 1e-6)
-    class_weights = class_weights / class_weights.sum() * num_classes
-    class_weights = torch.FloatTensor(class_weights).to(DEVICE)
+    class_weights = _compute_inverse_class_weights(
+        train_labels, num_classes,
+    )
 
     model = SignLanguageGRU(num_classes=num_classes).to(DEVICE)
     criterion = nn.CrossEntropyLoss(
-        weight=class_weights, label_smoothing=LABEL_SMOOTHING,
+        weight=class_weights,
+        label_smoothing=LABEL_SMOOTHING,
     )
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY,

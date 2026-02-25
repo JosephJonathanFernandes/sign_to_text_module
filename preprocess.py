@@ -15,24 +15,34 @@ from mediapipe.tasks.python.vision import (
     RunningMode,
 )
 from config import (
-    DATASET_DIR, ASSETS_DIR, PROCESSED_DIR, NUM_FRAMES,
-    NUM_LANDMARKS, NUM_COORDS, VIDEO_EXTENSIONS,
-    HAND_LANDMARKER_MODEL, USE_VELOCITY, LANDMARK_DIM,
+    DATASET_DIR, PROCESSED_DIR, NUM_FRAMES,
+    NUM_LANDMARKS, NUM_COORDS, NUM_HANDS,
+    LANDMARK_DIM, FRAME_FEAT_DIM,
+    VIDEO_EXTENSIONS,
+    HAND_LANDMARKER_MODEL, USE_VELOCITY,
 )
 
 
-def _create_landmarker() -> HandLandmarker:
-    """Create a HandLandmarker instance using the task model."""
+def create_landmarker(num_hands: int = NUM_HANDS) -> HandLandmarker:
+    """
+    Create a HandLandmarker instance — single source of truth for all
+    MediaPipe settings used during preprocessing, training and webcam
+    inference so behaviour is always identical.
+    """
     options = HandLandmarkerOptions(
         base_options=BaseOptions(
             model_asset_path=HAND_LANDMARKER_MODEL
         ),
         running_mode=RunningMode.IMAGE,
-        num_hands=1,
+        num_hands=num_hands,
         min_hand_detection_confidence=0.3,
         min_hand_presence_confidence=0.3,
     )
     return HandLandmarker.create_from_options(options)
+
+
+# Internal alias kept for backward compat
+_create_landmarker = create_landmarker
 
 
 def extract_hand_landmarks(
@@ -56,7 +66,7 @@ def extract_hand_landmarks(
         np.ndarray of shape (num_frames, 63).
         Zero-padded if no hand detected in a frame.
     """
-    feat_dim = NUM_LANDMARKS * NUM_COORDS
+    feat_dim = FRAME_FEAT_DIM             # 126 — both hands
     zero = np.zeros((num_frames, feat_dim), dtype=np.float32)
 
     cap = cv2.VideoCapture(video_path)
@@ -83,10 +93,11 @@ def extract_hand_landmarks(
     sampled = [frames[i] for i in indices]
 
     # Extract landmarks with HandLandmarker (Tasks API)
+    # Slot 0 = right hand, slot 1 = left hand  (zeros when absent)
     sequence = np.zeros(
         (num_frames, feat_dim), dtype=np.float32
     )
-    landmarker = _create_landmarker()
+    landmarker = create_landmarker()
 
     for i, frame in enumerate(sampled):
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -95,15 +106,22 @@ def extract_hand_landmarks(
         )
         result = landmarker.detect(mp_image)
 
-        if result.hand_landmarks:
-            hand = result.hand_landmarks[0]  # first hand
-            landmarks = []
+        # Fill right-hand slot (0) and left-hand slot (1)
+        hand_slots = {"Right": 0, "Left": 1}
+        for hand, handedness_list in zip(
+            result.hand_landmarks,
+            result.handedness,
+        ):
+            label = handedness_list[0].display_name  # "Right" or "Left"
+            slot = hand_slots.get(label, 0)
+            start = slot * LANDMARK_DIM
+            coords = []
             for lm in hand:
-                landmarks.extend([lm.x, lm.y, lm.z])
-            sequence[i] = np.array(
-                landmarks, dtype=np.float32
+                coords.extend([lm.x, lm.y, lm.z])
+            sequence[i, start:start + LANDMARK_DIM] = np.array(
+                coords, dtype=np.float32
             )
-        # else: stays zero-padded
+        # else: slot stays zero-padded
 
     landmarker.close()
 
@@ -119,37 +137,36 @@ def extract_hand_landmarks(
 
 def _normalize_landmarks(sequence: np.ndarray) -> np.ndarray:
     """
-    Normalize each frame's 21 landmarks:
+    Normalize each hand slot independently per frame:
       1. Center on wrist (landmark 0) so position-invariant.
       2. Scale by max distance from wrist so size-invariant.
-    
-    Args:
-        sequence: (num_frames, 63) raw landmark array.
-    
-    Returns:
-        Normalized array of same shape.
+    Handles both hands: slot 0 = right (index 0..62),
+                        slot 1 = left  (index 63..125).
     """
     num_frames = sequence.shape[0]
     out = np.zeros_like(sequence)
 
     for i in range(num_frames):
-        frame = sequence[i].reshape(21, 3)
+        for slot in range(NUM_HANDS):
+            start = slot * LANDMARK_DIM
+            end = start + LANDMARK_DIM
+            hand = sequence[i, start:end].reshape(NUM_LANDMARKS, NUM_COORDS)
 
-        # Skip all-zero frames (no hand detected)
-        if np.all(frame == 0):
-            continue
+            # Skip all-zero slots (hand not detected)
+            if np.all(hand == 0):
+                continue
 
-        # Center on wrist (landmark 0)
-        wrist = frame[0].copy()
-        frame = frame - wrist
+            # Center on wrist (landmark 0)
+            wrist = hand[0].copy()
+            hand = hand - wrist
 
-        # Scale by max Euclidean distance from wrist
-        dists = np.linalg.norm(frame, axis=1)
-        max_dist = dists.max()
-        if max_dist > 1e-6:
-            frame = frame / max_dist
+            # Scale by max Euclidean distance from wrist
+            dists = np.linalg.norm(hand, axis=1)
+            max_dist = dists.max()
+            if max_dist > 1e-6:
+                hand = hand / max_dist
 
-        out[i] = frame.flatten()
+            out[i, start:end] = hand.flatten()
 
     return out
 
@@ -218,42 +235,6 @@ def preprocess_dataset() -> dict:
             count += 1
 
         stats[label] = count
-
-    # ── Also scan assets/ folder for WORD videos ──
-    # Skip single-letter (A-Z) and single-digit (0-9) videos;
-    # those belong to the image/letter pipeline.
-    if os.path.isdir(ASSETS_DIR):
-        asset_files = [
-            f for f in os.listdir(ASSETS_DIR)
-            if f.lower().endswith(VIDEO_EXTENSIONS)
-        ]
-        added = 0
-        skipped = 0
-        for af in asset_files:
-            name = os.path.splitext(af)[0].strip().lower()
-            # Skip single letters and digits (a-z, 0-9)
-            if len(name) == 1 and (name.isalpha() or name.isdigit()):
-                skipped += 1
-                continue
-            vid_path = os.path.join(ASSETS_DIR, af)
-            save_dir = os.path.join(PROCESSED_DIR, name)
-            os.makedirs(save_dir, exist_ok=True)
-            sequence = extract_hand_landmarks(vid_path)
-            npy_name = "asset_" + os.path.splitext(af)[0] + ".npy"
-            np.save(
-                os.path.join(save_dir, npy_name), sequence
-            )
-            stats[name] = stats.get(name, 0) + 1
-            added += 1
-        print(
-            f"[Preprocess] Assets: {added} word videos added, "
-            f"{skipped} letter/digit videos skipped"
-        )
-    else:
-        print(
-            f"[Preprocess] Assets dir not found: "
-            f"{ASSETS_DIR}"
-        )
 
     print(f"[Preprocess] Done. Saved to: {PROCESSED_DIR}")
     return stats
