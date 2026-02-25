@@ -22,19 +22,14 @@ import cv2
 import time
 import numpy as np
 import mediapipe as mp
-from mediapipe.tasks.python import BaseOptions
-from mediapipe.tasks.python.vision import (
-    HandLandmarker,
-    HandLandmarkerOptions,
-    RunningMode,
-)
 
 from config import (
-    NUM_FRAMES, NUM_LANDMARKS, NUM_COORDS,
-    HAND_LANDMARKER_MODEL, USE_VELOCITY,
-    PROCESSED_DIR, WEBCAM_RECORD_FRAMES, WEBCAM_COUNTDOWN,
+    NUM_FRAMES, NUM_LANDMARKS, NUM_COORDS, NUM_HANDS,
+    LANDMARK_DIM, FRAME_FEAT_DIM,
+    USE_VELOCITY, PROCESSED_DIR,
+    WEBCAM_RECORD_FRAMES, WEBCAM_COUNTDOWN,
 )
-from preprocess import _normalize_landmarks, _add_velocity
+from preprocess import _normalize_landmarks, _add_velocity, create_landmarker
 
 # Colors for OpenCV
 GREEN = (0, 255, 0)
@@ -67,20 +62,31 @@ def _draw_hand(frame, hand_lm, w, h):
 
 
 def _extract_landmarks(landmarker, frame):
-    feat_dim = NUM_LANDMARKS * NUM_COORDS
+    feat_dim = FRAME_FEAT_DIM
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
     result = landmarker.detect(mp_image)
 
     vec = np.zeros(feat_dim, dtype=np.float32)
-    hand_lm = None
-    if result.hand_landmarks:
-        hand_lm = result.hand_landmarks[0]
+    all_hands = result.hand_landmarks
+    hand_lm = all_hands[0] if all_hands else None
+
+    hand_slots = {"Right": 0, "Left": 1}
+    for hand, handedness_list in zip(
+        result.hand_landmarks,
+        result.handedness,
+    ):
+        label = handedness_list[0].display_name  # "Right" or "Left"
+        slot = hand_slots.get(label, 0)
+        start = slot * LANDMARK_DIM
         coords = []
-        for lm in hand_lm:
+        for lm in hand:
             coords.extend([lm.x, lm.y, lm.z])
-        vec = np.array(coords, dtype=np.float32)
-    return vec, hand_lm
+        vec[start:start + LANDMARK_DIM] = np.array(
+            coords, dtype=np.float32
+        )
+
+    return vec, all_hands, hand_lm
 
 
 def _existing_classes():
@@ -159,15 +165,8 @@ def record_samples(cls_name, num_samples=None):
         print(f"[Collect] Target: {num_samples} new samples")
     print()
 
-    # MediaPipe landmarker
-    options = HandLandmarkerOptions(
-        base_options=BaseOptions(model_asset_path=HAND_LANDMARKER_MODEL),
-        running_mode=RunningMode.IMAGE,
-        num_hands=1,
-        min_hand_detection_confidence=0.3,
-        min_hand_presence_confidence=0.3,
-    )
-    landmarker = HandLandmarker.create_from_options(options)
+    # MediaPipe landmarker (shared settings)
+    landmarker = create_landmarker(num_hands=NUM_HANDS)
 
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
@@ -195,9 +194,9 @@ def record_samples(cls_name, num_samples=None):
         now = time.time()
 
         # Detect hand
-        vec, hand_lm = _extract_landmarks(landmarker, frame)
-        if hand_lm:
-            _draw_hand(frame, hand_lm, w, h)
+        vec, all_hands, hand_lm = _extract_landmarks(landmarker, frame)
+        for hand in all_hands:
+            _draw_hand(frame, hand, w, h)
 
         # ── State machine ──
 
@@ -251,7 +250,7 @@ def record_samples(cls_name, num_samples=None):
                 indices = np.linspace(
                     0, len(raw) - 1, NUM_FRAMES, dtype=int,
                 )
-                seq = raw[indices]  # (NUM_FRAMES, 63)
+                seq = raw[indices]  # (NUM_FRAMES, FRAME_FEAT_DIM)
                 seq = _normalize_landmarks(seq)
                 if USE_VELOCITY:
                     seq = _add_velocity(seq)
@@ -316,8 +315,12 @@ def record_samples(cls_name, num_samples=None):
             (10, h - 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, WHITE, 1,
         )
 
-        status = "Hand OK" if hand_lm else "Show hand"
-        color = GREEN if hand_lm else RED
+        n_hands = len(all_hands)
+        status = (
+            f"{n_hands} hand{'s' if n_hands != 1 else ''} OK"
+            if n_hands else "Show hand"
+        )
+        color = GREEN if n_hands else RED
         cv2.putText(
             frame, status,
             (w - 120, h - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 1,
