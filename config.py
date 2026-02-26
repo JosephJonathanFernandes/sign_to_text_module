@@ -55,7 +55,7 @@ WEBCAM_RECORD_FRAMES = 90      # Raw frames to capture (~3s at 30fps)
 WEBCAM_COUNTDOWN = 3           # Countdown seconds before recording
 
 # ─── Prediction ────────────────────────────────────────────────
-CONFIDENCE_THRESHOLD = 0.75    # Show prediction only above 75%
+CONFIDENCE_THRESHOLD = 0.50    # Show prediction only above 75%
 PREDICTION_SMOOTHING_WINDOW = 10  # Majority vote window size
 
 print(f"[Config] Device: {DEVICE} | Threads: {NUM_THREADS}")
