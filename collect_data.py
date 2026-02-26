@@ -179,11 +179,21 @@ def record_samples(cls_name, num_samples=None):
     state = "IDLE"          # IDLE -> COUNTDOWN -> RECORDING -> SAVED -> IDLE
     countdown_start = 0.0
     recorded_frames = []
+    auto_mode = num_samples is not None
 
     print("Controls:")
-    print("  SPACE  - Start recording a sample")
+    if auto_mode:
+        print("  Auto mode enabled: recording continues until target is reached")
+        print("  SPACE  - (optional) restart countdown manually")
+    else:
+        print("  SPACE  - Start recording a sample")
     print("  Q/ESC  - Finish and quit")
     print()
+
+    if auto_mode:
+        state = "COUNTDOWN"
+        countdown_start = time.time()
+        print(f"  [REC] Auto countdown {WEBCAM_COUNTDOWN}s...")
 
     while True:
         ret, frame = cap.read()
@@ -286,6 +296,11 @@ def record_samples(cls_name, num_samples=None):
                         cv2.waitKey(1500)
                         break
 
+                    if auto_mode:
+                        state = "COUNTDOWN"
+                        countdown_start = time.time()
+                        print(f"  [REC] Next sample in {WEBCAM_COUNTDOWN}s...")
+
                 recorded_frames = []
 
         elif state == "SAVED":
@@ -329,7 +344,7 @@ def record_samples(cls_name, num_samples=None):
         if state == "IDLE":
             cv2.putText(
                 frame,
-                "SPACE: Record | Q: Quit",
+                "SPACE: Record | Q: Quit" if not auto_mode else "AUTO: Recording loop | Q: Quit",
                 (10, h - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.4, GREEN, 1,
             )
 

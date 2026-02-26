@@ -41,6 +41,10 @@ def load_ensemble():
     """
     models = []
     classes = None
+    current_classes = sorted([
+        d for d in os.listdir(PROCESSED_DIR)
+        if os.path.isdir(os.path.join(PROCESSED_DIR, d))
+    ])
 
     # Try loading ensemble fold models
     if os.path.isdir(ENSEMBLE_DIR):
@@ -50,6 +54,17 @@ def load_ensemble():
         for fname in fold_files:
             fpath = os.path.join(ENSEMBLE_DIR, fname)
             ckpt = torch.load(fpath, map_location=DEVICE, weights_only=False)
+            ckpt_classes = ckpt.get("classes")
+
+            # Skip stale folds that don't match current processed classes
+            if ckpt_classes is not None:
+                if sorted(ckpt_classes) != current_classes:
+                    print(
+                        f"[Ensemble] Skipping stale fold: {fname} "
+                        f"(checkpoint classes != current processed classes)"
+                    )
+                    continue
+
             num_classes = ckpt["num_classes"]
             model = SignLanguageGRU(num_classes=num_classes).to(DEVICE)
             model.load_state_dict(ckpt["model_state_dict"])
@@ -60,11 +75,7 @@ def load_ensemble():
 
     if models:
         if classes is None:
-            # Fallback: scan processed dir
-            classes = sorted([
-                d for d in os.listdir(PROCESSED_DIR)
-                if os.path.isdir(os.path.join(PROCESSED_DIR, d))
-            ])
+            classes = current_classes
         print(f"[Ensemble] Loaded {len(models)} fold models, {len(classes)} classes")
         return models, classes, len(classes)
 
@@ -76,11 +87,8 @@ def load_ensemble():
         model.load_state_dict(ckpt["model_state_dict"])
         model.eval()
         classes = ckpt.get("classes")
-        if classes is None:
-            classes = sorted([
-                d for d in os.listdir(PROCESSED_DIR)
-                if os.path.isdir(os.path.join(PROCESSED_DIR, d))
-            ])
+        if classes is None or sorted(classes) != current_classes:
+            classes = current_classes
         print(f"[Ensemble] Fallback: loaded single model, {len(classes)} classes")
         return [model], classes, num_classes
 
