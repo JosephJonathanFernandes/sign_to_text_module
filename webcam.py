@@ -127,6 +127,7 @@ def run_webcam():
     prediction_text = "Show a sign"
     confidence_text = ""
     prob_lines = []
+    no_hand_frames = 0
 
     print("\n=== ISL Sign Language Recognition ===")
     print(f"  Sliding window: {NUM_FRAMES} frames")
@@ -149,9 +150,23 @@ def run_webcam():
         for hand in all_hands:
             _draw_landmarks(frame, hand, w, h)
 
+        hands_visible = len(all_hands) > 0
+
         # ── Continuous sliding-window inference ──
-        sequence_buffer.append(landmarks_vec.copy())
-        if len(sequence_buffer) == NUM_FRAMES:
+        if hands_visible:
+            no_hand_frames = 0
+            sequence_buffer.append(landmarks_vec.copy())
+        else:
+            no_hand_frames += 1
+            # After ~0.5s with no hands (~15 frames at 30fps), reset
+            if no_hand_frames > 15:
+                sequence_buffer.clear()
+                prediction_history.clear()
+                prediction_text = "Show a sign"
+                confidence_text = ""
+                prob_lines = []
+
+        if hands_visible and len(sequence_buffer) == NUM_FRAMES:
             seq = np.array(sequence_buffer, dtype=np.float32)
             seq = _normalize_landmarks(seq)
             if USE_VELOCITY:
@@ -174,6 +189,7 @@ def run_webcam():
                         f"Conf: {conf:.1%} | Smooth: {len(prediction_history)}"
                     )
                 else:
+                    prediction_history.clear()
                     prediction_text = "..."
                     confidence_text = (
                         f"Low conf: {conf:.1%} (< {CONFIDENCE_THRESHOLD:.0%})"
