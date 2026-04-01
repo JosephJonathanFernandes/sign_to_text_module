@@ -11,6 +11,8 @@ import torch.nn.functional as F
 from config import (
     DEVICE, ENSEMBLE_DIR, PROCESSED_DIR,
     MODEL_SAVE_PATH,
+    INPUT_SIZE,
+    FRAME_FEAT_DIM, PROXIMITY_FEAT_DIM, PROXIMITY_INDEX,
 )
 from model import SignLanguageGRU
 
@@ -31,6 +33,18 @@ def _tta_augment(seq: np.ndarray) -> np.ndarray:
     scale = np.random.uniform(0.96, 1.04)
     seq *= scale
     return seq
+
+
+def _align_sequence_dim(seq: np.ndarray) -> np.ndarray:
+    """Pad/truncate sequence feature dimension to current INPUT_SIZE."""
+    feat_dim = seq.shape[1]
+    if feat_dim == INPUT_SIZE:
+        return seq
+    if feat_dim > INPUT_SIZE:
+        return seq[:, :INPUT_SIZE]
+
+    pad = np.zeros((seq.shape[0], INPUT_SIZE - feat_dim), dtype=np.float32)
+    return np.concatenate([seq, pad], axis=1)
 
 
 def load_ensemble():
@@ -76,12 +90,19 @@ def load_ensemble():
     if models:
         if classes is None:
             classes = current_classes
-        print(f"[Ensemble] Loaded {len(models)} fold models, {len(classes)} classes")
+        print(
+            f"[Ensemble] Loaded {len(models)} fold models, "
+            f"{len(classes)} classes"
+        )
         return models, classes, len(classes)
 
     # Fallback: single model
     if os.path.exists(MODEL_SAVE_PATH):
-        ckpt = torch.load(MODEL_SAVE_PATH, map_location=DEVICE, weights_only=False)
+        ckpt = torch.load(
+            MODEL_SAVE_PATH,
+            map_location=DEVICE,
+            weights_only=False,
+        )
         num_classes = ckpt["num_classes"]
         model = SignLanguageGRU(num_classes=num_classes).to(DEVICE)
         model.load_state_dict(ckpt["model_state_dict"])
@@ -89,7 +110,10 @@ def load_ensemble():
         classes = ckpt.get("classes")
         if classes is None or sorted(classes) != current_classes:
             classes = current_classes
-        print(f"[Ensemble] Fallback: loaded single model, {len(classes)} classes")
+        print(
+            f"[Ensemble] Fallback: loaded single model, "
+            f"{len(classes)} classes"
+        )
         return [model], classes, num_classes
 
     raise FileNotFoundError(
@@ -123,9 +147,15 @@ def ensemble_predict(
             tta_seqs.append(_tta_augment(sequence))
 
     for seq in tta_seqs:
+        seq = _align_sequence_dim(seq)
         tensor = torch.from_numpy(seq).unsqueeze(0).float().to(DEVICE)
+        if PROXIMITY_FEAT_DIM > 0 and tensor.shape[-1] >= FRAME_FEAT_DIM:
+            proximity = tensor[:, :, PROXIMITY_INDEX]
+        else:
+            proximity = None
+
         for model in models:
-            logits = model(tensor)
+            logits = model(tensor, proximity=proximity)
             probs = F.softmax(logits, dim=1)
             all_probs.append(probs.cpu().numpy()[0])
 

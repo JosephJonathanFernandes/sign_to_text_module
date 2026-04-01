@@ -10,7 +10,6 @@ import time
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from sklearn.model_selection import (
     StratifiedShuffleSplit, StratifiedKFold,
@@ -89,7 +88,10 @@ def create_data_loaders() -> tuple:
             n_splits=1, test_size=VAL_SPLIT, random_state=RANDOM_SEED
         )
         train_idx, val_idx = next(splitter.split(np.zeros(total)))
-        print("[Data] Using non-stratified split (some classes have <2 samples)")
+        print(
+            "[Data] Using non-stratified split "
+            "(some classes have <2 samples)"
+        )
 
     # Wrap with augmentation + oversampling for train, plain for val
     train_ds = _BalancedAugSubset(full_ds, train_idx.tolist())
@@ -116,9 +118,21 @@ def create_data_loaders() -> tuple:
         train_labels, full_ds.num_classes,
     )
 
-    print(f"[Data] Train: {len(train_ds)} (balanced+aug) | Val: {len(val_idx)}")
-    print(f"[Data] Class weights: {[f'{w:.2f}' for w in class_weights.tolist()]}")
-    return train_loader, val_loader, full_ds.num_classes, class_weights, full_ds
+    print(
+        f"[Data] Train: {len(train_ds)} (balanced+aug) "
+        f"| Val: {len(val_idx)}"
+    )
+    print(
+        "[Data] Class weights: "
+        f"{[f'{w:.2f}' for w in class_weights.tolist()]}"
+    )
+    return (
+        train_loader,
+        val_loader,
+        full_ds.num_classes,
+        class_weights,
+        full_ds,
+    )
 
 
 class _BalancedAugSubset(torch.utils.data.Dataset):
@@ -164,9 +178,10 @@ class _BalancedAugSubset(torch.utils.data.Dataset):
         real_idx = self.balanced_indices[idx]
         fpath, label = self.parent.samples[real_idx]
         seq = np.load(fpath).astype(np.float32)
-        seq = ISLDataset._augment(seq)
+        seq, proximity = ISLDataset._prepare_sequence(seq, augment=True)
         return (
             torch.from_numpy(seq),
+            torch.from_numpy(proximity),
             torch.tensor(label, dtype=torch.long),
         )
 
@@ -185,8 +200,10 @@ class _PlainSubset(torch.utils.data.Dataset):
         import numpy as np
         fpath, label = self.parent.samples[self.indices[idx]]
         seq = np.load(fpath).astype(np.float32)
+        seq, proximity = ISLDataset._prepare_sequence(seq, augment=False)
         return (
             torch.from_numpy(seq),
+            torch.from_numpy(proximity),
             torch.tensor(label, dtype=torch.long),
         )
 
@@ -198,14 +215,15 @@ def train_one_epoch(
     optimizer: torch.optim.Optimizer,
     use_mixup: bool = True,
 ) -> tuple:
-    """Train for one epoch with optional Mixup. Returns (avg_loss, accuracy%)."""
+    """Train one epoch with optional Mixup; return (loss, accuracy%)."""
     model.train()
     running_loss = 0.0
     correct = 0
     total = 0
 
-    for sequences, labels in loader:
+    for sequences, proximity, labels in loader:
         sequences = sequences.to(DEVICE)
+        proximity = proximity.to(DEVICE)
         labels = labels.to(DEVICE)
 
         optimizer.zero_grad()
@@ -220,7 +238,7 @@ def train_one_epoch(
             correct += (lam * (preds == y_a).float().sum().item()
                         + (1 - lam) * (preds == y_b).float().sum().item())
         else:
-            logits = model(sequences)
+            logits = model(sequences, proximity=proximity)
             loss = criterion(logits, labels)
             preds = logits.argmax(dim=1)
             correct += (preds == labels).sum().item()
@@ -252,11 +270,12 @@ def validate(
     correct = 0
     total = 0
 
-    for sequences, labels in loader:
+    for sequences, proximity, labels in loader:
         sequences = sequences.to(DEVICE)
+        proximity = proximity.to(DEVICE)
         labels = labels.to(DEVICE)
 
-        logits = model(sequences)
+        logits = model(sequences, proximity=proximity)
         loss = criterion(logits, labels)
 
         running_loss += loss.item() * sequences.size(0)
@@ -368,8 +387,11 @@ def train(
     print(f"[Train] Model saved to: {MODEL_SAVE_PATH}")
 
     # Load best weights
-    ckpt = torch.load(MODEL_SAVE_PATH, map_location=DEVICE,
-                       weights_only=False)
+    ckpt = torch.load(
+        MODEL_SAVE_PATH,
+        map_location=DEVICE,
+        weights_only=False,
+    )
     model.load_state_dict(ckpt["model_state_dict"])
 
     return model
@@ -428,7 +450,9 @@ def _train_fold(
 
     for epoch in range(1, NUM_EPOCHS + 1):
         t0 = time.time()
-        tr_loss, tr_acc = train_one_epoch(model, train_loader, criterion, optimizer)
+        tr_loss, tr_acc = train_one_epoch(
+            model, train_loader, criterion, optimizer
+        )
         va_loss, va_acc = validate(model, val_loader, criterion)
         scheduler.step(epoch)
         elapsed = time.time() - t0
@@ -490,7 +514,10 @@ def train_kfold() -> list:
             n_splits=NUM_FOLDS, shuffle=True, random_state=RANDOM_SEED
         )
         split_iter = kf.split(np.zeros(len(labels)))
-        print(f"[KFold] Using plain K-fold (min class count={min_class_count} < {NUM_FOLDS})")
+        print(
+            "[KFold] Using plain K-fold "
+            f"(min class count={min_class_count} < {NUM_FOLDS})"
+        )
 
     fold_accs = []
     all_val_correct = 0
@@ -508,7 +535,10 @@ def train_kfold() -> list:
 
     for fold, (train_idx, val_idx) in enumerate(split_iter):
         save_path = os.path.join(ENSEMBLE_DIR, f"fold_{fold}.pth")
-        print(f"--- Fold {fold} ---  train={len(train_idx)}  val={len(val_idx)}")
+        print(
+            f"--- Fold {fold} ---  "
+            f"train={len(train_idx)}  val={len(val_idx)}"
+        )
 
         best_acc = _train_fold(
             full_ds, train_idx, val_idx, num_classes, fold, save_path,
@@ -522,10 +552,13 @@ def train_kfold() -> list:
     avg_acc = np.mean(fold_accs)
     overall_acc = 100.0 * all_val_correct / all_val_total
     print(f"{'='*60}")
-    print(f"  K-Fold Results")
+    print("  K-Fold Results")
     print(f"  Per-fold accuracies: {[f'{a:.1f}%' for a in fold_accs]}")
     print(f"  Mean accuracy:       {avg_acc:.2f}%")
-    print(f"  Overall accuracy:    {overall_acc:.2f}%  ({all_val_correct}/{all_val_total})")
+    print(
+        f"  Overall accuracy:    {overall_acc:.2f}%  "
+        f"({all_val_correct}/{all_val_total})"
+    )
     print(f"  Models saved to:     {ENSEMBLE_DIR}/")
     print(f"{'='*60}")
 

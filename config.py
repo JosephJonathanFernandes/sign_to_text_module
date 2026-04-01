@@ -20,17 +20,32 @@ NUM_LANDMARKS = 21           # MediaPipe hand landmarks
 NUM_COORDS = 3               # x, y, z per landmark
 NUM_HANDS = 2                # Both hands captured (right slot 0, left slot 1)
 LANDMARK_DIM = NUM_LANDMARKS * NUM_COORDS          # 63  — per hand
-FRAME_FEAT_DIM = LANDMARK_DIM * NUM_HANDS          # 126 — both hands per frame
+RAW_FRAME_FEAT_DIM = LANDMARK_DIM * NUM_HANDS      # 126 — raw hands per frame
+USE_FACE_RELATIVE = True      # Append hand coords relative to face anchors
+REL_FRAME_FEAT_DIM = RAW_FRAME_FEAT_DIM if USE_FACE_RELATIVE else 0
+PROXIMITY_FEAT_DIM = 1 if USE_FACE_RELATIVE else 0
+FRAME_FEAT_DIM = (
+    RAW_FRAME_FEAT_DIM + REL_FRAME_FEAT_DIM + PROXIMITY_FEAT_DIM
+)
+PROXIMITY_INDEX = FRAME_FEAT_DIM - 1 if PROXIMITY_FEAT_DIM else -1
 USE_VELOCITY = True           # Append frame-to-frame deltas
-INPUT_SIZE = FRAME_FEAT_DIM * 2 if USE_VELOCITY else FRAME_FEAT_DIM  # 252 or 126
+INPUT_SIZE = FRAME_FEAT_DIM * 2 if USE_VELOCITY else FRAME_FEAT_DIM
 VIDEO_EXTENSIONS = (".mp4", ".mov", ".avi", ".mkv")
 HAND_LANDMARKER_MODEL = os.path.join(BASE_DIR, "hand_landmarker.task")
+FACE_LANDMARKER_MODEL = os.path.join(BASE_DIR, "face_landmarker.task")
+FACE_NOSE_INDEX = 1
+FACE_LEFT_EYE_INDEX = 33
+FACE_RIGHT_EYE_INDEX = 263
+DEBUG_DRAW_FACE_CENTER = True
 
 # ─── Model ───────────────────────────────────────────────────────────
 HIDDEN_SIZE = 64
 NUM_LAYERS = 1
 BIDIRECTIONAL = True
 DROPOUT = 0.40
+USE_FACE_PROXIMITY_ATTENTION = True
+PROXIMITY_SIGMA = 0.10
+LEARNABLE_PROXIMITY_SIGMA = False
 
 # ─── Training ────────────────────────────────────────────────────────
 BATCH_SIZE = 4
@@ -50,8 +65,7 @@ NUM_THREADS = 4               # Adjust based on your CPU core count
 torch.set_num_threads(NUM_THREADS)
 
 # ─── Webcam ──────────────────────────────────────────────────────
-WEBCAM_RECORD_FRAMES = 90      # Raw frames to capture (~3s at 30fps)
-                                # Uniformly sub-sampled to NUM_FRAMES
+WEBCAM_RECORD_FRAMES = 90      # Raw frames to capture, then sub-sample
 WEBCAM_COUNTDOWN = 3           # Countdown seconds before recording
 
 # ─── Prediction ────────────────────────────────────────────────

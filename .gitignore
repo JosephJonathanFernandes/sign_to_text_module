@@ -16,6 +16,7 @@ model_image.pth
 ensemble/
 ensemble_image/
 hand_landmarker.task
+face_landmarker.task
 
 # Dataset videos (too large for git)
 Dataset/

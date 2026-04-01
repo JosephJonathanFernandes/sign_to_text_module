@@ -3,7 +3,7 @@ Data collection tool -- record new training samples via webcam.
 
 Usage:
     python collect_data.py                      # interactive class menu
-    python collect_data.py --class happy        # go straight to recording 'happy'
+    python collect_data.py --class happy        # record class directly
     python collect_data.py --class happy --n 10 # record 10 samples of 'happy'
 
 Each recording:
@@ -17,19 +17,23 @@ so you can retrain immediately after collecting.
 """
 
 import os
-import sys
 import cv2
 import time
 import numpy as np
 import mediapipe as mp
 
 from config import (
-    NUM_FRAMES, NUM_LANDMARKS, NUM_COORDS, NUM_HANDS,
-    LANDMARK_DIM, FRAME_FEAT_DIM,
+    NUM_FRAMES, NUM_HANDS,
     USE_VELOCITY, PROCESSED_DIR,
     WEBCAM_RECORD_FRAMES, WEBCAM_COUNTDOWN,
 )
-from preprocess import _normalize_landmarks, _add_velocity, create_landmarker
+from preprocess import (
+    _normalize_landmarks,
+    _add_velocity,
+    create_landmarker,
+    create_face_landmarker,
+    extract_landmarks_with_face_relative,
+)
 
 # Colors for OpenCV
 GREEN = (0, 255, 0)
@@ -61,30 +65,42 @@ def _draw_hand(frame, hand_lm, w, h):
             cv2.line(frame, pts[i], pts[j], (0, 200, 0), 2)
 
 
-def _extract_landmarks(landmarker, frame):
-    feat_dim = FRAME_FEAT_DIM
+def _extract_landmarks(
+    landmarker,
+    holistic,
+    frame,
+    face_cache,
+    frame_idx,
+    face_detect_interval=3,
+):
+    """Extract landmarks with face caching for speed.
+
+    Face detection runs only every N frames (cached between).
+    """
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+
+    # Hand detection every frame (critical)
     result = landmarker.detect(mp_image)
 
-    vec = np.zeros(feat_dim, dtype=np.float32)
+    # Face detection only every N frames
+    face_landmarks = None
+    if holistic is not None and frame_idx % face_detect_interval == 0:
+        face_result = holistic.detect(mp_image)
+        if face_result.face_landmarks:
+            face_landmarks = face_result.face_landmarks[0]
+            face_cache['landmarks'] = face_landmarks
+            face_cache['frame_idx'] = frame_idx
+    else:
+        face_landmarks = face_cache.get('landmarks')
+
+    vec = extract_landmarks_with_face_relative(
+        frame=frame,
+        hand_result=result,
+        face_landmarks=face_landmarks,
+    )
     all_hands = result.hand_landmarks
     hand_lm = all_hands[0] if all_hands else None
-
-    hand_slots = {"Right": 0, "Left": 1}
-    for hand, handedness_list in zip(
-        result.hand_landmarks,
-        result.handedness,
-    ):
-        label = handedness_list[0].display_name  # "Right" or "Left"
-        slot = hand_slots.get(label, 0)
-        start = slot * LANDMARK_DIM
-        coords = []
-        for lm in hand:
-            coords.extend([lm.x, lm.y, lm.z])
-        vec[start:start + LANDMARK_DIM] = np.array(
-            coords, dtype=np.float32
-        )
 
     return vec, all_hands, hand_lm
 
@@ -165,8 +181,11 @@ def record_samples(cls_name, num_samples=None):
         print(f"[Collect] Target: {num_samples} new samples")
     print()
 
-    # MediaPipe landmarker (shared settings)
-    landmarker = create_landmarker(num_hands=NUM_HANDS)
+    # MediaPipe landmarker (optimized for real-time)
+    landmarker = create_landmarker(num_hands=NUM_HANDS, for_webcam=True)
+    holistic = create_face_landmarker(for_webcam=True)
+    face_cache = {}
+    frame_idx = 0
 
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
@@ -183,7 +202,7 @@ def record_samples(cls_name, num_samples=None):
 
     print("Controls:")
     if auto_mode:
-        print("  Auto mode enabled: recording continues until target is reached")
+        print("  Auto mode enabled: recording until target is reached")
         print("  SPACE  - (optional) restart countdown manually")
     else:
         print("  SPACE  - Start recording a sample")
@@ -204,7 +223,14 @@ def record_samples(cls_name, num_samples=None):
         now = time.time()
 
         # Detect hand
-        vec, all_hands, hand_lm = _extract_landmarks(landmarker, frame)
+        vec, all_hands, hand_lm = _extract_landmarks(
+            landmarker,
+            holistic,
+            frame,
+            face_cache,
+            frame_idx,
+            face_detect_interval=3,
+        )
         for hand in all_hands:
             _draw_hand(frame, hand, w, h)
 
@@ -342,9 +368,12 @@ def record_samples(cls_name, num_samples=None):
         )
 
         if state == "IDLE":
+            idle_hint = "SPACE: Record | Q: Quit"
+            if auto_mode:
+                idle_hint = "AUTO: Recording loop | Q: Quit"
             cv2.putText(
                 frame,
-                "SPACE: Record | Q: Quit" if not auto_mode else "AUTO: Recording loop | Q: Quit",
+                idle_hint,
                 (10, h - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.4, GREEN, 1,
             )
 
@@ -358,8 +387,12 @@ def record_samples(cls_name, num_samples=None):
             countdown_start = time.time()
             print(f"  [REC] Countdown {WEBCAM_COUNTDOWN}s...")
 
+        frame_idx += 1
+
     cap.release()
     landmarker.close()
+    if holistic is not None:
+        holistic.close()
     cv2.destroyAllWindows()
 
     total_final = existing_count + saved
