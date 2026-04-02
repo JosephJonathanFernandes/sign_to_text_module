@@ -1,11 +1,11 @@
-"""
-Live webcam ISL recognition -- rolling-window prediction via landmarks.
+"""Live webcam ISL recognition with continuous automatic translation.
 
-Uses a continuous sliding window of NUM_FRAMES and predicts every frame.
-Stability is improved with majority voting over recent predictions.
+Automatically translates sign sequences into sentences in real-time.
+No keyboard input needed - signs are recognized and sentences build automatically.
+Sentences auto-complete after ~2 seconds of no new signs.
 
 Controls:
-    Q/ESC  - Quit
+    Q/ESC  - Quit (only control needed)
 """
 
 import cv2
@@ -26,6 +26,7 @@ from preprocess import (
     create_face_landmarker,
     extract_landmarks_with_face_relative,
 )
+from sentence_builder import SentenceBuilder
 
 
 # ── Hand landmark drawing connections ──
@@ -278,13 +279,22 @@ def run_webcam():
     prob_lines = []
     no_hand_frames = 0
     invalid_pair_frames = 0
+    
+    # ── Sentence Builder (continuous translation) ──
+    sentence_builder = SentenceBuilder(
+        confidence_threshold=CONFIDENCE_THRESHOLD,
+        stability_frames=6,  # Reduced from 12 for faster response (~0.2s at 30fps)
+        auto_sentence_timeout=75  # ~2.5 seconds at 30fps
+    )
+    last_displayed_word = None
 
-    print("\n=== ISL Sign Language Recognition ===")
+    print("\n=== ISL Sign Language Recognition (Continuous, Automatic Translation) ===")
     print(f"  Sliding window: {NUM_FRAMES} frames")
-    print(f"  Smoothing window: {PREDICTION_SMOOTHING_WINDOW} predictions")
     print(f"  Confidence threshold: {CONFIDENCE_THRESHOLD:.0%}")
-    print("  Q/ESC  - Quit")
-    print("=====================================\n")
+    print(f"  Word stability: {sentence_builder.stability_frames} frames")
+    print(f"  Auto-sentence timeout: {sentence_builder.auto_sentence_timeout} frames (~{sentence_builder.auto_sentence_timeout/30:.1f}s)")
+    print(f"  ➜ Just sign! No keyboard input needed (Q/ESC to quit)")
+    print("=======================================================================")
 
     while True:
         ret, frame = cap.read()
@@ -434,6 +444,18 @@ def run_webcam():
                         f"Low conf: {conf:.1%} (< {CONFIDENCE_THRESHOLD:.0%})"
                     )
 
+                # Update sentence builder (continuous translation)
+                result = sentence_builder.update(prediction_text, conf)
+                added_word = result.get('added_word')
+                completed_sentence = result.get('completed_sentence')
+                
+                if added_word and added_word != last_displayed_word:
+                    print(f"📝 Added: {added_word}")
+                    last_displayed_word = added_word
+                
+                if completed_sentence:
+                    print(f"✅ Sentence: {completed_sentence}")
+
                 top5 = sorted(
                     enumerate(probs), key=lambda x: -x[1],
                 )[:5]
@@ -470,10 +492,58 @@ def run_webcam():
                 cv2.FONT_HERSHEY_SIMPLEX, 0.35, WHITE, 1,
             )
 
+        # ── Full translation display (top of screen) ──
+        display_info = sentence_builder.get_display_text()
+        current_sentence = display_info['sentence'] if display_info['sentence'] else "(signing...)"
+        completed_sentences = sentence_builder.completed_sentences
+        
+        # Build full translation text: completed sentences + current
+        full_translation_parts = completed_sentences + [current_sentence]
+        full_translation = " ".join(full_translation_parts).strip()
+        if not full_translation or full_translation == "(signing...)":
+            full_translation = "👂 Listening to your signs..."
+        
+        # Main translation display (top of screen - prominent)
+        overlay_top = frame.copy()
+        top_panel_h = 80
+        cv2.rectangle(overlay_top, (10, 10), (w - 10, 10 + top_panel_h), BLACK, -1)
+        cv2.addWeighted(overlay_top, 0.7, frame, 0.3, 0, frame)
+        
+        cv2.putText(
+            frame, "Real-time Translation:",
+            (20, 30),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.5, CYAN, 1,
+        )
+        
+        # Wrap and display full translation
+        max_chars_per_line = 90
+        lines = []
+        remaining = full_translation
+        while len(remaining) > max_chars_per_line:
+            lines.append(remaining[:max_chars_per_line])
+            remaining = remaining[max_chars_per_line:]
+        if remaining:
+            lines.append(remaining)
+        
+        for idx, line in enumerate(lines[:2]):  # Show up to 2 lines
+            y_offset = 50 + idx * 18
+            cv2.putText(
+                frame, line,
+                (20, y_offset),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.45, YELLOW, 1,
+            )
+        
+        if len(lines) > 2:
+            cv2.putText(
+                frame, f"... (+{len(lines)-2} more lines)",
+                (20, 50 + 2*18),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.35, YELLOW, 1,
+            )
+
         cv2.putText(
             frame,
-            f"Window: {len(sequence_buffer)}/{NUM_FRAMES} | Q: Quit",
-            (10, h - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.4, GREEN, 1,
+            f"Sens: {sentence_builder.frames_since_last_word}/{sentence_builder.auto_sentence_timeout}  Sentences: {len(completed_sentences)}",
+            (10, h - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.35, GREEN, 1,
         )
 
         if not hands_visible:
@@ -513,7 +583,9 @@ def run_webcam():
         cv2.imshow("ISL Sign Recognition", frame)
 
         key = cv2.waitKey(1) & 0xFF
-        if key == ord("q") or key == 27:
+        
+        # ── Keyboard controls (minimal) ──
+        if key == ord("q") or key == 27:  # Q/ESC - Quit
             break
 
         frame_idx += 1
@@ -523,6 +595,21 @@ def run_webcam():
     if holistic is not None:
         holistic.close()
     cv2.destroyAllWindows()
+    
+    # Show final translation summary
+    all_parts = sentence_builder.completed_sentences.copy()
+    if sentence_builder.current_sentence.strip():
+        all_parts.append(sentence_builder.current_sentence.strip())
+    
+    if all_parts:
+        full_text = " ".join(all_parts)
+        print(f"\n{'='*70}")
+        print(f"📝 FINAL TRANSLATION ({len(sentence_builder.completed_sentences)} completed + current)")
+        print(f"{'='*70}")
+        print(f"{full_text}")
+        print(f"{'='*70}\n")
+    else:
+        print("\nNo translation recorded.")
     print("Webcam closed.")
 
 
