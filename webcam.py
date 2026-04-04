@@ -18,6 +18,11 @@ from config import (
     DEBUG_DRAW_FACE_CENTER,
     USE_VELOCITY, CONFIDENCE_THRESHOLD,
     PREDICTION_SMOOTHING_WINDOW,
+    MOTION_GATING_ENABLED, MOTION_THRESHOLD,
+    MOTION_SMOOTHING, IDLE_CONFIDENCE_THRESHOLD,
+    DYNAMIC_THRESHOLD_ENABLED, MOTION_BOOST_FACTOR,
+    STABILITY_BOOST_FACTOR, DYNAMIC_THRESHOLD_MIN,
+    TRANSITION_HYSTERESIS,
 )
 from preprocess import (
     _normalize_landmarks,
@@ -92,6 +97,87 @@ def _wrist_point_px(hand_landmarks, w, h):
     """Return wrist landmark (id=0) in pixels."""
     wrist = hand_landmarks[0]
     return int(wrist.x * w), int(wrist.y * h)
+
+
+def _calculate_hand_motion(wrist_pos, wrist_history, motion_magnitude):
+    """Calculate exponential moving average of hand motion velocity.
+    
+    Args:
+        wrist_pos: Current wrist position (x, y)
+        wrist_history: Deque of recent wrist positions
+        motion_magnitude: Previous motion EMA value
+    
+    Returns:
+        Updated motion magnitude (normalized motion velocity)
+    """
+    if not wrist_history:
+        return motion_magnitude
+    
+    last_pos = wrist_history[-1]
+    dx = wrist_pos[0] - last_pos[0]
+    dy = wrist_pos[1] - last_pos[1]
+    current_motion = (dx**2 + dy**2)**0.5
+    
+    # Exponential moving average
+    new_motion = MOTION_SMOOTHING * current_motion + (1 - MOTION_SMOOTHING) * motion_magnitude
+    return new_motion
+
+
+def _calculate_dynamic_threshold(motion_magnitude, stability_counter, is_transition):
+    """Calculate adaptive confidence threshold based on motion and stability.
+    
+    Args:
+        motion_magnitude: Current hand motion velocity
+        stability_counter: Frames stable at current prediction
+        is_transition: Whether in transition detection phase
+    
+    Returns:
+        Effective confidence threshold to use
+    """
+    if not DYNAMIC_THRESHOLD_ENABLED:
+        return CONFIDENCE_THRESHOLD
+    
+    threshold = CONFIDENCE_THRESHOLD
+    
+    # Boost threshold temporarily during transitions (require high confidence)
+    if is_transition:
+        threshold += TRANSITION_HYSTERESIS
+    
+    # Reduce threshold when motion is detected (high motion = easier to detect)
+    if motion_magnitude > MOTION_THRESHOLD:
+        motion_ratio = min(motion_magnitude / (MOTION_THRESHOLD * 2), 1.0)
+        threshold -= MOTION_BOOST_FACTOR * motion_ratio
+    
+    # Reduce threshold as sign becomes more stable
+    if stability_counter > 2:
+        stability_ratio = min(stability_counter / 8.0, 1.0)
+        threshold -= STABILITY_BOOST_FACTOR * stability_ratio
+    
+    # Floor to minimum threshold
+    return max(threshold, DYNAMIC_THRESHOLD_MIN)
+
+
+def _is_motion_gating_active(motion_magnitude, frames_in_motion):
+    """Determine if we should gate (suppress) predictions based on motion.
+    
+    Args:
+        motion_magnitude: Current hand motion EMA
+        frames_in_motion: Consecutive frames with motion
+    
+    Returns:
+        True if should suppress predictions (no motion detected)
+    """
+    if not MOTION_GATING_ENABLED:
+        return False
+    
+    # Consider motion active if recent motion magnitude exceeds threshold
+    # OR if we've seen motion recently (momentum)
+    has_current_motion = motion_magnitude > MOTION_THRESHOLD
+    has_recent_motion = frames_in_motion > 0
+    
+    # Gate (suppress) when NO motion at all
+    return not (has_current_motion or has_recent_motion)
+
 
 
 def _detect_person_boxes(frame, hog_detector):
@@ -280,6 +366,14 @@ def run_webcam():
     no_hand_frames = 0
     invalid_pair_frames = 0
     
+    # ── Motion Tracking (for gating & dynamic thresholds) ──
+    wrist_history = deque(maxlen=3)  # Recent wrist positions for motion calculation
+    motion_magnitude = 0.0  # Exponential moving average of hand motion
+    frames_in_motion = 0  # Consecutive frames with motion detected
+    effective_threshold = CONFIDENCE_THRESHOLD  # Dynamically adjusted threshold
+    last_output_prediction = None  # For transition hysteresis
+    prediction_stability_counter = 0  # Frames with stable prediction
+    
     # ── Sentence Builder (continuous translation) ──
     sentence_builder = SentenceBuilder(
         confidence_threshold=CONFIDENCE_THRESHOLD,
@@ -290,9 +384,13 @@ def run_webcam():
 
     print("\n=== ISL Sign Language Recognition (Continuous, Automatic Translation) ===")
     print(f"  Sliding window: {NUM_FRAMES} frames")
-    print(f"  Confidence threshold: {CONFIDENCE_THRESHOLD:.0%}")
+    print(f"  Base confidence threshold: {CONFIDENCE_THRESHOLD:.0%}")
     print(f"  Word stability: {sentence_builder.stability_frames} frames")
     print(f"  Auto-sentence timeout: {sentence_builder.auto_sentence_timeout} frames (~{sentence_builder.auto_sentence_timeout/30:.1f}s)")
+    if MOTION_GATING_ENABLED:
+        print(f"  ✓ Motion gating ENABLED (motion threshold: {MOTION_THRESHOLD:.1f}px)")
+    if DYNAMIC_THRESHOLD_ENABLED:
+        print(f"  ✓ Dynamic thresholds ENABLED (motion boost: {MOTION_BOOST_FACTOR:.0%}, stability boost: {STABILITY_BOOST_FACTOR:.0%})")
     print(f"  ➜ Just sign! No keyboard input needed (Q/ESC to quit)")
     print("=======================================================================")
 
@@ -359,6 +457,27 @@ def run_webcam():
                 left_owner_ids.append(owner)
             elif label == "Right":
                 right_owner_ids.append(owner)
+        
+        # ── Motion Tracking ──
+        # Use first wrist point if available, or track motion for all hands
+        if wrist_points:
+            # Average wrist position if both hands present
+            avg_wrist = (
+                (sum(p[0] for p in wrist_points) / len(wrist_points),
+                 sum(p[1] for p in wrist_points) / len(wrist_points))
+            )
+            motion_magnitude = _calculate_hand_motion(
+                avg_wrist, wrist_history, motion_magnitude
+            )
+            wrist_history.append(avg_wrist)
+            
+            # Track motion momentum
+            if motion_magnitude > MOTION_THRESHOLD:
+                frames_in_motion = 5  # Reset momentum counter
+            else:
+                frames_in_motion = max(0, frames_in_motion - 1)
+        else:
+            frames_in_motion = max(0, frames_in_motion - 1)
 
         matched_person_id = None
         for left_id in left_owner_ids:
@@ -428,20 +547,50 @@ def run_webcam():
                     models, seq, use_tta=False,
                 )
                 predicted = classes[idx] if idx < len(classes) else "?"
+                
+                # ── Dynamic Threshold Calculation ──
+                is_transition = (last_output_prediction is not None and 
+                                predicted != last_output_prediction)
+                effective_threshold = _calculate_dynamic_threshold(
+                    motion_magnitude, prediction_stability_counter, is_transition
+                )
+                
+                # ── Motion Gating ──
+                motion_gated = _is_motion_gating_active(motion_magnitude, frames_in_motion)
+                
+                # ── Transition Hysteresis ──
+                meets_threshold = conf >= effective_threshold
+                if last_output_prediction is not None and is_transition:
+                    # Require extra confidence to switch predictions
+                    meets_threshold = conf >= (effective_threshold + TRANSITION_HYSTERESIS)
 
-                if conf >= CONFIDENCE_THRESHOLD:
+                if meets_threshold and not motion_gated:
+                    # Valid prediction detected
+                    if predicted == last_output_prediction:
+                        prediction_stability_counter += 1
+                    else:
+                        prediction_stability_counter = 1
+                        last_output_prediction = predicted
+                    
                     prediction_history.append(predicted.upper())
                     prediction_text = Counter(
                         prediction_history
                     ).most_common(1)[0][0]
                     confidence_text = (
-                        f"Conf: {conf:.1%} | Smooth: {len(prediction_history)}"
+                        f"Conf: {conf:.1%} | Motion: {motion_magnitude:.1f} | Stable: {prediction_stability_counter}"
                     )
                 else:
+                    # Prediction rejected
+                    if motion_gated:
+                        reason = "Motion gated"
+                    else:
+                        reason = f"Low conf (>{effective_threshold:.0%})"
+                    
                     prediction_history.clear()
+                    prediction_stability_counter = 0
                     prediction_text = "..."
                     confidence_text = (
-                        f"Low conf: {conf:.1%} (< {CONFIDENCE_THRESHOLD:.0%})"
+                        f"Rejected: {reason} | Conf: {conf:.1%}"
                     )
 
                 # Update sentence builder (continuous translation)

@@ -19,6 +19,7 @@ from mediapipe.tasks.python.vision import (
 )
 from config import (
     DATASET_DIR, PROCESSED_DIR, NUM_FRAMES,
+    WEBCAM_WIDTH, WEBCAM_HEIGHT, CROP_TO_WEBCAM_SIZE,
     NUM_LANDMARKS, NUM_COORDS, NUM_HANDS,
     LANDMARK_DIM, RAW_FRAME_FEAT_DIM, FRAME_FEAT_DIM,
     PROXIMITY_FEAT_DIM,
@@ -100,6 +101,37 @@ def create_holistic():
 
 # Internal alias kept for backward compat
 _create_landmarker = create_landmarker
+
+
+def _crop_frame_to_webcam_size(frame, target_w=WEBCAM_WIDTH, target_h=WEBCAM_HEIGHT):
+    """
+    Center-crop frame to webcam size (640x480) for training/inference consistency.
+    
+    If frame is smaller than target, it's resized instead to maintain aspect ratio.
+    This ensures all frames processed by MediaPipe have consistent geometry.
+    
+    Args:
+        frame: Input frame (h, w, 3)
+        target_w: Target width (640)
+        target_h: Target height (480)
+    
+    Returns:
+        Cropped/resized frame (target_h, target_w, 3)
+    """
+    if frame is None:
+        return None
+    
+    h, w = frame.shape[:2]
+    
+    # If frame is smaller than target, resize to fit
+    if w < target_w or h < target_h:
+        return cv2.resize(frame, (target_w, target_h), interpolation=cv2.INTER_LINEAR)
+    
+    # Center-crop to target size
+    x_offset = (w - target_w) // 2
+    y_offset = (h - target_h) // 2
+    
+    return frame[y_offset:y_offset + target_h, x_offset:x_offset + target_w]
 
 
 def _extract_face_anchor(face_landmarks):
@@ -282,6 +314,9 @@ def extract_hand_landmarks(
         ret, frame = cap.read()
         if not ret:
             break
+        # Crop frames to webcam size for consistency
+        if CROP_TO_WEBCAM_SIZE:
+            frame = _crop_frame_to_webcam_size(frame)
         frames.append(frame)
     cap.release()
 

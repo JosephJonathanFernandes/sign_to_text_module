@@ -3,10 +3,12 @@ Sentence builder for continuous sign language translation.
 
 Automatically tracks predictions and builds sentences as signs are recognized.
 Detects sign transitions and adds words without manual intervention.
+Includes NLP post-processing (grammar, punctuation, normalization).
 """
 
 from collections import deque
 from typing import Optional, List, Tuple
+from nlp_postprocessor import NLPPostProcessor
 
 
 class SentenceBuilder:
@@ -53,11 +55,30 @@ class SentenceBuilder:
         # Auto-complete tracking
         self.frames_since_last_word = 0
         
+        # ── Better Transition Logic ──
+        self.prediction_history_window = deque(maxlen=10)  # Track recent predictions for smoothing
+        self.idle_frames = 0  # Count frames in idle state
+        self.last_transition_frame = -1000  # Frame when last word was added
+        self.min_frame_gap_between_words = 5  # Minimum frames between word additions
+        
+        # ── NLP Post-Processing ──
+        self.nlp_processor = NLPPostProcessor(
+            grammar_enabled=True,
+            punctuation_enabled=True,
+            normalization_enabled=True
+        )
+        
     def update(self, 
                prediction: str, 
                confidence: float) -> dict:
         """
-        Update with new frame prediction.
+        Update with new frame prediction with improved transition logic.
+        
+        Features:
+        - Smooth jittery predictions using majority voting
+        - Enforce minimum frame gap between words
+        - Detect genuine transitions vs noise
+        - Track idle vs active signing states
         
         Returns:
             Dict with:
@@ -68,37 +89,69 @@ class SentenceBuilder:
         added_word = None
         completed_sentence = None
         
+        # Track idle state
+        if prediction == "...":
+            self.idle_frames += 1
+        else:
+            self.idle_frames = 0
+        
         # Ignore low-confidence predictions
         if confidence < self.confidence_threshold:
             prediction = "..."
+        
+        # Build prediction history for smoothing
+        self.prediction_history_window.append((prediction, confidence))
+        
+        # ── Smo othed prediction using majority voting (reduces jitter) ──
+        if len(self.prediction_history_window) >= 3:
+            recent_preds = [p for p, _ in list(self.prediction_history_window)[-3:]]
+            from collections import Counter
+            smoothed_pred = Counter(recent_preds).most_common(1)[0][0]
+        else:
+            smoothed_pred = prediction
         
         # Check for auto-sentence completion (timeout after no new words)
         if self.words:
             self.frames_since_last_word += 1
             if self.frames_since_last_word >= self.auto_sentence_timeout:
                 # Auto-complete and start new sentence
-                completed_sentence = self.current_sentence.strip()
+                raw_sentence = self.current_sentence.strip()
+                # Apply NLP post-processing before storing
+                completed_sentence = self.nlp_processor.process(raw_sentence, is_sentence_end=True)
                 self.completed_sentences.append(completed_sentence)
                 self.words.clear()
                 self._rebuild_sentence()
                 self.frames_since_last_word = 0
         
-        # New prediction detected
-        if prediction != self.current_word:
-            # Finalize previous sign if it was stable and different
+        # ── Improved Transition Logic ──
+        # Use smoothed prediction for transition detection
+        if smoothed_pred != self.current_word:
+            # Ignore transitions from/to idle unless very certain
+            if smoothed_pred == "..." or self.current_word == "...":
+                # Transitioning from/to idle: require more stability
+                min_stability = max(self.stability_frames + 2, 10)
+            else:
+                # Word-to-word transition: normal stability
+                min_stability = self.stability_frames
+            
+            # Finalize previous sign if stable and genuinely different
             if (self.current_word is not None and 
                 self.current_word != "..." and 
-                self.stability_counter >= self.stability_frames and
+                self.stability_counter >= min_stability and
                 self.current_word != self.last_added_word):
                 
-                added_word = self._add_word(self.current_word)
-                self.last_added_word = self.current_word
-                if added_word:
-                    self.last_word_added_frame = self.total_frames
-                    self.frames_since_last_word = 0
+                # Enforce minimum frame gap between words
+                frames_since_last = self.total_frames - self.last_word_added_frame
+                if frames_since_last >= self.min_frame_gap_between_words:
+                    added_word = self._add_word(self.current_word)
+                    self.last_added_word = self.current_word
+                    if added_word:
+                        self.last_word_added_frame = self.total_frames
+                        self.frames_since_last_word = 0
+                        self.last_transition_frame = self.total_frames
             
             # Start tracking new sign
-            self.current_word = prediction
+            self.current_word = smoothed_pred
             self.current_confidence = confidence
             self.stability_counter = 1
             self.transition_ready = False
@@ -138,6 +191,47 @@ class SentenceBuilder:
         """Rebuild full sentence text from word list."""
         self.current_sentence = " ".join(self.words)
     
+    def is_confusable_pair(self, word1: Optional[str], word2: Optional[str]) -> bool:
+        """Check if two words are easily confused (similar signs).
+        
+        These pairs typically need stricter thresholds during transitions.
+        """
+        if not word1 or not word2 or word1 == word2:
+            return False
+        
+        # Define similar/confusing word pairs
+        confusable = {
+            ("idle", "i"), ("i", "idle"),
+            ("good", "beautiful"), ("beautiful", "good"),
+            ("sad", "deaf"), ("deaf", "sad"),
+            ("loud", "you"), ("you", "loud"), ("ugly", "beautiful"), ("beautiful", "ugly"), ("thankyou", "happy"), ("happy", "thankyou")
+        }
+        
+        pair = (word1.lower(), word2.lower())
+        return pair in confusable
+    
+    def get_transition_requirement(self, prev_word: Optional[str], next_word: Optional[str]) -> float:
+        """
+        Get confidence requirement multiplier for transition between words.
+        
+        Args:
+            prev_word: Previous word (can be None or "...")
+            next_word: Next word being considered
+            
+        Returns:
+            Multiplier to apply to base threshold (1.0 = normal, 1.2 = 20% stricter)
+        """
+        if not prev_word or prev_word == "...":
+            return 1.0  # Starting new sign - normal threshold
+        
+        if not next_word or next_word == "...":
+            return 1.2  # Transitioning to idle - stricter (avoid false negatives)
+        
+        if self.is_confusable_pair(prev_word, next_word):
+            return 1.3  # Very strict for confusable pairs
+        
+        return 1.0  # Normal word-to-word transition
+    
     def undo_word(self) -> Optional[str]:
         """Remove last word from sentence."""
         if not self.words:
@@ -173,15 +267,19 @@ class SentenceBuilder:
     
     def save_sentence(self) -> str:
         """
-        Finalize and return complete sentence.
+        Finalize and return complete sentence with post-processing.
         
         Returns:
-            Complete sentence string
+            Post-processed sentence string
         """
-        return self.current_sentence.strip()
+        sentence = self.current_sentence.strip()
+        # Apply NLP post-processing
+        processed = self.nlp_processor.process(sentence, is_sentence_end=True)
+        return processed
     
     def get_stats(self) -> dict:
         """Get debugging stats."""
+        nlp_stats = self.nlp_processor.get_stats()
         return {
             'current_word': self.current_word,
             'stability': f"{self.stability_counter}/{self.stability_frames}",
@@ -189,6 +287,7 @@ class SentenceBuilder:
             'word_count': len(self.words),
             'sentence_length': len(self.current_sentence),
             'ready_to_transition': self.transition_ready,
+            'nlp_processing': nlp_stats,
         }
     
     def get_display_text(self) -> dict:
@@ -208,6 +307,35 @@ class SentenceBuilder:
             'confidence': f"{self.current_confidence:.0%}",
             'ready': self.transition_ready,
         }
+    
+    def set_nlp_grammar_enabled(self, enabled: bool) -> None:
+        """Enable/disable grammar correction."""
+        self.nlp_processor.grammar_corrector.enabled = enabled
+    
+    def set_nlp_punctuation_enabled(self, enabled: bool) -> None:
+        """Enable/disable automatic punctuation insertion."""
+        self.nlp_processor.punctuation_inserter.enabled = enabled
+    
+    def set_nlp_normalization_enabled(self, enabled: bool) -> None:
+        """Enable/disable text normalization."""
+        self.nlp_processor.text_normalizer.enabled = enabled
+    
+    def get_nlp_status(self) -> dict:
+        """Get current NLP post-processing status."""
+        return self.nlp_processor.get_stats()
+    
+    def preprocess_text(self, text: str, is_sentence_end: bool = False) -> str:
+        """
+        Apply NLP post-processing to raw text (useful for manual input).
+        
+        Args:
+            text: Raw text to process
+            is_sentence_end: Whether to insert punctuation
+        
+        Returns:
+            Processed text
+        """
+        return self.nlp_processor.process(text, is_sentence_end=is_sentence_end)
 
 
 class SentenceEditor:
