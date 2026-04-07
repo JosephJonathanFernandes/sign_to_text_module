@@ -54,7 +54,7 @@ LEARNABLE_PROXIMITY_SIGMA = False
 
 # ─── Training ────────────────────────────────────────────────────────
 BATCH_SIZE = 4
-NUM_EPOCHS = 40                # Increased from 25 (more stable convergence with small data)
+NUM_EPOCHS = 50                # Increased from 40 → 60 (more stable convergence with small data)
 LEARNING_RATE = 3e-4           # Reduced from 5e-4 (smaller LR for stability)
 WEIGHT_DECAY = 5e-4            # Increased from 3e-4 (stronger L2 regularization)
 LABEL_SMOOTHING = 0.15         # Increased from 0.1 (more label smoothing for robustness)
@@ -65,14 +65,26 @@ VAL_SPLIT = 0.2              # 80/20 train/val split
 RANDOM_SEED = 42
 
 # ─── Class Weights (for imbalanced data) ──────────────────────────────
-USE_CLASS_WEIGHTS = True       # NEW: Weight loss by inverse class frequency
-CLASS_WEIGHT_POWER = 0.7       # NEW: Smooth class weighting (1.0 = full inverse freq)
+USE_CLASS_WEIGHTS = True       # Weight loss by inverse class frequency
+CLASS_WEIGHT_POWER = 0.7       # Smooth class weighting (1.0 = full inverse freq)
+                               # Try: 0.5 (smoother), 0.7 (balanced), 1.0 (aggressive)
+
+# ─── Focal Loss (for hard sample mining) ─────────────────────────────
+USE_FOCAL_LOSS = True          # Use focal loss instead of cross-entropy
+FOCAL_ALPHA = 0.25             # Focal loss alpha (class weighting factor)
+FOCAL_GAMMA = 2.0              # Focal loss gamma (hard sample focus, 0=CE, 2.0=strong)
+
+# ─── Mixup & CutMix Augmentation ─────────────────────────────────────
+USE_MIXUP = True               # Apply mixup during training
+USE_CUTMIX = False             # Apply CutMix (disable if using mixup only)
+MIXUP_ALPHA = 0.3              # Beta distribution parameter for mixup
+MIXUP_PROB = 0.5               # Probability of applying mixup per batch
 
 # ─── Learning Rate Scheduling ─────────────────────────────────────────
-LR_SCHEDULER = "cosine"        # NEW: "cosine", "step", or "exponential"
-LR_DECAY_FACTOR = 0.1          # NEW: Factor for step scheduler
-LR_MIN = 1e-5                  # NEW: Minimum LR for cosine annealing
-WARMUP_EPOCHS = 2              # NEW: Linear warmup for first 2 epochs
+LR_SCHEDULER = "cosine"        # "cosine", "step", or "exponential"
+LR_DECAY_FACTOR = 0.1          # Factor for step scheduler
+LR_MIN = 1e-5                  # Minimum LR for cosine annealing
+WARMUP_EPOCHS = 2              # Linear warmup for first 2 epochs
 
 # ─── Device (CPU-only for Intel Iris Xe) ─────────────────────────────
 DEVICE = torch.device("cpu")

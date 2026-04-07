@@ -23,6 +23,8 @@ from config import (
     ENSEMBLE_DIR, NUM_FOLDS,
     USE_CLASS_WEIGHTS, CLASS_WEIGHT_POWER,
     LR_SCHEDULER, LR_DECAY_FACTOR, LR_MIN, WARMUP_EPOCHS,
+    USE_FOCAL_LOSS, FOCAL_ALPHA, FOCAL_GAMMA,
+    USE_MIXUP, USE_CUTMIX, MIXUP_ALPHA, MIXUP_PROB,
 )
 from dataset import ISLDataset
 from model import SignLanguageGRU
@@ -66,6 +68,58 @@ def mixup_criterion(criterion, logits, y_a, y_b, lam):
     """Loss for mixup: weighted sum of both targets."""
     return (lam * criterion(logits, y_a)
             + (1 - lam) * criterion(logits, y_b))
+
+
+# ── Focal Loss (for hard sample mining) ──────────────────────────────
+
+class FocalLoss(nn.Module):
+    """
+    Focal Loss for addressing class imbalance and hard samples.
+    Reduces loss weight for easy samples, focuses on hard negatives.
+    
+    Reference: Lin et al. "Focal Loss for Dense Object Detection" (RetinaNet)
+    """
+    def __init__(self, alpha=0.25, gamma=2.0, weight=None, reduction='mean'):
+        """
+        Args:
+            alpha: Weighting factor for rare class samples (0-1).
+                   0 = no weighting, 0.25 = moderate, 0.5 = heavy
+            gamma: Focusing parameter (0-5).
+                   0 = standard CE, 2.0 = strong focus on hard samples
+            weight: Class weights (from imbalanced dataset)
+            reduction: 'mean' or 'sum'
+        """
+        super(FocalLoss, self).__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.weight = weight
+        self.reduction = reduction
+    
+    def forward(self, inputs, targets):
+        """
+        Args:
+            inputs: (N, C) logits from model
+            targets: (N,) ground truth class indices
+        """
+        ce_loss = nn.functional.cross_entropy(
+            inputs, targets, weight=self.weight, reduction='none'
+        )
+        
+        # Get probability of true class
+        p_t = torch.exp(-ce_loss)
+        
+        # Focal weight: (1 - p_t) ^ gamma
+        focal_weight = (1 - p_t) ** self.gamma
+        
+        # Applied focal loss
+        focal_loss = self.alpha * focal_weight * ce_loss
+        
+        if self.reduction == 'mean':
+            return focal_loss.mean()
+        elif self.reduction == 'sum':
+            return focal_loss.sum()
+        else:
+            return focal_loss
 
 
 def create_data_loaders() -> tuple:
@@ -236,16 +290,18 @@ def train_one_epoch(
 
         optimizer.zero_grad()
 
-        if use_mixup and np.random.rand() < 0.5:
-            # Mixup 50% of batches
-            mixed_x, y_a, y_b, lam = mixup_data(sequences, labels, alpha=0.3)
-            logits = model(mixed_x)
+        # Apply Mixup or CutMix if enabled
+        if use_mixup and USE_MIXUP and np.random.rand() < MIXUP_PROB:
+            # Mixup: interpolate random training pairs
+            mixed_x, y_a, y_b, lam = mixup_data(sequences, labels, alpha=MIXUP_ALPHA)
+            logits = model(mixed_x, proximity=proximity)
             loss = mixup_criterion(criterion, logits, y_a, y_b, lam)
-            # Accuracy on original labels (approximate)
+            # Accuracy on original labels (approximate - weighted sum)
             preds = logits.argmax(dim=1)
             correct += (lam * (preds == y_a).float().sum().item()
                         + (1 - lam) * (preds == y_b).float().sum().item())
         else:
+            # Standard training
             logits = model(sequences, proximity=proximity)
             loss = criterion(logits, labels)
             preds = logits.argmax(dim=1)
@@ -313,10 +369,20 @@ def train(
     """
     model = SignLanguageGRU(num_classes=num_classes).to(DEVICE)
 
-    criterion = nn.CrossEntropyLoss(
-        weight=class_weights,
-        label_smoothing=LABEL_SMOOTHING,
-    )
+    # Select loss function (Focal Loss for hard sample mining, else CE)
+    if USE_FOCAL_LOSS:
+        criterion = FocalLoss(
+            alpha=FOCAL_ALPHA,
+            gamma=FOCAL_GAMMA,
+            weight=class_weights,
+            reduction='mean',
+        )
+    else:
+        criterion = nn.CrossEntropyLoss(
+            weight=class_weights,
+            label_smoothing=LABEL_SMOOTHING,
+        )
+    
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=LEARNING_RATE,
@@ -442,10 +508,21 @@ def _train_fold(
     )
 
     model = SignLanguageGRU(num_classes=num_classes).to(DEVICE)
-    criterion = nn.CrossEntropyLoss(
-        weight=class_weights,
-        label_smoothing=LABEL_SMOOTHING,
-    )
+    
+    # Select loss function (Focal Loss for hard sample mining, else CE)
+    if USE_FOCAL_LOSS:
+        criterion = FocalLoss(
+            alpha=FOCAL_ALPHA,
+            gamma=FOCAL_GAMMA,
+            weight=class_weights,
+            reduction='mean',
+        )
+    else:
+        criterion = nn.CrossEntropyLoss(
+            weight=class_weights,
+            label_smoothing=LABEL_SMOOTHING,
+        )
+    
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY,
     )
