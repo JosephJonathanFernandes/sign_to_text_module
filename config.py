@@ -54,15 +54,25 @@ LEARNABLE_PROXIMITY_SIGMA = False
 
 # ─── Training ────────────────────────────────────────────────────────
 BATCH_SIZE = 4
-NUM_EPOCHS = 25
-LEARNING_RATE = 5e-4
-WEIGHT_DECAY = 3e-4            # L2 regularization
-LABEL_SMOOTHING = 0.1          # Softens targets
-PATIENCE = 20                  # Early stopping patience
-SCHEDULER_PATIENCE = 7         # LR scheduler patience
+NUM_EPOCHS = 40                # Increased from 25 (more stable convergence with small data)
+LEARNING_RATE = 3e-4           # Reduced from 5e-4 (smaller LR for stability)
+WEIGHT_DECAY = 5e-4            # Increased from 3e-4 (stronger L2 regularization)
+LABEL_SMOOTHING = 0.15         # Increased from 0.1 (more label smoothing for robustness)
+PATIENCE = 15                  # Reduced from 20 (earlier stopping to prevent overfitting)
+SCHEDULER_PATIENCE = 5         # Reduced from 7 (more aggressive LR reduction)
 GRAD_CLIP = 1.0                # Gradient clipping max norm
 VAL_SPLIT = 0.2              # 80/20 train/val split
 RANDOM_SEED = 42
+
+# ─── Class Weights (for imbalanced data) ──────────────────────────────
+USE_CLASS_WEIGHTS = True       # NEW: Weight loss by inverse class frequency
+CLASS_WEIGHT_POWER = 0.7       # NEW: Smooth class weighting (1.0 = full inverse freq)
+
+# ─── Learning Rate Scheduling ─────────────────────────────────────────
+LR_SCHEDULER = "cosine"        # NEW: "cosine", "step", or "exponential"
+LR_DECAY_FACTOR = 0.1          # NEW: Factor for step scheduler
+LR_MIN = 1e-5                  # NEW: Minimum LR for cosine annealing
+WARMUP_EPOCHS = 2              # NEW: Linear warmup for first 2 epochs
 
 # ─── Device (CPU-only for Intel Iris Xe) ─────────────────────────────
 DEVICE = torch.device("cpu")

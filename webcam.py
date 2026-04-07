@@ -327,15 +327,15 @@ def run_webcam():
     """
 
     # ── Lazy model loading ──
-    word_models = word_classes = None
+    word_models = word_models_fallback = word_classes = None
 
     def ensure_word_models():
-        nonlocal word_models, word_classes
+        nonlocal word_models, word_models_fallback, word_classes
         if word_models is None:
-            print("Loading word models...")
-            from ensemble import load_ensemble
-            word_models, word_classes, _ = load_ensemble()
-        return word_models, word_classes
+            print("Loading merged 10+2 ensemble...")
+            from ensemble import load_merged_ensemble_10_2
+            word_models, word_models_fallback, word_classes, _ = load_merged_ensemble_10_2()
+        return word_models, word_models_fallback, word_classes
 
     try:
         ensure_word_models()
@@ -541,11 +541,14 @@ def run_webcam():
                 seq = _add_velocity(seq)
 
             try:
-                from ensemble import ensemble_predict
-                models, classes = ensure_word_models()
-                idx, conf, probs = ensemble_predict(
-                    models, seq, use_tta=False,
+                from ensemble import merged_ensemble_predict
+                main_models, fallback_models, classes = ensure_word_models()
+                result = merged_ensemble_predict(
+                    main_models, fallback_models, seq, use_tta=False,
                 )
+                idx = result['pred_idx']
+                conf = result['confidence']
+                probs = result['probs']
                 predicted = classes[idx] if idx < len(classes) else "?"
                 
                 # ── Dynamic Threshold Calculation ──

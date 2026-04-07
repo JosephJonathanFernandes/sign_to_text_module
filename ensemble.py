@@ -121,6 +121,115 @@ def load_ensemble():
     )
 
 
+def load_merged_ensemble_10_2():
+    """
+    Load merged 10+2 ensemble:
+    - Main ensemble: 5 old folds + 5 new folds (10 models)
+    - Fallback ensemble: 1 old single model + 1 new single model (2 models)
+    
+    Returns:
+        (main_models, fallback_models, classes, num_classes)
+    """
+    main_models = []
+    fallback_models = []
+    classes = None
+    
+    ensemble_old_dir = os.path.join(os.path.dirname(ENSEMBLE_DIR), "ensemble_old")
+    model_old_path = os.path.join(os.path.dirname(MODEL_SAVE_PATH), "model_old.pth")
+    
+    print("[Ensemble] Loading merged 10+2 ensemble...")
+    
+    # Load old folds (5 models)
+    if os.path.isdir(ensemble_old_dir):
+        print(f"  Loading old folds from {ensemble_old_dir}...")
+        old_fold_files = sorted([
+            f for f in os.listdir(ensemble_old_dir) if f.endswith(".pth")
+        ])
+        for fname in old_fold_files[:5]:  # Limit to 5
+            fpath = os.path.join(ensemble_old_dir, fname)
+            try:
+                ckpt = torch.load(fpath, map_location=DEVICE, weights_only=False)
+                num_classes = ckpt["num_classes"]
+                model = SignLanguageGRU(num_classes=num_classes).to(DEVICE)
+                model.load_state_dict(ckpt["model_state_dict"])
+                model.eval()
+                main_models.append(model)
+                if classes is None and "classes" in ckpt:
+                    classes = ckpt["classes"]
+                print(f"    ✓ {fname} (old)")
+            except Exception as e:
+                print(f"    ✗ {fname} - {e}")
+    
+    # Load new folds (5 models)
+    if os.path.isdir(ENSEMBLE_DIR):
+        print(f"  Loading new folds from {ENSEMBLE_DIR}...")
+        new_fold_files = sorted([
+            f for f in os.listdir(ENSEMBLE_DIR) if f.endswith(".pth")
+        ])
+        for fname in new_fold_files[:5]:  # Limit to 5
+            fpath = os.path.join(ENSEMBLE_DIR, fname)
+            try:
+                ckpt = torch.load(fpath, map_location=DEVICE, weights_only=False)
+                num_classes = ckpt["num_classes"]
+                model = SignLanguageGRU(num_classes=num_classes).to(DEVICE)
+                model.load_state_dict(ckpt["model_state_dict"])
+                model.eval()
+                main_models.append(model)
+                if classes is None and "classes" in ckpt:
+                    classes = ckpt["classes"]
+                print(f"    ✓ {fname} (new)")
+            except Exception as e:
+                print(f"    ✗ {fname} - {e}")
+    
+    # Load old fallback model
+    if os.path.exists(model_old_path):
+        print(f"  Loading old fallback from {model_old_path}...")
+        try:
+            ckpt = torch.load(model_old_path, map_location=DEVICE, weights_only=False)
+            num_classes = ckpt["num_classes"]
+            model = SignLanguageGRU(num_classes=num_classes).to(DEVICE)
+            model.load_state_dict(ckpt["model_state_dict"])
+            model.eval()
+            fallback_models.append(model)
+            if classes is None and "classes" in ckpt:
+                classes = ckpt["classes"]
+            print(f"    ✓ model_old.pth")
+        except Exception as e:
+            print(f"    ✗ model_old.pth - {e}")
+    
+    # Load new fallback model
+    if os.path.exists(MODEL_SAVE_PATH):
+        print(f"  Loading new fallback from {MODEL_SAVE_PATH}...")
+        try:
+            ckpt = torch.load(MODEL_SAVE_PATH, map_location=DEVICE, weights_only=False)
+            num_classes = ckpt["num_classes"]
+            model = SignLanguageGRU(num_classes=num_classes).to(DEVICE)
+            model.load_state_dict(ckpt["model_state_dict"])
+            model.eval()
+            fallback_models.append(model)
+            if classes is None and "classes" in ckpt:
+                classes = ckpt["classes"]
+            print(f"    ✓ model.pth")
+        except Exception as e:
+            print(f"    ✗ model.pth - {e}")
+    
+    if classes is None:
+        current_classes = sorted([
+            d for d in os.listdir(PROCESSED_DIR)
+            if os.path.isdir(os.path.join(PROCESSED_DIR, d))
+        ])
+        classes = current_classes
+    
+    if not main_models and not fallback_models:
+        raise FileNotFoundError("No models found for merged ensemble.")
+    
+    print(f"[Ensemble] Loaded {len(main_models)} main models + {len(fallback_models)} fallback models")
+    print(f"[Ensemble] Total: 10-model ensemble with 2-model fallback, {len(classes)} classes")
+    
+    return main_models, fallback_models, classes, len(classes)
+
+
+
 @torch.no_grad()
 def ensemble_predict(
     models: list,
@@ -165,3 +274,60 @@ def ensemble_predict(
     confidence = float(avg_probs[pred_idx])
 
     return pred_idx, confidence, avg_probs
+
+
+@torch.no_grad()
+def merged_ensemble_predict(
+    main_models: list,
+    fallback_models: list,
+    sequence: np.ndarray,
+    use_tta: bool = True,
+) -> dict:
+    """
+    Run merged 10+2 ensemble prediction.
+    
+    - Primary: predictions from 10-model main ensemble (5 old + 5 new folds)
+    - Fallback: predictions from 2-model fallback ensemble (old + new single models)
+    - Returns both for analysis and fallback capability
+    
+    Args:
+        main_models: list of 10 fold models (5 old + 5 new)
+        fallback_models: list of 2 single models (1 old + 1 new)
+        sequence: numpy array of shape (NUM_FRAMES, feat_dim)
+        use_tta: whether to apply test-time augmentation
+    
+    Returns:
+        dict with keys:
+        - 'main': (pred_idx, confidence, probs) from 10-model ensemble
+        - 'fallback': (pred_idx, confidence, probs) from 2-model ensemble
+        - 'pred_idx': final prediction index
+        - 'confidence': final confidence
+        - 'probs': final probability distribution
+    """
+    result = {}
+    
+    # Main ensemble prediction (10 models)
+    if main_models:
+        idx, conf, probs = ensemble_predict(main_models, sequence, use_tta=use_tta)
+        result['main'] = (idx, conf, probs)
+        result['pred_idx'] = idx
+        result['confidence'] = conf
+        result['probs'] = probs
+    else:
+        result['main'] = None
+    
+    # Fallback ensemble prediction (2 models)
+    if fallback_models:
+        idx, conf, probs = ensemble_predict(fallback_models, sequence, use_tta=use_tta)
+        result['fallback'] = (idx, conf, probs)
+        
+        # If main not available, use fallback
+        if 'pred_idx' not in result:
+            result['pred_idx'] = idx
+            result['confidence'] = conf
+            result['probs'] = probs
+    else:
+        result['fallback'] = None
+    
+    return result
+

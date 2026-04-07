@@ -21,6 +21,8 @@ from config import (
     WEIGHT_DECAY, LABEL_SMOOTHING, PATIENCE,
     SCHEDULER_PATIENCE, GRAD_CLIP,
     ENSEMBLE_DIR, NUM_FOLDS,
+    USE_CLASS_WEIGHTS, CLASS_WEIGHT_POWER,
+    LR_SCHEDULER, LR_DECAY_FACTOR, LR_MIN, WARMUP_EPOCHS,
 )
 from dataset import ISLDataset
 from model import SignLanguageGRU
@@ -31,12 +33,18 @@ def _compute_inverse_class_weights(
     num_classes: int,
 ) -> torch.Tensor:
     """
-    Compute inverse-frequency class weights:
-        w_c = 1 / count_c
+    Compute inverse-frequency class weights with configurable power:
+        w_c = (1 / count_c) ^ power
     Normalized so average weight ~= 1 for stable optimization.
+    
+    power=1.0: full inverse frequency (strong weighting)
+    power=0.7: smooth weighting (moderate)
+    power=0.0: uniform weights
     """
     class_counts = np.bincount(labels, minlength=num_classes)
-    class_weights = 1.0 / (class_counts + 1e-6)
+    # Apply power transformation for smoother weighting
+    class_weights = (1.0 / (class_counts.astype(float) + 1e-6)) ** CLASS_WEIGHT_POWER
+    # Normalize to have mean weight = 1
     class_weights = class_weights / class_weights.sum() * num_classes
     return torch.FloatTensor(class_weights).to(DEVICE)
 

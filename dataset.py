@@ -208,16 +208,36 @@ class ISLDataset(Dataset):
                     pos[:, 1] = y_rot
                     seq[f, start:end] = pos.flatten()
 
-        # 6) Time warping (30% chance)
+        # 6) Time warping (40% chance - increased from 30%)
         #    Slightly speed up or slow down by resampling frames
-        if np.random.rand() < 0.3:
-            warp = np.random.uniform(0.8, 1.2)
+        if np.random.rand() < 0.4:
+            warp = np.random.uniform(0.75, 1.25)  # Increased range
             new_len = max(int(num_frames * warp), num_frames)
             indices = np.linspace(0, num_frames - 1, new_len, dtype=int)
             warped = seq[indices]
-            # Resample back to original length
             re_idx = np.linspace(0, len(warped) - 1, num_frames, dtype=int)
             seq = warped[re_idx]
+
+        # 7) Per-hand coordinate dropout (20% chance) - NEW
+        #    Randomly zero out entire hand for some frames
+        if np.random.rand() < 0.2:
+            raw_dim = min(feat_dim, RAW_FRAME_FEAT_DIM)
+            hand_blocks = raw_dim // LANDMARK_DIM
+            for _ in range(np.random.randint(1, 2)):
+                hand_to_drop = np.random.randint(0, hand_blocks)
+                start = hand_to_drop * LANDMARK_DIM
+                end = start + LANDMARK_DIM
+                drop_frames = np.random.choice(num_frames, 
+                                              max(1, num_frames // 3), 
+                                              replace=False)
+                seq[drop_frames, start:end] = 0.0
+
+        # 8) Stronger noise on specific frames (25% chance) - NEW
+        if np.random.rand() < 0.25:
+            noise_frames = np.random.choice(num_frames, 
+                                           max(1, num_frames // 4), 
+                                           replace=False)
+            seq[noise_frames] += np.random.randn(len(noise_frames), feat_dim) * 0.03
 
         seq = ISLDataset._recompute_proximity(seq)
         return seq
@@ -305,3 +325,32 @@ class ISLDataset(Dataset):
             seq[1:, vel_col] = proximity[1:] - proximity[:-1]
 
         return seq
+
+    @staticmethod
+    def mixup(seq1: np.ndarray, seq2: np.ndarray, alpha: float = 0.2) -> np.ndarray:
+        """
+        Mixup augmentation: blend two sequences with random weight.
+        Creates synthetic training samples from convex combinations.
+        Applied during training with labels soft-mixed accordingly.
+        """
+        lam = np.random.beta(alpha, alpha)
+        mixed = lam * seq1 + (1 - lam) * seq2
+        return mixed.astype(np.float32)
+
+    @staticmethod
+    def cutmix(seq1: np.ndarray, seq2: np.ndarray, alpha: float = 0.2) -> np.ndarray:
+        """
+        CutMix augmentation: replace temporal region of seq1 with seq2.
+        Preserves temporal structure while mixing sequences.
+        """
+        num_frames = seq1.shape[0]
+        lam = np.random.beta(alpha, alpha)
+        cut_ratio = np.sqrt(1 - lam)
+        num_cut = max(1, int(num_frames * cut_ratio))
+        
+        cut_start = np.random.randint(0, num_frames - num_cut) if num_frames > num_cut else 0
+        cut_end = cut_start + num_cut
+        
+        mixed = seq1.copy()
+        mixed[cut_start:cut_end] = seq2[cut_start:cut_end]
+        return mixed.astype(np.float32)
