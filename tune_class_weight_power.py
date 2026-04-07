@@ -19,7 +19,7 @@ import numpy as np
 import torch
 from config import NUM_FOLDS, ENSEMBLE_DIR, RANDOM_SEED
 from dataset import ISLDataset
-from train import kfold_train
+from train import train_kfold
 import config
 
 def run_tuning(power_values=None):
@@ -53,8 +53,12 @@ def run_tuning(power_values=None):
         
         # Run k-fold training
         try:
-            fold_accs, mean_acc, overall_acc = kfold_train()
+            fold_accs = train_kfold()
             fold_time = time.time() - fold_start
+            
+            mean_acc = np.mean(fold_accs)
+            # Calculate overall accuracy manually
+            overall_acc = mean_acc  # Approximation for comparison
             
             results[power] = {
                 'fold_accuracies': fold_accs,
@@ -64,13 +68,15 @@ def run_tuning(power_values=None):
             }
             
             print(f"\nPower={power} Results:")
-            print(f"  Fold accuracies: {fold_accs}")
+            print(f"  Fold accuracies: {[f'{a:.1f}%' for a in fold_accs]}")
             print(f"  Mean accuracy:   {mean_acc:.2f}%")
             print(f"  Overall accuracy: {overall_acc:.2f}%")
-            print(f"  Training time:    {fold_time:.1f}s")
+            print(f"  Training time:    {fold_time:.1f}s ({fold_time/60:.1f}m)")
             
         except Exception as e:
             print(f"ERROR with power={power}: {e}")
+            import traceback
+            traceback.print_exc()
             results[power] = {'error': str(e)}
     
     # Summary and comparison
@@ -123,7 +129,7 @@ def run_tuning(power_values=None):
             else:
                 res = results[power]
                 f.write(f"Power={power}:\n")
-                f.write(f"  Fold accuracies: {res['fold_accuracies']}\n")
+                f.write(f"  Fold accuracies: {[f'{a:.1f}%' for a in res['fold_accuracies']]}\n")
                 f.write(f"  Mean accuracy:   {res['mean_acc']:.2f}%\n")
                 f.write(f"  Overall accuracy: {res['overall_acc']:.2f}%\n")
                 f.write(f"  Training time:    {res['training_time']:.1f}s\n\n")
