@@ -123,9 +123,8 @@ def load_ensemble():
 
 def load_merged_ensemble_10_2():
     """
-    Load merged 10+2 ensemble:
-    - Main ensemble: 5 old folds + 5 new folds (10 models)
-    - Fallback ensemble: 1 old single model + 1 new single model (2 models)
+    Load ensemble with 5-fold main + 1 single model fallback.
+    (Old models skipped due to feature dimension mismatch)
     
     Returns:
         (main_models, fallback_models, classes, num_classes)
@@ -134,35 +133,11 @@ def load_merged_ensemble_10_2():
     fallback_models = []
     classes = None
     
-    ensemble_old_dir = os.path.join(os.path.dirname(ENSEMBLE_DIR), "ensemble_old")
-    model_old_path = os.path.join(os.path.dirname(MODEL_SAVE_PATH), "model_old.pth")
+    print("[Ensemble] Loading ensemble...")
     
-    print("[Ensemble] Loading merged 10+2 ensemble...")
-    
-    # Load old folds (5 models)
-    if os.path.isdir(ensemble_old_dir):
-        print(f"  Loading old folds from {ensemble_old_dir}...")
-        old_fold_files = sorted([
-            f for f in os.listdir(ensemble_old_dir) if f.endswith(".pth")
-        ])
-        for fname in old_fold_files[:5]:  # Limit to 5
-            fpath = os.path.join(ensemble_old_dir, fname)
-            try:
-                ckpt = torch.load(fpath, map_location=DEVICE, weights_only=False)
-                num_classes = ckpt["num_classes"]
-                model = SignLanguageGRU(num_classes=num_classes).to(DEVICE)
-                model.load_state_dict(ckpt["model_state_dict"])
-                model.eval()
-                main_models.append(model)
-                if classes is None and "classes" in ckpt:
-                    classes = ckpt["classes"]
-                print(f"    ✓ {fname} (old)")
-            except Exception as e:
-                print(f"    ✗ {fname} - {e}")
-    
-    # Load new folds (5 models)
+    # Load new folds (5 models for main ensemble)
     if os.path.isdir(ENSEMBLE_DIR):
-        print(f"  Loading new folds from {ENSEMBLE_DIR}...")
+        print(f"  Loading fold models from {ENSEMBLE_DIR}...")
         new_fold_files = sorted([
             f for f in os.listdir(ENSEMBLE_DIR) if f.endswith(".pth")
         ])
@@ -177,29 +152,13 @@ def load_merged_ensemble_10_2():
                 main_models.append(model)
                 if classes is None and "classes" in ckpt:
                     classes = ckpt["classes"]
-                print(f"    ✓ {fname} (new)")
+                print(f"    ✓ {fname}")
             except Exception as e:
                 print(f"    ✗ {fname} - {e}")
     
-    # Load old fallback model
-    if os.path.exists(model_old_path):
-        print(f"  Loading old fallback from {model_old_path}...")
-        try:
-            ckpt = torch.load(model_old_path, map_location=DEVICE, weights_only=False)
-            num_classes = ckpt["num_classes"]
-            model = SignLanguageGRU(num_classes=num_classes).to(DEVICE)
-            model.load_state_dict(ckpt["model_state_dict"])
-            model.eval()
-            fallback_models.append(model)
-            if classes is None and "classes" in ckpt:
-                classes = ckpt["classes"]
-            print(f"    ✓ model_old.pth")
-        except Exception as e:
-            print(f"    ✗ model_old.pth - {e}")
-    
-    # Load new fallback model
+    # Load single fallback model
     if os.path.exists(MODEL_SAVE_PATH):
-        print(f"  Loading new fallback from {MODEL_SAVE_PATH}...")
+        print(f"  Loading fallback model from {MODEL_SAVE_PATH}...")
         try:
             ckpt = torch.load(MODEL_SAVE_PATH, map_location=DEVICE, weights_only=False)
             num_classes = ckpt["num_classes"]
@@ -221,10 +180,9 @@ def load_merged_ensemble_10_2():
         classes = current_classes
     
     if not main_models and not fallback_models:
-        raise FileNotFoundError("No models found for merged ensemble.")
+        raise FileNotFoundError("No models found for ensemble.")
     
-    print(f"[Ensemble] Loaded {len(main_models)} main models + {len(fallback_models)} fallback models")
-    print(f"[Ensemble] Total: 10-model ensemble with 2-model fallback, {len(classes)} classes")
+    print(f"[Ensemble] Loaded {len(main_models)} main models + {len(fallback_models)} fallback, {len(classes)} classes")
     
     return main_models, fallback_models, classes, len(classes)
 
