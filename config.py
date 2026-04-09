@@ -66,7 +66,7 @@ RANDOM_SEED = 42
 
 # ─── Class Weights (for imbalanced data) ──────────────────────────────
 USE_CLASS_WEIGHTS = True       # Weight loss by inverse class frequency
-CLASS_WEIGHT_POWER = 0.7       # Smooth class weighting (1.0 = full inverse freq)
+CLASS_WEIGHT_POWER = 1.0       # Smooth class weighting (1.0 = full inverse freq)
                                # Try: 0.5 (smoother), 0.7 (balanced), 1.0 (aggressive)
 
 # ─── Focal Loss (for hard sample mining) ─────────────────────────────

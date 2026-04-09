@@ -1,0 +1,258 @@
+Training Configuration Tuning Results
+Timestamp: 2026-04-08 00:24:57
+Total time: 26528.3s (442.1m)
+Configurations tested: 18
+Successful: 18, Failed: 0
+======================================================================
+
+Ranked Results (by mean accuracy):
+
+  Rank  Config             Mean Acc   Std Dev    Min-Max        
+  ----------------------------------------------------------------------
+  1     CE|Mxp0.5|FG2.0     72.98%  ± 2.39%   69.0%- 75.3%
+  2     CE|Mxp0.3|FG2.0     72.76%  ± 4.53%   67.9%- 81.0%
+  3     FL|Mxp0.5|FG3.0     72.28%  ± 4.37%   67.1%- 78.6%
+  4     FL|Mxp0.7|FG3.0     72.03%  ± 2.25%   67.9%- 74.1%
+  5     FL|Mxp0.3|FG1.0     72.03%  ± 5.81%   60.7%- 76.5%
+  6     CE|Mxp0.3|FG3.0     71.80%  ± 3.91%   65.5%- 76.2%
+  7     FL|Mxp0.3|FG2.0     71.80%  ± 4.19%   65.5%- 76.2%
+  8     CE|Mxp0.5|FG1.0     71.79%  ± 3.62%   66.7%- 76.2%
+  9     CE|Mxp0.7|FG3.0     71.33%  ± 3.61%   65.5%- 76.2%
+  10    FL|Mxp0.7|FG1.0     71.32%  ± 2.10%   67.9%- 74.1%
+  11    FL|Mxp0.3|FG3.0     71.10%  ± 3.19%   66.7%- 76.2%
+  12    CE|Mxp0.5|FG3.0     71.08%  ± 3.46%   64.3%- 73.8%
+  13    CE|Mxp0.7|FG2.0     70.61%  ± 3.84%   64.3%- 75.3%
+  14    FL|Mxp0.5|FG1.0     70.39%  ± 4.33%   64.3%- 76.2%
+  15    CE|Mxp0.3|FG1.0     70.15%  ± 4.57%   63.1%- 76.2%
+  16    FL|Mxp0.7|FG2.0     69.91%  ± 4.98%   63.1%- 77.4%
+  17    FL|Mxp0.5|FG2.0     69.90%  ± 2.67%   65.5%- 72.6%
+  18    CE|Mxp0.7|FG1.0     68.94%  ± 6.25%   60.7%- 76.5%
+
+
+Detailed Results:
+======================================================================
+
+Configuration: CE|Mxp0.5|FG2.0
+  Settings:
+    USE_FOCAL_LOSS: False
+    MIXUP_PROB:     0.5
+    FOCAL_GAMMA:    2.0
+  Results:
+    Fold accuracies: ['74.1%', '75.3%', '75.0%', '69.0%', '71.4%']
+    Mean accuracy:   72.98%
+    Std dev:         2.39%
+    Min/Max:         69.05% / 75.29%
+    Training time:   692.1s
+
+Configuration: CE|Mxp0.3|FG2.0
+  Settings:
+    USE_FOCAL_LOSS: False
+    MIXUP_PROB:     0.3
+    FOCAL_GAMMA:    2.0
+  Results:
+    Fold accuracies: ['72.9%', '69.4%', '72.6%', '67.9%', '81.0%']
+    Mean accuracy:   72.76%
+    Std dev:         4.53%
+    Min/Max:         67.86% / 80.95%
+    Training time:   902.0s
+
+Configuration: FL|Mxp0.5|FG3.0
+  Settings:
+    USE_FOCAL_LOSS: True
+    MIXUP_PROB:     0.5
+    FOCAL_GAMMA:    3.0
+  Results:
+    Fold accuracies: ['75.3%', '67.1%', '78.6%', '67.9%', '72.6%']
+    Mean accuracy:   72.28%
+    Std dev:         4.37%
+    Min/Max:         67.06% / 78.57%
+    Training time:   705.3s
+
+Configuration: FL|Mxp0.7|FG3.0
+  Settings:
+    USE_FOCAL_LOSS: True
+    MIXUP_PROB:     0.7
+    FOCAL_GAMMA:    3.0
+  Results:
+    Fold accuracies: ['71.8%', '74.1%', '72.6%', '67.9%', '73.8%']
+    Mean accuracy:   72.03%
+    Std dev:         2.25%
+    Min/Max:         67.86% / 74.12%
+    Training time:   546.2s
+
+Configuration: FL|Mxp0.3|FG1.0
+  Settings:
+    USE_FOCAL_LOSS: True
+    MIXUP_PROB:     0.3
+    FOCAL_GAMMA:    1.0
+  Results:
+    Fold accuracies: ['72.9%', '76.5%', '76.2%', '60.7%', '73.8%']
+    Mean accuracy:   72.03%
+    Std dev:         5.81%
+    Min/Max:         60.71% / 76.47%
+    Training time:   11590.4s
+
+Configuration: CE|Mxp0.3|FG3.0
+  Settings:
+    USE_FOCAL_LOSS: False
+    MIXUP_PROB:     0.3
+    FOCAL_GAMMA:    3.0
+  Results:
+    Fold accuracies: ['72.9%', '69.4%', '75.0%', '65.5%', '76.2%']
+    Mean accuracy:   71.80%
+    Std dev:         3.91%
+    Min/Max:         65.48% / 76.19%
+    Training time:   1081.1s
+
+Configuration: FL|Mxp0.3|FG2.0
+  Settings:
+    USE_FOCAL_LOSS: True
+    MIXUP_PROB:     0.3
+    FOCAL_GAMMA:    2.0
+  Results:
+    Fold accuracies: ['74.1%', '68.2%', '76.2%', '65.5%', '75.0%']
+    Mean accuracy:   71.80%
+    Std dev:         4.19%
+    Min/Max:         65.48% / 76.19%
+    Training time:   996.2s
+
+Configuration: CE|Mxp0.5|FG1.0
+  Settings:
+    USE_FOCAL_LOSS: False
+    MIXUP_PROB:     0.5
+    FOCAL_GAMMA:    1.0
+  Results:
+    Fold accuracies: ['75.3%', '71.8%', '76.2%', '66.7%', '69.0%']
+    Mean accuracy:   71.79%
+    Std dev:         3.62%
+    Min/Max:         66.67% / 76.19%
+    Training time:   726.8s
+
+Configuration: CE|Mxp0.7|FG3.0
+  Settings:
+    USE_FOCAL_LOSS: False
+    MIXUP_PROB:     0.7
+    FOCAL_GAMMA:    3.0
+  Results:
+    Fold accuracies: ['70.6%', '70.6%', '76.2%', '65.5%', '73.8%']
+    Mean accuracy:   71.33%
+    Std dev:         3.61%
+    Min/Max:         65.48% / 76.19%
+    Training time:   671.0s
+
+Configuration: FL|Mxp0.7|FG1.0
+  Settings:
+    USE_FOCAL_LOSS: True
+    MIXUP_PROB:     0.7
+    FOCAL_GAMMA:    1.0
+  Results:
+    Fold accuracies: ['74.1%', '70.6%', '72.6%', '67.9%', '71.4%']
+    Mean accuracy:   71.32%
+    Std dev:         2.10%
+    Min/Max:         67.86% / 74.12%
+    Training time:   911.1s
+
+Configuration: FL|Mxp0.3|FG3.0
+  Settings:
+    USE_FOCAL_LOSS: True
+    MIXUP_PROB:     0.3
+    FOCAL_GAMMA:    3.0
+  Results:
+    Fold accuracies: ['70.6%', '69.4%', '76.2%', '66.7%', '72.6%']
+    Mean accuracy:   71.10%
+    Std dev:         3.19%
+    Min/Max:         66.67% / 76.19%
+    Training time:   1220.5s
+
+Configuration: CE|Mxp0.5|FG3.0
+  Settings:
+    USE_FOCAL_LOSS: False
+    MIXUP_PROB:     0.5
+    FOCAL_GAMMA:    3.0
+  Results:
+    Fold accuracies: ['72.9%', '71.8%', '73.8%', '64.3%', '72.6%']
+    Mean accuracy:   71.08%
+    Std dev:         3.46%
+    Min/Max:         64.29% / 73.81%
+    Training time:   684.7s
+
+Configuration: CE|Mxp0.7|FG2.0
+  Settings:
+    USE_FOCAL_LOSS: False
+    MIXUP_PROB:     0.7
+    FOCAL_GAMMA:    2.0
+  Results:
+    Fold accuracies: ['75.3%', '69.4%', '73.8%', '64.3%', '70.2%']
+    Mean accuracy:   70.61%
+    Std dev:         3.84%
+    Min/Max:         64.29% / 75.29%
+    Training time:   699.2s
+
+Configuration: FL|Mxp0.5|FG1.0
+  Settings:
+    USE_FOCAL_LOSS: True
+    MIXUP_PROB:     0.5
+    FOCAL_GAMMA:    1.0
+  Results:
+    Fold accuracies: ['70.6%', '67.1%', '76.2%', '64.3%', '73.8%']
+    Mean accuracy:   70.39%
+    Std dev:         4.33%
+    Min/Max:         64.29% / 76.19%
+    Training time:   1551.6s
+
+Configuration: CE|Mxp0.3|FG1.0
+  Settings:
+    USE_FOCAL_LOSS: False
+    MIXUP_PROB:     0.3
+    FOCAL_GAMMA:    1.0
+  Results:
+    Fold accuracies: ['71.8%', '67.1%', '76.2%', '63.1%', '72.6%']
+    Mean accuracy:   70.15%
+    Std dev:         4.57%
+    Min/Max:         63.10% / 76.19%
+    Training time:   833.3s
+
+Configuration: FL|Mxp0.7|FG2.0
+  Settings:
+    USE_FOCAL_LOSS: True
+    MIXUP_PROB:     0.7
+    FOCAL_GAMMA:    2.0
+  Results:
+    Fold accuracies: ['71.8%', '65.9%', '77.4%', '63.1%', '71.4%']
+    Mean accuracy:   69.91%
+    Std dev:         4.98%
+    Min/Max:         63.10% / 77.38%
+    Training time:   847.0s
+
+Configuration: FL|Mxp0.5|FG2.0
+  Settings:
+    USE_FOCAL_LOSS: True
+    MIXUP_PROB:     0.5
+    FOCAL_GAMMA:    2.0
+  Results:
+    Fold accuracies: ['71.8%', '68.2%', '72.6%', '65.5%', '71.4%']
+    Mean accuracy:   69.90%
+    Std dev:         2.67%
+    Min/Max:         65.48% / 72.62%
+    Training time:   1218.1s
+
+Configuration: CE|Mxp0.7|FG1.0
+  Settings:
+    USE_FOCAL_LOSS: False
+    MIXUP_PROB:     0.7
+    FOCAL_GAMMA:    1.0
+  Results:
+    Fold accuracies: ['76.5%', '69.4%', '75.0%', '63.1%', '60.7%']
+    Mean accuracy:   68.94%
+    Std dev:         6.25%
+    Min/Max:         60.71% / 76.47%
+    Training time:   651.7s
+
+
+RECOMMENDED CONFIGURATION:
+======================================================================
+Config: CE|Mxp0.5|FG2.0
+USE_FOCAL_LOSS = False
+MIXUP_PROB = 0.5
+FOCAL_GAMMA = 2.0
+Mean Accuracy: 72.98% ± 2.39%
