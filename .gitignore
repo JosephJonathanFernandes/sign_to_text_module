@@ -10,10 +10,7 @@ build/
 venv/
 
 # Processed data & model artifacts
-processed/
-model.pth
 model_image.pth
-ensemble/
 ensemble_image/
 hand_landmarker.task
 face_landmarker.task
