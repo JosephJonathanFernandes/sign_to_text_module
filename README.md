@@ -4,25 +4,29 @@ Real-time Indian Sign Language word recognition using hand landmarks and a BiGRU
 
 ## Features
 
-- Video preprocessing into landmark sequences
-- Single model training and K-fold ensemble training
-- Live webcam inference
-- Webcam data collection for new samples
-- Runtime signer validation for webcam mode:
-  - Supports both one-hand and two-hand signs
-  - Tries to ensure two detected hands belong to the same person
-  - Shows on-screen status and bounding boxes for debugging
+- **Advanced landmark extraction:** Hand + face-relative features (506 dims per frame)
+- **BiGRU + Attention model** with face-proximity biased attention weighting
+- **Single model training and K-fold ensemble** (5 models, 95.83% accuracy)
+- **Live webcam inference** with real-time sentence construction
+- **Automatic sentence building** — signs accumulate into coherent text with NLP post-processing
+- **Webcam data collection** for new samples
+- **Runtime signer validation:**
+  - Detects and validates both hands belong to same person (IoU-based)
+  - Shows on-screen bounding boxes and confidence scores
+- **Advanced augmentation:** Mixup, CutMix, noise, scale/rotation jitter
+- **Loss functions:** Focal Loss (hard sample mining) + class-weighted Cross-Entropy
+- **NLP post-processing:** Grammar correction, punctuation insertion, text normalization
+- **Motion gating & dynamic thresholds** — adaptive confidence based on hand velocity
 
-## Current Classes
+## Sign Classes (56+)
 
-- loud
-- quiet
-- happy
-- sad
-- beautiful
-- ugly
-- deaf
-- blind
+**Pronouns:** I, he, she, it, we, you, you all, they
+
+**Adjectives:** beautiful, ugly, loud, quiet, happy, sad, deaf, blind, nice, rich, poor, thick, thin, expensive, cheap, flat, curved, male, female, tight, loose
+
+**Greetings:** Hello, How are you, Alright, Good Morning, Good afternoon, Good evening, Good night
+
+**Other:** Thank you, Pleased, Good, Idle, Morning
 
 ## Requirements
 
@@ -43,15 +47,21 @@ Minimal packages in requirements:
 
 ## Project Layout
 
-- main.py: Main CLI entry
-- preprocess.py: Video to landmark preprocessing
-- dataset.py: Dataset loading utilities
-- model.py: Model architecture
-- train.py: Training routines
-- ensemble.py: Ensemble loading/inference
-- webcam.py: Live webcam prediction
-- collect_data.py: Webcam sample collection
-- config.py: Settings and constants
+- **main.py** — CLI entry point & orchestration  
+- **preprocess.py** — Video to landmark preprocessing (MediaPipe extraction)
+- **dataset.py** — PyTorch dataset with on-the-fly augmentation & oversampling
+- **model.py** — BiGRU + Attention architecture
+- **train.py** — Training loop, K-fold cross-validation, loss functions
+- **ensemble.py** — K-fold ensemble loading & test-time augmentation
+- **webcam.py** — Live webcam prediction with signer validation
+- **sentence_builder.py** — Continuous sign→text conversion with word smoothing
+- **nlp_postprocessor.py** — Grammar correction, punctuation, normalization  
+- **collect_data.py** — Webcam sample collection utility
+- **config.py** — Hyperparameters & settings
+- **model.pth** — Trained single model checkpoint
+- **ensemble/fold_*.pth** — 5 K-fold ensemble model checkpoints
+- **Dataset/** — Raw video files organized by class
+- **processed/** — Preprocessed landmark .npy files (20 frames × 506 dims)
 
 ## Quick Start
 
@@ -95,6 +105,41 @@ Direct class mode:
 ```bash
 python main.py --collect --cls happy --n 10
 ```
+
+## Model Architecture
+
+**BiGRU + Attention with Face-Proximity Weighting**
+
+```
+Input (20 frames × 506 features)
+  ├─ Raw coordinates: 126 dims (21 landmarks × 3 coords × 2 hands)
+  ├─ Face-relative coordinates: 126 dims
+  ├─ Proximity score: 1 dim
+  └─ Velocity (deltas): ×2 all above
+    ↓
+LayerNorm + FC projection
+    ↓
+Bidirectional GRU (64 hidden, 40% dropout)
+    ↓
+Face-Proximity Attention (learnable soft attention with biased weighting)
+    ↓
+FC classifier (56 classes)
+    ↓
+Output logits
+```
+
+**Key Technical Features:**
+- **Focal Loss** (γ=2.0) — Focuses on hard-to-classify samples
+- **Class-weighted loss** — Handles imbalanced data using inverse frequency
+- **Mixup augmentation** (α=0.3) — Blends training samples for regularization
+- **Face-proximity biased attention** — Frames with hands near face weighted higher
+- **Motion gating** — Dynamically adjusts confidence based on hand velocity
+- **Label smoothing** (15%) — Prevents overconfident predictions
+
+## Performance
+
+- **K-Fold Ensemble:** **95.83% mean accuracy** (506 dims, 5 models averaged)
+- **Real-time webcam:** ~30 FPS on Intel Iris Xe GPU
 
 ## Webcam Signer Validation (What You Will See)
 
