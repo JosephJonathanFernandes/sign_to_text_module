@@ -32,6 +32,8 @@ from preprocess import (
     extract_landmarks_with_face_relative,
 )
 from sentence_builder import SentenceBuilder
+from temporal_postprocessor import TemporalPostProcessor
+from hand_selector import HandSelector
 
 
 # ── Hand landmark drawing connections ──
@@ -382,17 +384,42 @@ def run_webcam():
     )
     last_displayed_word = None
 
+    # ── Temporal Post-Processor (confidence-weighted smoothing + anti-flicker) ──
+    from ensemble import load_merged_ensemble_10_2
+    try:
+        _, _, word_classes, _ = load_merged_ensemble_10_2()
+        temporal_postprocessor = TemporalPostProcessor(
+            num_classes=len(word_classes),
+            smoothing_window=7,  # Frames for confidence averaging
+            patience=3,  # Frames to confirm transition
+            hysteresis=0.1,  # Confidence margin for transitions
+            use_exponential_decay=True
+        )
+    except FileNotFoundError:
+        print("[WARN] Could not initialize TemporalPostProcessor - no word model found")
+        temporal_postprocessor = None
+
+    # ── Hand Selector (single-person hand filtering via MediaPipe face landmarks) ──
+    hand_selector = HandSelector(
+        roi_scale=0.5,  # 50% of frame dimensions centered at face
+        distance_threshold=300,  # Pixel distance threshold for hand-to-face
+        enable_visualization=False  # Set to True for debug visualizations
+    )
+
     print("\n=== ISL Sign Language Recognition (Continuous, Automatic Translation) ===")
     print(f"  Sliding window: {NUM_FRAMES} frames")
     print(f"  Base confidence threshold: {CONFIDENCE_THRESHOLD:.0%}")
     print(f"  Word stability: {sentence_builder.stability_frames} frames")
     print(f"  Auto-sentence timeout: {sentence_builder.auto_sentence_timeout} frames (~{sentence_builder.auto_sentence_timeout/30:.1f}s)")
+    if temporal_postprocessor is not None:
+        print(f"  ✓ TemporalPostProcessor ENABLED (window: {temporal_postprocessor.smoothing_window} frames, patience: {temporal_postprocessor.patience})")
     if MOTION_GATING_ENABLED:
         print(f"  ✓ Motion gating ENABLED (motion threshold: {MOTION_THRESHOLD:.1f}px)")
     if DYNAMIC_THRESHOLD_ENABLED:
         print(f"  ✓ Dynamic thresholds ENABLED (motion boost: {MOTION_BOOST_FACTOR:.0%}, stability boost: {STABILITY_BOOST_FACTOR:.0%})")
     print(f"  ➜ Just sign! No keyboard input needed (Q/ESC to quit)")
     print("=======================================================================")
+
 
     while True:
         ret, frame = cap.read()
@@ -429,34 +456,44 @@ def run_webcam():
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, BLUE, 2,
             )
 
+        # ── Hand Selection via HandSelector (face-based single-person filtering) ──
+        filtered_hand_infos = []
+        if face_center is not None and hand_infos:
+            # Use HandSelector to filter hands to person with detected face
+            filtered_hand_infos = hand_selector.process_hands(
+                frame, hand_infos, face_center
+            )
+        else:
+            # Fallback: if no face detected or no hands, use all hands (backwards compat)
+            filtered_hand_infos = hand_infos
+
         left_owner_ids = []
         right_owner_ids = []
         hand_labels = []
         wrist_points = []
-        for info in hand_infos:
+        for info in filtered_hand_infos:
             hand = info["landmarks"]
             label = info["label"]
             _draw_landmarks(frame, hand, w, h)
 
             hand_box = _landmarks_to_bbox(hand, w, h)
-            owner = _assign_hand_to_person(hand_box, people)
+            # With HandSelector, hands are already filtered to the signer, so owner tracking is simplified
             color = CYAN if label == "Left" else ORANGE
             hand_labels.append(label)
             wrist_points.append(_wrist_point_px(hand, w, h))
 
             x1, y1, x2, y2 = hand_box
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-            owner_txt = f"P{owner}" if owner is not None else "P?"
             cv2.putText(
-                frame, f"{label} {owner_txt}",
+                frame, f"{label}",
                 (x1, max(16, y1 - 6)),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2,
             )
 
             if label == "Left":
-                left_owner_ids.append(owner)
+                left_owner_ids.append(0)  # Simplified: assume all filtered hands from signer (person 0)
             elif label == "Right":
-                right_owner_ids.append(owner)
+                right_owner_ids.append(0)
         
         # ── Motion Tracking ──
         # Use first wrist point if available, or track motion for all hands
@@ -510,7 +547,7 @@ def run_webcam():
             # One-hand sign path should stay valid.
             same_person_pair = False
 
-        hands_visible = len(hand_infos) > 0
+        hands_visible = len(filtered_hand_infos) > 0
         valid_for_prediction = hands_visible and (
             (not two_hand_mode) or same_person_pair
         )
@@ -550,6 +587,20 @@ def run_webcam():
                 conf = result['confidence']
                 probs = result['probs']
                 predicted = classes[idx] if idx < len(classes) else "?"
+                
+                # ── TemporalPostProcessor (confidence-weighted smoothing + anti-flicker) ──
+                # Convert probabilities to numpy array if not already
+                probs_array = np.array(probs) if not isinstance(probs, np.ndarray) else probs
+                
+                if temporal_postprocessor is not None:
+                    smoothed_result = temporal_postprocessor.process(
+                        class_probs=probs_array,
+                        current_prediction=idx,
+                        confidence=conf
+                    )
+                    idx = smoothed_result['smoothed_class_idx']
+                    conf = smoothed_result['smoothed_confidence']
+                    predicted = classes[idx] if idx < len(classes) else "?"
                 
                 # ── Dynamic Threshold Calculation ──
                 is_transition = (last_output_prediction is not None and 
