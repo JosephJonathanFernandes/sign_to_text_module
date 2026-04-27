@@ -57,6 +57,13 @@ BLUE = (255, 120, 0)
 ORANGE = (0, 165, 255)
 
 
+def _landmarks_to_numpy(landmarks) -> np.ndarray:
+    """Convert MediaPipe landmarks to numpy array (N, 2 or 3 dimensions)."""
+    if landmarks is None:
+        return None
+    return np.array([[lm.x, lm.y, lm.z if hasattr(lm, 'z') else 0.0] for lm in landmarks], dtype=np.float32)
+
+
 def _bbox_iou(a, b):
     """Compute IoU between two boxes (x1, y1, x2, y2)."""
     ax1, ay1, ax2, ay2 = a
@@ -461,11 +468,21 @@ def run_webcam():
 
         # ── Hand Selection via HandSelector (face-based single-person filtering) ──
         filtered_hand_infos = []
-        if face_center is not None and hand_infos:
-            # Use HandSelector to filter hands to person with detected face
-            filtered_hand_infos = hand_selector.process_hands(
-                frame, hand_infos, face_center
+        if face_landmarks is not None and hand_infos:
+            # Convert MediaPipe landmarks to numpy arrays for hand_selector
+            face_lms_np = _landmarks_to_numpy(face_landmarks)  # (468, 3)
+            hand_lms_list = [_landmarks_to_numpy(info["landmarks"]) for info in hand_infos]  # List of (21, 3)
+            
+            # Call hand_selector with correct format
+            hand_selector_result = hand_selector.process_hands(
+                face_lms_np, hand_lms_list, (h, w)
             )
+            
+            # Reconstruct filtered_hand_infos from selected hand indices
+            selected_indices = hand_selector_result.get('selected_hand_indices', [])
+            for idx in selected_indices:
+                if idx < len(hand_infos):
+                    filtered_hand_infos.append(hand_infos[idx])
         else:
             # Fallback: if no face detected or no hands, use all hands (backwards compat)
             filtered_hand_infos = hand_infos
