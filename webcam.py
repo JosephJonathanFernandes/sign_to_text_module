@@ -395,7 +395,7 @@ def run_webcam():
     from ensemble import load_merged_ensemble_10_2
     try:
         temporal_postprocessor = TemporalPostProcessor(
-            window_size=7,  # Frames for confidence averaging
+            window_size=3,  # Frames for confidence averaging (reduced for faster transitions)
             patience=1,  # Frames to confirm transition (reduced from 3 for faster response)
             delta=0.05,  # Confidence margin for transitions (reduced from 0.1 for easier switching)
             enable_decay=True,  # Use exponential decay for older frames
@@ -422,7 +422,7 @@ def run_webcam():
     print(f"  Word stability: {sentence_builder.stability_frames} frames")
     print(f"  Auto-sentence timeout: {sentence_builder.auto_sentence_timeout} frames (~{sentence_builder.auto_sentence_timeout/30:.1f}s)")
     if temporal_postprocessor_enabled:
-        print(f"  ✓ Temporal Smoothing ENABLED (confidence averaging, window: 7 frames)")
+        print(f"  ✓ Temporal Smoothing ENABLED (confidence averaging, window: 3 frames)")
     if MOTION_GATING_ENABLED:
         print(f"  ✓ Motion gating ENABLED (motion threshold: {MOTION_THRESHOLD:.1f}px)")
     if DYNAMIC_THRESHOLD_ENABLED:

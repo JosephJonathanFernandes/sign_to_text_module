@@ -97,7 +97,7 @@ WEBCAM_COUNTDOWN = 3           # Countdown seconds before recording
 
 # ─── Prediction ────────────────────────────────────────────────
 CONFIDENCE_THRESHOLD = 0.35  # Base confidence threshold (adjusted dynamically)
-PREDICTION_SMOOTHING_WINDOW = 10  # Majority vote window size
+PREDICTION_SMOOTHING_WINDOW = 4  # Majority vote window size (reduced for faster transitions)
 
 # ─── Motion Gating ──────────────────────────────────────────────────────
 MOTION_GATING_ENABLED = True  # Gate predictions based on hand motion
