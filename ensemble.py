@@ -8,12 +8,19 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from config import (
-    DEVICE, ENSEMBLE_DIR, PROCESSED_DIR,
-    MODEL_SAVE_PATH,
-    INPUT_SIZE,
-    FRAME_FEAT_DIM, PROXIMITY_FEAT_DIM, PROXIMITY_INDEX,
-)
+from config import get_config
+
+cfg = get_config()
+
+# Convenience references for ensemble
+DEVICE = cfg.hardware.torch_device
+ENSEMBLE_DIR = cfg.paths.ensemble_dir
+PROCESSED_DIR = cfg.paths.processed_dir
+MODEL_SAVE_PATH = cfg.paths.model_save_path
+INPUT_SIZE = cfg.frame_features.input_sequence_dim
+FRAME_FEAT_DIM = cfg.frame_features.frame_features_dim
+PROXIMITY_FEAT_DIM = cfg.spatial.proximity_dim
+PROXIMITY_INDEX = cfg.frame_features.proximity_index
 from model import SignLanguageGRU
 
 

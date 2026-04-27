@@ -15,17 +15,38 @@ from sklearn.model_selection import (
     StratifiedShuffleSplit, StratifiedKFold,
     KFold, ShuffleSplit,
 )
-from config import (
-    DEVICE, BATCH_SIZE, NUM_EPOCHS, LEARNING_RATE,
-    VAL_SPLIT, RANDOM_SEED, MODEL_SAVE_PATH,
-    WEIGHT_DECAY, LABEL_SMOOTHING, PATIENCE,
-    SCHEDULER_PATIENCE, GRAD_CLIP,
-    ENSEMBLE_DIR, NUM_FOLDS,
-    USE_CLASS_WEIGHTS, CLASS_WEIGHT_POWER,
-    LR_SCHEDULER, LR_DECAY_FACTOR, LR_MIN, WARMUP_EPOCHS,
-    USE_FOCAL_LOSS, FOCAL_ALPHA, FOCAL_GAMMA,
-    USE_MIXUP, USE_CUTMIX, MIXUP_ALPHA, MIXUP_PROB,
-)
+from config import get_config
+
+cfg = get_config()
+
+# Convenience references for training
+DEVICE = cfg.hardware.torch_device
+BATCH_SIZE = cfg.training.batch_size
+NUM_EPOCHS = cfg.training.num_epochs
+LEARNING_RATE = cfg.training.learning_rate
+VAL_SPLIT = cfg.training.val_split
+RANDOM_SEED = cfg.training.random_seed
+MODEL_SAVE_PATH = cfg.paths.model_save_path
+WEIGHT_DECAY = cfg.training.weight_decay
+LABEL_SMOOTHING = cfg.training.label_smoothing
+PATIENCE = cfg.training.patience
+SCHEDULER_PATIENCE = cfg.training.scheduler_patience
+GRAD_CLIP = cfg.training.grad_clip
+ENSEMBLE_DIR = cfg.paths.ensemble_dir
+NUM_FOLDS = cfg.paths.num_folds
+USE_CLASS_WEIGHTS = cfg.training.use_class_weights
+CLASS_WEIGHT_POWER = cfg.training.class_weight_power
+LR_SCHEDULER = cfg.training.lr_scheduler
+LR_DECAY_FACTOR = cfg.training.lr_decay_factor
+LR_MIN = cfg.training.lr_min
+WARMUP_EPOCHS = cfg.training.warmup_epochs
+USE_FOCAL_LOSS = cfg.training.use_focal_loss
+FOCAL_ALPHA = cfg.training.focal_alpha
+FOCAL_GAMMA = cfg.training.focal_gamma
+USE_MIXUP = cfg.training.use_mixup
+USE_CUTMIX = cfg.training.use_cutmix
+MIXUP_ALPHA = cfg.training.mixup_alpha
+MIXUP_PROB = cfg.training.mixup_prob
 from dataset import ISLDataset
 from model import SignLanguageGRU
 

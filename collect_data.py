@@ -22,11 +22,9 @@ import time
 import numpy as np
 import mediapipe as mp
 
-from config import (
-    NUM_FRAMES, NUM_HANDS,
-    USE_VELOCITY, PROCESSED_DIR,
-    WEBCAM_RECORD_FRAMES, WEBCAM_COUNTDOWN,
-)
+from config import get_config
+
+cfg = get_config()
 from preprocess import (
     _normalize_landmarks,
     _add_velocity,
@@ -34,6 +32,14 @@ from preprocess import (
     create_face_landmarker,
     extract_landmarks_with_face_relative,
 )
+
+# Convenience references to config values
+NUM_FRAMES = cfg.preprocessing.num_frames
+NUM_HANDS = cfg.landmarks.num_hands
+USE_VELOCITY = cfg.frame_features.use_velocity
+PROCESSED_DIR = cfg.paths.processed_dir
+WEBCAM_RECORD_FRAMES = cfg.webcam.record_frames
+WEBCAM_COUNTDOWN = cfg.webcam.countdown
 
 # Colors for OpenCV
 GREEN = (0, 255, 0)

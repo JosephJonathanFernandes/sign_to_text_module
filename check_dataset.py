@@ -8,11 +8,9 @@ import os
 import numpy as np
 import cv2
 from pathlib import Path
-from config import (
-    NUM_FRAMES, FRAME_FEAT_DIM,
-    VIDEO_EXTENSIONS,
-    INPUT_SIZE,  # Includes velocity if USE_VELOCITY=True
-)
+from config import get_config
+
+cfg = get_config()
 
 
 def check_video_dataset(dataset_path: str) -> dict:
@@ -28,6 +26,10 @@ def check_video_dataset(dataset_path: str) -> dict:
                 video3.mp4
     """
     print(f"\n{'='*70}")
+    print(f"Checking dataset compatibility...")
+    print(f"Expected: {cfg.preprocessing.num_frames} frames, {cfg.frame_features.frame_features_dim} features/frame")
+    print(f"Input dimension: {cfg.frame_features.input_sequence_dim} (velocity: {cfg.frame_features.use_velocity})")
+    print(f"{'='*70}")
     print(f"Checking Video Dataset: {dataset_path}")
     print(f"{'='*70}")
     

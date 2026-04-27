@@ -17,10 +17,14 @@ import time
 import argparse
 import numpy as np
 import torch
-from config import NUM_FOLDS, ENSEMBLE_DIR, RANDOM_SEED
-from dataset import ISLDataset
-from train import train_kfold
-import config
+from config import get_config
+
+cfg = get_config()
+
+# Convenience references
+NUM_FOLDS = cfg.paths.num_folds
+ENSEMBLE_DIR = cfg.paths.ensemble_dir
+RANDOM_SEED = cfg.training.random_seed
 
 def run_tuning(power_values=None):
     """

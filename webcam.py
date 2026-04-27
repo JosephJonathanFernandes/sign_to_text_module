@@ -13,17 +13,26 @@ import numpy as np
 from collections import Counter, deque
 import mediapipe as mp
 
-from config import (
-    NUM_FRAMES, NUM_HANDS,
-    DEBUG_DRAW_FACE_CENTER,
-    USE_VELOCITY, CONFIDENCE_THRESHOLD,
-    PREDICTION_SMOOTHING_WINDOW,
-    MOTION_GATING_ENABLED, MOTION_THRESHOLD,
-    MOTION_SMOOTHING, IDLE_CONFIDENCE_THRESHOLD,
-    DYNAMIC_THRESHOLD_ENABLED, MOTION_BOOST_FACTOR,
-    STABILITY_BOOST_FACTOR, DYNAMIC_THRESHOLD_MIN,
-    TRANSITION_HYSTERESIS,
-)
+from config import get_config
+
+cfg = get_config()
+
+# Convenience references for webcam inference
+NUM_FRAMES = cfg.preprocessing.num_frames
+NUM_HANDS = cfg.landmarks.num_hands
+DEBUG_DRAW_FACE_CENTER = cfg.preprocessing.debug_draw_face_center
+USE_VELOCITY = cfg.frame_features.use_velocity
+CONFIDENCE_THRESHOLD = cfg.inference.confidence_threshold
+PREDICTION_SMOOTHING_WINDOW = cfg.inference.prediction_smoothing_window
+MOTION_GATING_ENABLED = cfg.motion.enabled
+MOTION_THRESHOLD = cfg.get_motion_threshold_pixels()
+MOTION_SMOOTHING = cfg.motion.motion_smoothing
+IDLE_CONFIDENCE_THRESHOLD = cfg.motion.idle_confidence_threshold
+DYNAMIC_THRESHOLD_ENABLED = cfg.motion.dynamic_threshold_enabled
+MOTION_BOOST_FACTOR = cfg.motion.motion_boost_factor
+STABILITY_BOOST_FACTOR = cfg.motion.stability_boost_factor
+DYNAMIC_THRESHOLD_MIN = cfg.motion.dynamic_threshold_min
+TRANSITION_HYSTERESIS = cfg.inference.transition_hysteresis
 from preprocess import (
     _normalize_landmarks,
     _add_velocity,

@@ -17,18 +17,32 @@ from mediapipe.tasks.python.vision import (
     FaceLandmarkerOptions,
     RunningMode,
 )
-from config import (
-    DATASET_DIR, PROCESSED_DIR, NUM_FRAMES,
-    WEBCAM_WIDTH, WEBCAM_HEIGHT, CROP_TO_WEBCAM_SIZE,
-    NUM_LANDMARKS, NUM_COORDS, NUM_HANDS,
-    LANDMARK_DIM, RAW_FRAME_FEAT_DIM, FRAME_FEAT_DIM,
-    PROXIMITY_FEAT_DIM,
-    VIDEO_EXTENSIONS,
-    HAND_LANDMARKER_MODEL, FACE_LANDMARKER_MODEL,
-    USE_VELOCITY,
-    USE_FACE_RELATIVE,
-    FACE_NOSE_INDEX, FACE_LEFT_EYE_INDEX, FACE_RIGHT_EYE_INDEX,
-)
+from config import get_config
+
+cfg = get_config()
+
+# Convenience references for preprocessing
+DATASET_DIR = cfg.paths.dataset_dir
+PROCESSED_DIR = cfg.paths.processed_dir
+NUM_FRAMES = cfg.preprocessing.num_frames
+WEBCAM_WIDTH = cfg.preprocessing.webcam_width
+WEBCAM_HEIGHT = cfg.preprocessing.webcam_height
+CROP_TO_WEBCAM_SIZE = cfg.preprocessing.crop_to_webcam_size
+NUM_LANDMARKS = cfg.landmarks.num_landmarks
+NUM_COORDS = cfg.landmarks.num_coords
+NUM_HANDS = cfg.landmarks.num_hands
+LANDMARK_DIM = cfg.landmarks.landmark_dim_per_hand
+RAW_FRAME_FEAT_DIM = cfg.landmarks.raw_frame_features_dim
+FRAME_FEAT_DIM = cfg.frame_features.frame_features_dim
+PROXIMITY_FEAT_DIM = cfg.spatial.proximity_dim
+VIDEO_EXTENSIONS = cfg.paths.video_extensions
+HAND_LANDMARKER_MODEL = cfg.paths.hand_landmarker_model
+FACE_LANDMARKER_MODEL = cfg.paths.face_landmarker_model
+USE_VELOCITY = cfg.frame_features.use_velocity
+USE_FACE_RELATIVE = cfg.spatial.use_face_relative
+FACE_NOSE_INDEX = cfg.preprocessing.face_nose_index
+FACE_LEFT_EYE_INDEX = cfg.preprocessing.face_left_eye_index
+FACE_RIGHT_EYE_INDEX = cfg.preprocessing.face_right_eye_index
 
 
 _FACE_WARNING_SHOWN = False

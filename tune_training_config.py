@@ -36,9 +36,13 @@ import argparse
 import numpy as np
 import torch
 from itertools import product
-from config import NUM_FOLDS, RANDOM_SEED
-from train import train_kfold
-import config
+from config import get_config
+
+cfg = get_config()
+
+# Convenience references
+NUM_FOLDS = cfg.paths.num_folds
+RANDOM_SEED = cfg.training.random_seed
 
 
 def format_config_name(use_focal, mixup_prob, focal_gamma):

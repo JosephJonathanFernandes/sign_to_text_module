@@ -6,13 +6,23 @@ Includes optional face-proximity biased attention.
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from config import (
-    INPUT_SIZE, HIDDEN_SIZE, NUM_LAYERS,
-    BIDIRECTIONAL, DROPOUT,
-    FRAME_FEAT_DIM, PROXIMITY_FEAT_DIM, PROXIMITY_INDEX, USE_FACE_RELATIVE,
-    USE_FACE_PROXIMITY_ATTENTION,
-    PROXIMITY_SIGMA, LEARNABLE_PROXIMITY_SIGMA,
-)
+from config import get_config
+
+cfg = get_config()
+
+# Convenience references for model architecture
+INPUT_SIZE = cfg.frame_features.input_sequence_dim
+HIDDEN_SIZE = cfg.model.hidden_size
+NUM_LAYERS = cfg.model.num_layers
+BIDIRECTIONAL = cfg.model.bidirectional
+DROPOUT = cfg.model.dropout
+FRAME_FEAT_DIM = cfg.frame_features.frame_features_dim
+PROXIMITY_FEAT_DIM = cfg.spatial.proximity_dim
+PROXIMITY_INDEX = cfg.frame_features.proximity_index
+USE_FACE_RELATIVE = cfg.spatial.use_face_relative
+USE_FACE_PROXIMITY_ATTENTION = cfg.model.use_face_proximity_attention
+PROXIMITY_SIGMA = cfg.model.proximity_sigma
+LEARNABLE_PROXIMITY_SIGMA = cfg.model.learnable_proximity_sigma
 
 
 class Attention(nn.Module):

@@ -37,8 +37,11 @@ def run_preprocess():
 
 def run_train_word():
     """Train single word model."""
-    from config import PROCESSED_DIR
+    from config import get_config
     from train import create_data_loaders, train
+
+    cfg = get_config()
+    PROCESSED_DIR = cfg.paths.processed_dir
 
     print("=" * 60)
     print("  Training Word Model (BiGRU + Attention)")
@@ -55,8 +58,11 @@ def run_train_word():
 
 def run_kfold_word():
     """K-fold word ensemble training."""
-    from config import PROCESSED_DIR
+    from config import get_config
     from train import train_kfold
+
+    cfg = get_config()
+    PROCESSED_DIR = cfg.paths.processed_dir
 
     print("=" * 60)
     print("  K-Fold Word Ensemble Training")

@@ -7,16 +7,19 @@ import os
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-from config import (
-    PROCESSED_DIR,
-    LANDMARK_DIM,
-    RAW_FRAME_FEAT_DIM,
-    INPUT_SIZE,
-    FRAME_FEAT_DIM,
-    PROXIMITY_FEAT_DIM,
-    PROXIMITY_INDEX,
-    USE_VELOCITY,
-)
+from config import get_config
+
+cfg = get_config()
+
+# Convenience references for dataset operations
+PROCESSED_DIR = cfg.paths.processed_dir
+LANDMARK_DIM = cfg.landmarks.landmark_dim_per_hand
+RAW_FRAME_FEAT_DIM = cfg.landmarks.raw_frame_features_dim
+INPUT_SIZE = cfg.frame_features.input_sequence_dim
+FRAME_FEAT_DIM = cfg.frame_features.frame_features_dim
+PROXIMITY_FEAT_DIM = cfg.spatial.proximity_dim
+PROXIMITY_INDEX = cfg.frame_features.proximity_index
+USE_VELOCITY = cfg.frame_features.use_velocity
 
 
 class ISLDataset(Dataset):
