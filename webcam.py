@@ -396,8 +396,8 @@ def run_webcam():
     try:
         temporal_postprocessor = TemporalPostProcessor(
             window_size=7,  # Frames for confidence averaging
-            patience=3,  # Frames to confirm transition
-            delta=0.1,  # Confidence margin for transitions
+            patience=1,  # Frames to confirm transition (reduced from 3 for faster response)
+            delta=0.05,  # Confidence margin for transitions (reduced from 0.1 for easier switching)
             enable_decay=True,  # Use exponential decay for older frames
             decay_factor=0.3  # Decay weight for older predictions
         )
@@ -422,7 +422,7 @@ def run_webcam():
     print(f"  Word stability: {sentence_builder.stability_frames} frames")
     print(f"  Auto-sentence timeout: {sentence_builder.auto_sentence_timeout} frames (~{sentence_builder.auto_sentence_timeout/30:.1f}s)")
     if temporal_postprocessor_enabled:
-        print(f"  ✓ TemporalPostProcessor ENABLED (window: 7 frames, patience: 3)")
+        print(f"  ✓ Temporal Smoothing ENABLED (confidence averaging, window: 7 frames)")
     if MOTION_GATING_ENABLED:
         print(f"  ✓ Motion gating ENABLED (motion threshold: {MOTION_THRESHOLD:.1f}px)")
     if DYNAMIC_THRESHOLD_ENABLED:
@@ -613,15 +613,10 @@ def run_webcam():
                 probs_array = np.array(probs) if not isinstance(probs, np.ndarray) else probs
                 
                 if temporal_postprocessor_enabled:
-                    # Use update_with_confidence to get both stable class and smoothed confidence
-                    stable_class_idx, smoothed_conf = temporal_postprocessor.update_with_confidence(
-                        probs_array
-                    )
-                    # Only update if stable class is not None (wait for stabilization)
-                    if stable_class_idx is not None:
-                        idx = stable_class_idx
-                        conf = smoothed_conf
-                        predicted = classes[idx] if idx < len(classes) else "?"
+                    # Use smooth_raw_prediction for confidence smoothing ONLY (no class lock)
+                    # This allows the existing prediction_history smoothing to work properly
+                    idx, conf = temporal_postprocessor.smooth_raw_prediction(probs_array)
+                    predicted = classes[idx] if idx < len(classes) else "?"
                 
                 # ── Dynamic Threshold Calculation ──
                 is_transition = (last_output_prediction is not None and 

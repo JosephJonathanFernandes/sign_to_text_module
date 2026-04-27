@@ -408,6 +408,34 @@ class TemporalPostProcessor:
         """Return the confidence of the last smoothed prediction."""
         return self._last_smoothed_confidence
     
+    def smooth_raw_prediction(self, raw_probs: np.ndarray) -> Tuple[int, float]:
+        """
+        Smooth raw probabilities WITHOUT class stabilization lock (StablePredictor).
+        
+        Use this when you want only confidence smoothing but need responsive class changes.
+        Perfect for systems with external smoothing (e.g., majority voting).
+        
+        Returns the smoothed class and confidence without the patience/hysteresis lock.
+        This allows rapid switching between predictions when external smoothing confirms.
+        
+        Args:
+            raw_probs (np.ndarray): Model output, shape (num_classes,).
+        
+        Returns:
+            Tuple[int, float]: (smoothed_class_idx, smoothed_confidence)
+                - smoothed_class_idx: Best class from smoothed probabilities
+                - smoothed_confidence: Confidence of that class (0.0-1.0)
+        """
+        # Just smooth the probabilities, don't apply StablePredictor lock
+        smoothed_probs = self.smoother.update(raw_probs)
+        
+        # Extract best class and confidence
+        pred_class = int(np.argmax(smoothed_probs))
+        confidence = float(smoothed_probs[pred_class])
+        self._last_smoothed_confidence = confidence
+        
+        return pred_class, confidence
+    
     def reset(self) -> None:
         """Reset both smoother and predictor (useful between video clips)."""
         self.smoother.reset()
