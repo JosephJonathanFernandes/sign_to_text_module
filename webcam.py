@@ -321,7 +321,7 @@ def _extract_frame_landmarks(
             int(nose.y * frame.shape[0]),
         )
 
-    return landmarks_vec, hand_infos, face_center
+    return landmarks_vec, hand_infos, face_center, face_landmarks
 
 
 def run_webcam():
@@ -441,7 +441,7 @@ def run_webcam():
 
         # Detect people + hands
         people = _detect_person_boxes(frame, hog_detector)
-        landmarks_vec, hand_infos, face_center = _extract_frame_landmarks(
+        landmarks_vec, hand_infos, face_center, face_landmarks = _extract_frame_landmarks(
             landmarker,
             holistic,
             frame,
