@@ -8,6 +8,8 @@ Real-time Indian Sign Language word recognition using hand landmarks and a BiGRU
 - **BiGRU + Attention model** with face-proximity biased attention weighting
 - **Single model training and K-fold ensemble** (5 models, 95.83% accuracy)
 - **Live webcam inference** with real-time sentence construction
+- **Temporal Post-Processing** (NEW): Confidence-weighted smoothing + anti-flicker stabilization
+- **Hand Selection** (NEW): Face-centric single-person hand filtering for multi-person robustness
 - **Automatic sentence building** — signs accumulate into coherent text with NLP post-processing
 - **Webcam data collection** for new samples
 - **Runtime signer validation:**
