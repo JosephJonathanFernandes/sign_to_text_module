@@ -44,21 +44,21 @@ FACE_RIGHT_EYE_INDEX = 263
 DEBUG_DRAW_FACE_CENTER = True
 
 # ─── Model ───────────────────────────────────────────────────────────
-HIDDEN_SIZE = 64
-NUM_LAYERS = 1
+HIDDEN_SIZE = 256
+NUM_LAYERS = 2
 BIDIRECTIONAL = True
-DROPOUT = 0.40
+DROPOUT = 0.50
 USE_FACE_PROXIMITY_ATTENTION = True
 PROXIMITY_SIGMA = 0.10
-LEARNABLE_PROXIMITY_SIGMA = False
+LEARNABLE_PROXIMITY_SIGMA = True
 
 # ─── Training ────────────────────────────────────────────────────────
-BATCH_SIZE = 4
-NUM_EPOCHS = 50                # Increased from 40 → 60 (more stable convergence with small data)
+BATCH_SIZE = 32
+NUM_EPOCHS = 60                # Increased from 40 → 60 (more stable convergence with small data)
 LEARNING_RATE = 3e-4           # Reduced from 5e-4 (smaller LR for stability)
 WEIGHT_DECAY = 5e-4            # Increased from 3e-4 (stronger L2 regularization)
-LABEL_SMOOTHING = 0.15         # Increased from 0.1 (more label smoothing for robustness)
-PATIENCE = 15                  # Reduced from 20 (earlier stopping to prevent overfitting)
+LABEL_SMOOTHING = 0.1        # Decreased from 0.1 (more label smoothing for robustness)
+PATIENCE = 10                  # Reduced from 20 (earlier stopping to prevent overfitting)
 SCHEDULER_PATIENCE = 5         # Reduced from 7 (more aggressive LR reduction)
 GRAD_CLIP = 1.0                # Gradient clipping max norm
 VAL_SPLIT = 0.2              # 80/20 train/val split
@@ -66,16 +66,16 @@ RANDOM_SEED = 42
 
 # ─── Class Weights (for imbalanced data) ──────────────────────────────
 USE_CLASS_WEIGHTS = True       # Weight loss by inverse class frequency
-CLASS_WEIGHT_POWER = 1.0       # Smooth class weighting (1.0 = full inverse freq)
+CLASS_WEIGHT_POWER = 0.5      # Smooth class weighting (1.0 = full inverse freq)
                                # Try: 0.5 (smoother), 0.7 (balanced), 1.0 (aggressive)
 
 # ─── Focal Loss (for hard sample mining) ─────────────────────────────
-USE_FOCAL_LOSS = True          # Use focal loss instead of cross-entropy
+USE_FOCAL_LOSS = False         # Use focal loss instead of cross-entropy
 FOCAL_ALPHA = 0.25             # Focal loss alpha (class weighting factor)
 FOCAL_GAMMA = 2.0              # Focal loss gamma (hard sample focus, 0=CE, 2.0=strong)
 
 # ─── Mixup & CutMix Augmentation ─────────────────────────────────────
-USE_MIXUP = True               # Apply mixup during training
+USE_MIXUP = False              # Apply mixup during training
 USE_CUTMIX = False             # Apply CutMix (disable if using mixup only)
 MIXUP_ALPHA = 0.3              # Beta distribution parameter for mixup
 MIXUP_PROB = 0.5               # Probability of applying mixup per batch
@@ -101,7 +101,7 @@ PREDICTION_SMOOTHING_WINDOW = 10  # Majority vote window size
 
 # ─── Motion Gating ──────────────────────────────────────────────────────
 MOTION_GATING_ENABLED = True  # Gate predictions based on hand motion
-MOTION_THRESHOLD = 8.0  # Pixels/frame to consider motion (normalized to 640x480)
+MOTION_THRESHOLD = 10.0  # Pixels/frame to consider motion (normalized to 640x480)
 MOTION_SMOOTHING = 0.7  # Exponential moving average factor for motion detection
 IDLE_CONFIDENCE_THRESHOLD = 0.70  # Higher threshold for static hands
 
