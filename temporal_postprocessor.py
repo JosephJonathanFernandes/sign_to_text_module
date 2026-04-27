@@ -336,6 +336,7 @@ class TemporalPostProcessor:
             decay_factor=decay
         )
         self.predictor = StablePredictor(patience=patience, delta=delta)
+        self._last_smoothed_confidence = 0.0  # Cache for confidence retrieval
     
     def update(self, raw_probs: np.ndarray) -> Optional[int]:
         """
@@ -364,11 +365,48 @@ class TemporalPostProcessor:
         # Step 2: Predict
         pred_class = int(np.argmax(smoothed_probs))
         confidence = float(smoothed_probs[pred_class])
+        self._last_smoothed_confidence = confidence  # Cache for retrieval
         
         # Step 3: Stabilize
         stable_class = self.predictor.update(pred_class, confidence)
         
         return stable_class
+    
+    def update_with_confidence(self, raw_probs: np.ndarray) -> Tuple[Optional[int], float]:
+        """
+        Process one frame's raw probabilities and return both stable class and confidence.
+        
+        Combines smoothing, class prediction, and stability filtering.
+        Use this when you need both the stable class AND its confidence for inference.
+        
+        Args:
+            raw_probs (np.ndarray): Model output, shape (num_classes,).
+                                   Should be softmax of logits.
+        
+        Returns:
+            Tuple[Optional[int], float]: (stable_class_idx, confidence)
+                - stable_class_idx: Stabilized class index or None if not yet stabilized
+                - confidence: Confidence of the smoothed class (0.0-1.0)
+        
+        Raises:
+            ValueError: If raw_probs has invalid shape or contains NaN/Inf.
+        """
+        # Step 1: Smooth
+        smoothed_probs = self.smoother.update(raw_probs)
+        
+        # Step 2: Predict
+        pred_class = int(np.argmax(smoothed_probs))
+        confidence = float(smoothed_probs[pred_class])
+        self._last_smoothed_confidence = confidence  # Cache for retrieval
+        
+        # Step 3: Stabilize
+        stable_class = self.predictor.update(pred_class, confidence)
+        
+        return stable_class, confidence
+    
+    def get_last_confidence(self) -> float:
+        """Return the confidence of the last smoothed prediction."""
+        return self._last_smoothed_confidence
     
     def reset(self) -> None:
         """Reset both smoother and predictor (useful between video clips)."""

@@ -387,23 +387,26 @@ def run_webcam():
     # ── Temporal Post-Processor (confidence-weighted smoothing + anti-flicker) ──
     from ensemble import load_merged_ensemble_10_2
     try:
-        _, _, word_classes, _ = load_merged_ensemble_10_2()
         temporal_postprocessor = TemporalPostProcessor(
-            num_classes=len(word_classes),
-            smoothing_window=7,  # Frames for confidence averaging
+            window_size=7,  # Frames for confidence averaging
             patience=3,  # Frames to confirm transition
-            hysteresis=0.1,  # Confidence margin for transitions
-            use_exponential_decay=True
+            delta=0.1,  # Confidence margin for transitions
+            enable_decay=True,  # Use exponential decay for older frames
+            decay_factor=0.3  # Decay weight for older predictions
         )
-    except FileNotFoundError:
-        print("[WARN] Could not initialize TemporalPostProcessor - no word model found")
+        temporal_postprocessor_enabled = True
+    except Exception as e:
+        print(f"[WARN] Could not initialize TemporalPostProcessor: {e}")
         temporal_postprocessor = None
+        temporal_postprocessor_enabled = False
 
     # ── Hand Selector (single-person hand filtering via MediaPipe face landmarks) ──
     hand_selector = HandSelector(
-        roi_scale=0.5,  # 50% of frame dimensions centered at face
         distance_threshold=300,  # Pixel distance threshold for hand-to-face
-        enable_visualization=False  # Set to True for debug visualizations
+        roi_width_ratio=0.5,  # 50% of frame width (centered at face)
+        roi_height_ratio=0.5,  # 50% of frame height (centered at face)
+        use_roi_filtering=True,  # Use ROI-based filtering (more reliable than pure distance)
+        enable_debugging=False  # Set to True for debug logging
     )
 
     print("\n=== ISL Sign Language Recognition (Continuous, Automatic Translation) ===")
@@ -411,8 +414,8 @@ def run_webcam():
     print(f"  Base confidence threshold: {CONFIDENCE_THRESHOLD:.0%}")
     print(f"  Word stability: {sentence_builder.stability_frames} frames")
     print(f"  Auto-sentence timeout: {sentence_builder.auto_sentence_timeout} frames (~{sentence_builder.auto_sentence_timeout/30:.1f}s)")
-    if temporal_postprocessor is not None:
-        print(f"  ✓ TemporalPostProcessor ENABLED (window: {temporal_postprocessor.smoothing_window} frames, patience: {temporal_postprocessor.patience})")
+    if temporal_postprocessor_enabled:
+        print(f"  ✓ TemporalPostProcessor ENABLED (window: 7 frames, patience: 3)")
     if MOTION_GATING_ENABLED:
         print(f"  ✓ Motion gating ENABLED (motion threshold: {MOTION_THRESHOLD:.1f}px)")
     if DYNAMIC_THRESHOLD_ENABLED:
@@ -592,15 +595,16 @@ def run_webcam():
                 # Convert probabilities to numpy array if not already
                 probs_array = np.array(probs) if not isinstance(probs, np.ndarray) else probs
                 
-                if temporal_postprocessor is not None:
-                    smoothed_result = temporal_postprocessor.process(
-                        class_probs=probs_array,
-                        current_prediction=idx,
-                        confidence=conf
+                if temporal_postprocessor_enabled:
+                    # Use update_with_confidence to get both stable class and smoothed confidence
+                    stable_class_idx, smoothed_conf = temporal_postprocessor.update_with_confidence(
+                        probs_array
                     )
-                    idx = smoothed_result['smoothed_class_idx']
-                    conf = smoothed_result['smoothed_confidence']
-                    predicted = classes[idx] if idx < len(classes) else "?"
+                    # Only update if stable class is not None (wait for stabilization)
+                    if stable_class_idx is not None:
+                        idx = stable_class_idx
+                        conf = smoothed_conf
+                        predicted = classes[idx] if idx < len(classes) else "?"
                 
                 # ── Dynamic Threshold Calculation ──
                 is_transition = (last_output_prediction is not None and 
