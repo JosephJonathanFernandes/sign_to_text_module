@@ -195,20 +195,20 @@ class ModelConfig:
     hidden_size: int = 256
     """Hidden dimension of LSTM/GRU layers."""
 
-    num_layers: int = 2
+    num_layers: int = 3
     """Number of recurrent layers (depth of the network)."""
 
     bidirectional: bool = True
     """Use bidirectional recurrent network."""
 
-    dropout: float = 0.50
+    dropout: float = 0.25
     """Dropout rate for regularization (0-1)."""
 
     use_face_proximity_attention: bool = True
     """Apply attention weighting based on hand-to-face proximity."""
 
-    proximity_sigma: float = 0.10
-    """Standard deviation of Gaussian proximity kernel (normalized distance)."""
+    proximity_sigma: float = 0.15
+    """Standard deviation of the Gaussian proximity kernel over normalized distance."""
 
     learnable_proximity_sigma: bool = True
     """Allow proximity_sigma to be learned during training."""
@@ -230,7 +230,7 @@ class TrainingConfig:
     """Training loop and optimization hyperparameters."""
 
     # Optimization
-    batch_size: int = 32
+    batch_size: int = 16
     learning_rate: float = 3e-4
     """Reduced from 5e-4 for improved stability with small datasets."""
 
@@ -251,20 +251,20 @@ class TrainingConfig:
     """Learning rate scheduler patience (more aggressive LR reduction)."""
 
     # Data splits
-    val_split: float = 0.2
+    val_split: float = 0.25
     """Train/validation split ratio (80/20)."""
 
     random_seed: int = 42
 
     # Label smoothing
-    label_smoothing: float = 0.1
+    label_smoothing: float = 0.05
     """Smoothing factor for label distributions (improves robustness)."""
 
     # Class weighting
     use_class_weights: bool = True
     """Weight loss by inverse class frequency for imbalanced datasets."""
 
-    class_weight_power: float = 0.5
+    class_weight_power: float = 1.0
     """Smoothing exponent for class weights.
     
     Values:
@@ -284,7 +284,7 @@ class TrainingConfig:
     """Focal loss hard-example focusing parameter (0=CE, 2.0=strong focus)."""
 
     # Mixup & CutMix augmentation
-    use_mixup: bool = False
+    use_mixup: bool = True
     """Apply mixup data augmentation during training."""
 
     use_cutmix: bool = False
@@ -328,10 +328,10 @@ class TrainingConfig:
 class InferenceConfig:
     """Inference-time settings for prediction and confidence thresholding."""
 
-    confidence_threshold: float = 0.35
+    confidence_threshold: float = 0.40
     """Base confidence threshold for predictions (dynamically adjusted)."""
 
-    prediction_smoothing_window: int = 4
+    prediction_smoothing_window: int = 5
     """Majority vote window size for temporal smoothing (smaller = faster transitions)."""
 
     transition_hysteresis: float = 0.12
