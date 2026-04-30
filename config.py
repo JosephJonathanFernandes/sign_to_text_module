@@ -192,7 +192,7 @@ class PreprocessingConfig:
 class ModelConfig:
     """Neural network architecture hyperparameters."""
 
-    hidden_size: int = 256
+    hidden_size: int = 128
     """Hidden dimension of LSTM/GRU layers."""
 
     num_layers: int = 3
@@ -201,7 +201,7 @@ class ModelConfig:
     bidirectional: bool = True
     """Use bidirectional recurrent network."""
 
-    dropout: float = 0.25
+    dropout: float = 0.35
     """Dropout rate for regularization (0-1)."""
 
     use_face_proximity_attention: bool = True
@@ -331,7 +331,7 @@ class InferenceConfig:
     confidence_threshold: float = 0.40
     """Base confidence threshold for predictions (dynamically adjusted)."""
 
-    prediction_smoothing_window: int = 5
+    prediction_smoothing_window: int = 3
     """Majority vote window size for temporal smoothing (smaller = faster transitions)."""
 
     transition_hysteresis: float = 0.12
