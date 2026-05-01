@@ -15,6 +15,8 @@ Behavior:
 
 import os
 import random
+import argparse
+import math
 import numpy as np
 
 
@@ -22,13 +24,18 @@ import numpy as np
 # Configurable settings
 # ------------------------------
 ROOT_DIR = "processed"
-MAX_AUG_PER_CLASS = 35
-MAX_MERGE_PER_CLASS = 25
+MAX_AUG_PER_CLASS = 50
+MAX_MERGE_PER_CLASS = 40
 DRY_RUN = False
 SEED = 42
 
 # Near-duplicate threshold on L2-normalized flattened vectors
 DUPLICATE_EPS = 1e-3
+
+# Batched processing defaults to avoid loading all merges at once
+DEFAULT_BATCH_SIZE = 2000
+# Fraction of each batch to keep as candidates (reduced set)
+DEFAULT_SAMPLE_FRACTION = 0.05
 
 
 def is_augmented(name_lower: str) -> bool:
@@ -178,7 +185,96 @@ def _select_diverse_subset(
     return keep_set, delete_set, len(dup_idx)
 
 
-def clean_class_folder(class_dir: str, rng: random.Random) -> dict:
+def _select_diverse_subset_stream(
+    file_paths: list[str],
+    keep_limit: int,
+    rng: random.Random,
+    tag: str,
+    batch_size: int = DEFAULT_BATCH_SIZE,
+    sample_fraction: float = DEFAULT_SAMPLE_FRACTION,
+) -> tuple[set[str], set[str], int]:
+    """Batched streaming selection: reduce each batch to candidates, then final FPS.
+
+    Strategy:
+      - For each batch, load and de-duplicate within-batch.
+      - From the batch, select a small candidate set via FPS (fraction of batch).
+      - Accumulate candidates across batches (small memory footprint).
+      - Run duplicate-removal + FPS on candidates to pick final keep_limit.
+    """
+    if not file_paths:
+        return set(), set(), 0
+
+    n = len(file_paths)
+    if n <= batch_size:
+        return _select_diverse_subset(file_paths, keep_limit, rng, tag)
+
+    candidates_paths = []
+    candidates_vecs = []
+    dup_removed_total = 0
+
+    nbatches = math.ceil(n / batch_size)
+    for b in range(nbatches):
+        start = b * batch_size
+        end = min((b + 1) * batch_size, n)
+        batch_paths = file_paths[start:end]
+        loaded_paths, mat = _load_flattened_vectors(batch_paths, f"{tag}-b{b}")
+        if not loaded_paths:
+            continue
+
+        keep_idx, dup_idx = _remove_near_duplicates(mat, DUPLICATE_EPS)
+        dup_removed_total += len(dup_idx)
+        if keep_idx:
+            unique_mat = mat[np.asarray(keep_idx)]
+            # choose candidate count from this batch
+            candidate_k = max(int(unique_mat.shape[0] * sample_fraction), min(keep_limit, 50))
+            candidate_k = min(candidate_k, unique_mat.shape[0])
+            if candidate_k <= 0:
+                continue
+
+            chosen = _fps_select(unique_mat, candidate_k, rng)
+            selected_global = [keep_idx[i] for i in chosen]
+            for idx in selected_global:
+                candidates_paths.append(loaded_paths[idx])
+                candidates_vecs.append(mat[idx])
+
+        print(f"    [{tag}] Batch {b+1}/{nbatches} -> candidates={len(candidates_paths)}")
+
+    if not candidates_paths:
+        return set(), set(), dup_removed_total
+
+    # Build candidate matrix and finalize selection
+    cand_mat = np.vstack([v.reshape(1, -1) for v in candidates_vecs])
+    # Normalize rows
+    norms = np.linalg.norm(cand_mat, axis=1, keepdims=True)
+    norms = np.maximum(norms, 1e-12)
+    cand_mat = cand_mat / norms
+
+    keep_unique_idx, dup_idx2 = _remove_near_duplicates(cand_mat, DUPLICATE_EPS)
+    dup_removed_total += len(dup_idx2)
+
+    if keep_unique_idx:
+        unique_mat = cand_mat[np.asarray(keep_unique_idx)]
+        final_k = min(keep_limit, unique_mat.shape[0])
+        chosen_local = _fps_select(unique_mat, final_k, rng)
+        selected_global_idx = [keep_unique_idx[i] for i in chosen_local]
+    else:
+        selected_global_idx = []
+
+    keep_set = {candidates_paths[i] for i in selected_global_idx}
+    delete_set = {p for p in file_paths if p not in keep_set}
+
+    return keep_set, delete_set, dup_removed_total
+
+
+def clean_class_folder(
+    class_dir: str,
+    rng: random.Random,
+    max_aug: int = MAX_AUG_PER_CLASS,
+    max_merge: int = MAX_MERGE_PER_CLASS,
+    batch_size: int = DEFAULT_BATCH_SIZE,
+    sample_fraction: float = DEFAULT_SAMPLE_FRACTION,
+    dry_run: bool = DRY_RUN,
+) -> dict:
     """Clean one class folder and return summary stats."""
     original_files = []
     aug_files = []
@@ -200,16 +296,27 @@ def clean_class_folder(class_dir: str, rng: random.Random) -> dict:
 
     print(f"  [Class={os.path.basename(class_dir)}] originals={len(original_files)} aug={len(aug_files)} merge={len(merge_files)}")
 
-    kept_aug, del_aug, aug_dup_removed = _select_diverse_subset(
-        aug_files, MAX_AUG_PER_CLASS, rng, tag="aug"
-    )
-    kept_merge, del_merge, merge_dup_removed = _select_diverse_subset(
-        merge_files, MAX_MERGE_PER_CLASS, rng, tag="merge"
-    )
+    if len(aug_files) > batch_size:
+        kept_aug, del_aug, aug_dup_removed = _select_diverse_subset_stream(
+            aug_files, max_aug, rng, tag="aug", batch_size=batch_size, sample_fraction=sample_fraction
+        )
+    else:
+        kept_aug, del_aug, aug_dup_removed = _select_diverse_subset(
+            aug_files, max_aug, rng, tag="aug"
+        )
+
+    if len(merge_files) > batch_size:
+        kept_merge, del_merge, merge_dup_removed = _select_diverse_subset_stream(
+            merge_files, max_merge, rng, tag="merge", batch_size=batch_size, sample_fraction=sample_fraction
+        )
+    else:
+        kept_merge, del_merge, merge_dup_removed = _select_diverse_subset(
+            merge_files, max_merge, rng, tag="merge"
+        )
 
     deleted_count = 0
     for path in sorted(del_aug | del_merge):
-        if safe_delete(path, class_abs, DRY_RUN):
+        if safe_delete(path, class_abs, dry_run):
             deleted_count += 1
 
     return {
@@ -225,7 +332,16 @@ def clean_class_folder(class_dir: str, rng: random.Random) -> dict:
     }
 
 
-def clean_dataset(root_dir: str = ROOT_DIR, seed: int = SEED) -> None:
+def clean_dataset(
+    root_dir: str = ROOT_DIR,
+    seed: int = SEED,
+    max_aug: int = MAX_AUG_PER_CLASS,
+    max_merge: int = MAX_MERGE_PER_CLASS,
+    batch_size: int = DEFAULT_BATCH_SIZE,
+    sample_fraction: float = DEFAULT_SAMPLE_FRACTION,
+    dry_run: bool = DRY_RUN,
+    class_only: str | None = None,
+) -> None:
     """Clean all class folders under root_dir and print per-class summary."""
     rng = random.Random(seed)
 
@@ -239,11 +355,14 @@ def clean_dataset(root_dir: str = ROOT_DIR, seed: int = SEED) -> None:
         if os.path.isdir(os.path.join(root_abs, d))
     ]
 
+    if class_only:
+        class_dirs = [d for d in class_dirs if os.path.basename(d) == class_only]
+
     print("=" * 90)
     print(f"Diversity cleanup started | ROOT_DIR={root_abs}")
     print(
-        f"DRY_RUN={DRY_RUN} | MAX_AUG={MAX_AUG_PER_CLASS} | "
-        f"MAX_MERGE={MAX_MERGE_PER_CLASS} | DUPLICATE_EPS={DUPLICATE_EPS} | SEED={seed}"
+        f"DRY_RUN={dry_run} | MAX_AUG={max_aug} | "
+        f"MAX_MERGE={max_merge} | DUPLICATE_EPS={DUPLICATE_EPS} | SEED={seed} | BATCH={batch_size} | SAMPLE_FRAC={sample_fraction}"
     )
     print("=" * 90)
 
@@ -253,7 +372,15 @@ def clean_dataset(root_dir: str = ROOT_DIR, seed: int = SEED) -> None:
     grand_deleted = 0
 
     for class_dir in class_dirs:
-        summary = clean_class_folder(class_dir, rng)
+        summary = clean_class_folder(
+            class_dir,
+            rng,
+            max_aug=max_aug,
+            max_merge=max_merge,
+            batch_size=batch_size,
+            sample_fraction=sample_fraction,
+            dry_run=dry_run,
+        )
         grand_original += summary["original_count"]
         grand_kept_aug += summary["kept_aug_count"]
         grand_kept_merge += summary["kept_merge_count"]
@@ -274,10 +401,33 @@ def clean_dataset(root_dir: str = ROOT_DIR, seed: int = SEED) -> None:
         f"TOTAL: original={grand_original} | kept_aug={grand_kept_aug} | "
         f"kept_merge={grand_kept_merge} | deleted={grand_deleted}"
     )
-    if DRY_RUN:
+    if dry_run:
         print("NOTE: DRY_RUN=True, no files were actually deleted.")
     print("=" * 90)
 
 
+def _parse_args():
+    p = argparse.ArgumentParser(description="Diversity-based cleanup for .npy datasets")
+    p.add_argument("--root", default=ROOT_DIR)
+    p.add_argument("--max-aug", type=int, default=MAX_AUG_PER_CLASS)
+    p.add_argument("--max-merge", type=int, default=MAX_MERGE_PER_CLASS)
+    p.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE)
+    p.add_argument("--sample-fraction", type=float, default=DEFAULT_SAMPLE_FRACTION)
+    p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--seed", type=int, default=SEED)
+    p.add_argument("--class", dest="class_only", default=None, help="Only process this class folder")
+    return p.parse_args()
+
+
 if __name__ == "__main__":
-    clean_dataset(ROOT_DIR, SEED)
+    args = _parse_args()
+    clean_dataset(
+        root_dir=args.root,
+        seed=args.seed,
+        max_aug=args.max_aug,
+        max_merge=args.max_merge,
+        batch_size=args.batch_size,
+        sample_fraction=args.sample_fraction,
+        dry_run=args.dry_run,
+        class_only=args.class_only,
+    )

@@ -40,6 +40,41 @@ def _is_webcam_file(filename: str) -> bool:
     return "webcam" in filename.lower()
 
 
+def _is_base_webcam_file(filename: str) -> bool:
+    """Return True only for original webcam samples, not generated derivatives."""
+    name = filename.lower()
+    return (
+        "webcam" in name
+        and "_aug_" not in name
+        and "_merge_" not in name
+        and "_mrg_" not in name
+    )
+
+
+def _compact_sample_stem(filename: str, max_len: int = 28) -> str:
+    """Build a shorter, stable stem for output filenames.
+
+    Keeps only the base filename without extension and trims it to a safe length.
+    This avoids runaway filename growth when files are regenerated.
+    """
+    stem = os.path.splitext(os.path.basename(filename))[0]
+    stem = stem.replace("_aug_", "_").replace("_merge_", "_").replace("_mrg_", "_")
+    stem = stem.replace("__", "_")
+    if len(stem) > max_len:
+        stem = stem[:max_len].rstrip("_")
+    return stem
+
+
+def _get_block_slices(total_dims: int):
+    """Return slices for [left_raw, right_raw, left_rel, right_rel, tail]."""
+    s0 = slice(0, LANDMARK_DIM)
+    s1 = slice(LANDMARK_DIM, 2 * LANDMARK_DIM)
+    s2 = slice(2 * LANDMARK_DIM, 3 * LANDMARK_DIM)
+    s3 = slice(3 * LANDMARK_DIM, 4 * LANDMARK_DIM)
+    tail = slice(4 * LANDMARK_DIM, total_dims)
+    return s0, s1, s2, s3, tail
+
+
 def _split_pos_vel(seq: np.ndarray):
     """Split sequence into position block and optional velocity block.
 
@@ -311,6 +346,57 @@ def simulate_new_person(seq: np.ndarray) -> np.ndarray:
     return _pack_seq(pos_new, vel_new)
 
 
+def simulate_hand_proportions(seq: np.ndarray) -> np.ndarray:
+    """Simulate different hand geometry by separate left/right scaling.
+
+    Applies different isotropic scales to left/right hand landmark blocks,
+    and also to their face-relative counterparts when present.
+    """
+    pos, vel = _split_pos_vel(seq)
+    pos_new = pos.copy()
+    total_dims = pos_new.shape[1]
+    l_raw, r_raw, l_rel, r_rel, tail = _get_block_slices(total_dims)
+
+    left_scale = float(np.random.uniform(0.82, 1.18))
+    right_scale = float(np.random.uniform(0.82, 1.18))
+
+    pos_new[:, l_raw] *= left_scale
+    pos_new[:, r_raw] *= right_scale
+
+    if l_rel.stop <= total_dims and r_rel.stop <= total_dims:
+        pos_new[:, l_rel] *= left_scale
+        pos_new[:, r_rel] *= right_scale
+
+    vel_new = _recompute_velocity(pos_new) if vel is not None else None
+    return _pack_seq(pos_new, vel_new)
+
+
+def simulate_face_anchor_shift(seq: np.ndarray) -> np.ndarray:
+    """Simulate different face geometry/posture in face-relative features.
+
+    This only modifies relative blocks and proximity-like tail dimensions,
+    keeping raw hand coordinates intact.
+    """
+    pos, vel = _split_pos_vel(seq)
+    pos_new = pos.copy()
+    total_dims = pos_new.shape[1]
+    l_raw, r_raw, l_rel, r_rel, tail = _get_block_slices(total_dims)
+
+    if l_rel.stop <= total_dims and r_rel.stop <= total_dims:
+        rel_scale = float(np.random.uniform(0.9, 1.15))
+        rel_bias = np.random.uniform(-0.04, 0.04, size=LANDMARK_DIM).astype(np.float32)
+        pos_new[:, l_rel] = pos_new[:, l_rel] * rel_scale + rel_bias
+        pos_new[:, r_rel] = pos_new[:, r_rel] * rel_scale + rel_bias
+
+    # Slightly perturb proximity (if present as trailing dims)
+    if tail.start < total_dims:
+        prox_noise = np.random.uniform(-0.05, 0.05, size=(NUM_FRAMES, total_dims - tail.start)).astype(np.float32)
+        pos_new[:, tail] = pos_new[:, tail] + prox_noise
+
+    vel_new = _recompute_velocity(pos_new) if vel is not None else None
+    return _pack_seq(pos_new, vel_new)
+
+
 def augment_sequence(sequence: np.ndarray, variants: int = 3) -> List[np.ndarray]:
     """Generate multiple augmented versions of a single sequence.
 
@@ -324,6 +410,8 @@ def augment_sequence(sequence: np.ndarray, variants: int = 3) -> List[np.ndarray
     # Define augmentation candidates with base selection probabilities
     aug_candidates = [
         (simulate_new_person, 0.7),
+        (simulate_hand_proportions, 0.65),
+        (simulate_face_anchor_shift, 0.55),
         (temporal_speed_variation, 0.5),
         (frame_drop_and_interpolate, 0.45),
         (spatial_noise_injection, 0.9),
@@ -372,6 +460,10 @@ def augment_sequence(sequence: np.ndarray, variants: int = 3) -> List[np.ndarray
                 s = horizontal_flip(s)
             elif fn is simulate_new_person:
                 s = simulate_new_person(s)
+            elif fn is simulate_hand_proportions:
+                s = simulate_hand_proportions(s)
+            elif fn is simulate_face_anchor_shift:
+                s = simulate_face_anchor_shift(s)
 
         # final dtype & shape check
         s = np.asarray(s, dtype=np.float32)
@@ -400,7 +492,7 @@ def augment_dataset(input_dir: str, output_dir: Optional[str] = None, augment_pe
         for fname in sorted(os.listdir(cls_in)):
             if not fname.endswith('.npy'):
                 continue
-            if not _is_webcam_file(fname):
+            if not _is_base_webcam_file(fname):
                 continue
             fpath = os.path.join(cls_in, fname)
             try:
@@ -410,7 +502,7 @@ def augment_dataset(input_dir: str, output_dir: Optional[str] = None, augment_pe
                 continue
 
             aug_list = augment_sequence(seq, variants=augment_per_sample)
-            base, ext = os.path.splitext(fname)
+            base = _compact_sample_stem(fname)
             for i, aug in enumerate(aug_list):
                 new_name = f"{base}_aug_{i}_{uuid.uuid4().hex[:8]}.npy"
                 out_path = os.path.join(cls_out, new_name)
