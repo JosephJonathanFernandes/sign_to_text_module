@@ -114,6 +114,26 @@ def _validation_priority(file_path: str) -> tuple[int, str]:
     return (5, name)
 
 
+def _training_priority(file_path: str) -> tuple[int, str]:
+    """Rank samples so training prefers webcam, then other, then MVI."""
+    name = os.path.basename(file_path).lower()
+    is_mvi = name.startswith("mvi")
+    is_webcam = "webcam" in name
+    is_aug = _is_augmented_sample(name)
+
+    if is_webcam and is_aug:
+        return (0, name)
+    if is_webcam:
+        return (1, name)
+    if not is_mvi:
+        return (2, name)
+    if is_mvi and is_aug:
+        return (3, name)
+    if is_mvi:
+        return (4, name)
+    return (5, name)
+
+
 def _source_aware_split(
     samples: list[tuple[str, int]],
     labels: np.ndarray,
@@ -121,15 +141,18 @@ def _source_aware_split(
     random_seed: int,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
-    Split indices per class while biasing validation toward MVI-derived files.
+        Split indices per class while biasing training toward webcam-derived files.
 
-    The goal is to keep class coverage from stratification while selecting the
-    validation subset in this priority order:
-      1. MVI augmented
-      2. MVI original
+        The goal is to keep class coverage from stratification while selecting the
+        training subset in this priority order:
+            1. Webcam augmented
+            2. Webcam original
             3. Other (non-webcam) files
-            4. Webcam augmented
-            5. Webcam original
+            4. MVI augmented
+            5. MVI original
+
+        Validation receives the complement of the selected training indices, so
+        the final train/val split remains strictly disjoint.
     """
     rng = np.random.default_rng(random_seed)
     train_indices: list[int] = []
@@ -143,25 +166,26 @@ def _source_aware_split(
 
         target_val = int(round(len(cls_indices) * val_split))
         target_val = max(1, min(len(cls_indices) - 1, target_val))
+        target_train = len(cls_indices) - target_val
 
         grouped: dict[int, list[int]] = defaultdict(list)
         for idx in cls_indices:
-            grouped[_validation_priority(samples[idx][0])[0]].append(idx)
+            grouped[_training_priority(samples[idx][0])[0]].append(idx)
 
         for bucket in grouped.values():
             rng.shuffle(bucket)
 
-        chosen: list[int] = []
-        for priority in range(6):
-            if len(chosen) >= target_val:
+        chosen_train: list[int] = []
+        for priority in range(5):
+            if len(chosen_train) >= target_train:
                 break
             bucket = grouped.get(priority, [])
-            remaining = target_val - len(chosen)
-            chosen.extend(bucket[:remaining])
+            remaining = target_train - len(chosen_train)
+            chosen_train.extend(bucket[:remaining])
 
-        chosen_set = set(chosen)
-        train_indices.extend(idx for idx in cls_indices if idx not in chosen_set)
-        val_indices.extend(chosen)
+        chosen_set = set(chosen_train)
+        train_indices.extend(chosen_train)
+        val_indices.extend(idx for idx in cls_indices if idx not in chosen_set)
 
     rng.shuffle(train_indices)
     rng.shuffle(val_indices)
@@ -175,24 +199,44 @@ def _build_source_aware_folds(
     random_seed: int,
 ) -> list[np.ndarray]:
     """
-    Build K source-aware validation folds by repeatedly applying the same
-    source-aware split with different random seeds.
+    Build K disjoint validation folds by partitioning each class into
+    priority-ordered chunks.
 
-    This intentionally prioritizes MVI-heavy validation in every fold (rather
-    than enforcing strict disjoint K-Fold partitions).
+    Validation folds are disjoint, each class stays approximately balanced
+    across folds, and higher-priority MVI samples are assigned earlier in the
+    fold order so the training complement naturally keeps more webcam data.
     Returns a list of `num_folds` arrays containing validation indices.
     """
-    val_split = 1.0 / float(num_folds)
-    folds: list[np.ndarray] = []
-    for fold in range(num_folds):
-        _, val_idx = _source_aware_split(
-            samples,
-            labels,
-            val_split,
-            random_seed + fold,
-        )
-        folds.append(val_idx)
-    return folds
+    rng = np.random.default_rng(random_seed)
+    folds: list[list[int]] = [[] for _ in range(num_folds)]
+
+    for cls in np.unique(labels):
+        cls_indices = np.flatnonzero(labels == cls).tolist()
+        if not cls_indices:
+            continue
+
+        buckets: dict[int, list[int]] = defaultdict(list)
+        for idx in cls_indices:
+            priority = _validation_priority(samples[idx][0])[0]
+            buckets[priority].append(idx)
+
+        ordered: list[int] = []
+        for priority in range(6):
+            bucket = buckets.get(priority, [])
+            if bucket:
+                rng.shuffle(bucket)
+                ordered.extend(bucket)
+
+        base = len(ordered) // num_folds
+        remainder = len(ordered) % num_folds
+        cursor = 0
+        for fold in range(num_folds):
+            fold_size = base + (1 if fold < remainder else 0)
+            if fold_size:
+                folds[fold].extend(ordered[cursor:cursor + fold_size])
+            cursor += fold_size
+
+    return [np.asarray(fold, dtype=np.int64) for fold in folds]
 
 
 # ── Focal Loss (for hard sample mining) ──────────────────────────────
@@ -689,7 +733,7 @@ def _train_fold(
 
 def train_kfold() -> list:
     """
-    Train NUM_FOLDS models using Stratified K-Fold CV.
+    Train NUM_FOLDS models using disjoint source-aware K-fold CV.
     Saves each fold model to ENSEMBLE_DIR/fold_N.pth.
     Returns list of per-fold best validation accuracies.
     """

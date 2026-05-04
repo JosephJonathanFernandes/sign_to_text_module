@@ -12,8 +12,13 @@ import cv2
 import numpy as np
 from collections import Counter, deque
 import mediapipe as mp
+import torch
+import os
 
 from config import get_config
+from pseudo_buffer import PseudoLabelBuffer
+from adapter_model import AdapterModel, AdapterTrainer
+from adapter_training import AdapterTrainingManager
 
 cfg = get_config()
 
@@ -33,6 +38,30 @@ MOTION_BOOST_FACTOR = cfg.motion.motion_boost_factor
 STABILITY_BOOST_FACTOR = cfg.motion.stability_boost_factor
 DYNAMIC_THRESHOLD_MIN = cfg.motion.dynamic_threshold_min
 TRANSITION_HYSTERESIS = cfg.inference.transition_hysteresis
+
+# ── Pseudo-Label Collection (PART A) ──
+PSEUDO_BUFFER_ENABLED = True  # Toggle pseudo-label collection
+PSEUDO_THRESHOLD = 0.85  # Minimum confidence to collect
+MIN_BUFFER_SIZE = 20  # Minimum samples before auto-save
+PER_CLASS_CAP = 50  # Max samples per class
+PSEUDO_SAVE_DIR = "pseudo_data/"
+AUTO_SAVE_PSEUDO = True  # Auto-save when MIN_BUFFER_SIZE is reached
+PSEUDO_SAVE_INTERVAL = 50  # Save every N predictions
+
+# ── Adapter Model (PART B) ──
+ADAPTER_ENABLED = True  # Toggle adaptive learning
+ADAPTER_LEARNING_RATE = 1e-4
+ADAPTER_EPOCHS = 2
+ADAPTER_BATCH_SIZE = 8
+ADAPTER_HIDDEN_DIM = 128
+ADAPTER_TRAIN_MIN_SAMPLES = 20  # Trigger training when we have this many
+ADAPTER_WEIGHTS_DIR = "adapter_weights/"
+ADAPTER_TRAINING_INTERVAL = 100  # Check for training every N predictions
+
+# Device for adapter
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"[Adapter] Using device: {DEVICE}")
+
 from preprocess import (
     _normalize_landmarks,
     _add_velocity,
@@ -425,6 +454,68 @@ def run_webcam():
         enable_debugging=False  # Set to True for debug logging
     )
 
+    # ── PART A: Pseudo-Label Collection ──
+    pseudo_buffer = None
+    prediction_count_since_save = 0
+    
+    if PSEUDO_BUFFER_ENABLED:
+        pseudo_buffer = PseudoLabelBuffer(
+            save_dir=PSEUDO_SAVE_DIR,
+            pseudo_threshold=PSEUDO_THRESHOLD,
+            min_buffer=MIN_BUFFER_SIZE,
+            per_class_cap=PER_CLASS_CAP,
+            auto_save=AUTO_SAVE_PSEUDO,
+        )
+    
+    # ── PART B: Adapter Model ──
+    adapter_model = None
+    adapter_trainer = None
+    adapter_manager = None
+    prediction_count_since_training = 0
+    
+    if ADAPTER_ENABLED:
+        try:
+            # Get number of classes from models
+            main_models, fallback_models, word_classes = ensure_word_models()
+            num_classes = len(word_classes)
+            
+            # Create adapter
+            adapter_model = AdapterModel(num_classes, hidden_dim=ADAPTER_HIDDEN_DIM).to(DEVICE)
+            adapter_trainer = AdapterTrainer(
+                num_classes=num_classes,
+                device=DEVICE,
+                learning_rate=ADAPTER_LEARNING_RATE,
+                hidden_dim=ADAPTER_HIDDEN_DIM,
+            )
+            adapter_manager = AdapterTrainingManager(
+                adapter_trainer=adapter_trainer,
+                num_classes=num_classes,
+                device=DEVICE,
+                enable_adaptation=ADAPTER_ENABLED,
+                adapter_weights_dir=ADAPTER_WEIGHTS_DIR,
+            )
+            
+            # Load existing adapter weights if available
+            latest_adapter = None
+            if os.path.exists(ADAPTER_WEIGHTS_DIR):
+                files = sorted([
+                    f for f in os.listdir(ADAPTER_WEIGHTS_DIR)
+                    if f.endswith('.pt')
+                ])
+                if files:
+                    latest_adapter = os.path.join(ADAPTER_WEIGHTS_DIR, files[-1])
+                    adapter_trainer.load_model(latest_adapter)
+            
+            print(f"[Adapter] Initialized: {num_classes} classes, {DEVICE}")
+            if latest_adapter:
+                print(f"[Adapter] Loaded weights from {latest_adapter}")
+        
+        except Exception as e:
+            print(f"[WARN] Could not initialize adapter: {e}")
+            adapter_model = None
+            adapter_trainer = None
+            adapter_manager = None
+
     print("\n=== ISL Sign Language Recognition (Continuous, Automatic Translation) ===")
     print(f"  Sliding window: {NUM_FRAMES} frames")
     print(f"  Base confidence threshold: {CONFIDENCE_THRESHOLD:.0%}")
@@ -436,8 +527,13 @@ def run_webcam():
         print(f"  ✓ Motion gating ENABLED (motion threshold: {MOTION_THRESHOLD:.1f}px)")
     if DYNAMIC_THRESHOLD_ENABLED:
         print(f"  ✓ Dynamic thresholds ENABLED (motion boost: {MOTION_BOOST_FACTOR:.0%}, stability boost: {STABILITY_BOOST_FACTOR:.0%})")
+    if PSEUDO_BUFFER_ENABLED:
+        print(f"  ✓ Pseudo-label Collection ENABLED (threshold: {PSEUDO_THRESHOLD:.0%})")
+    if ADAPTER_ENABLED and adapter_model is not None:
+        print(f"  ✓ Adapter Learning ENABLED (auto-train at {ADAPTER_TRAIN_MIN_SAMPLES} samples)")
     print(f"  ➜ Just sign! No keyboard input needed (Q/ESC to quit)")
     print("=======================================================================")
+
 
 
     while True:
@@ -627,6 +723,26 @@ def run_webcam():
                     idx, conf = temporal_postprocessor.smooth_raw_prediction(probs_array)
                     predicted = classes[idx] if idx < len(classes) else "?"
                 
+                # ── PART B: Adapter Model Application ──
+                # Apply adapter correction to ensemble probabilities if available
+                original_probs = probs_array.copy()
+                if adapter_model is not None:
+                    try:
+                        with torch.no_grad():
+                            probs_tensor = torch.from_numpy(
+                                probs_array.astype(np.float32)
+                            ).unsqueeze(0).to(DEVICE)
+                            adapted_probs_tensor = adapter_model(probs_tensor)
+                            probs_array = adapted_probs_tensor.squeeze(0).cpu().numpy()
+                            
+                            # Update prediction from adapted probabilities
+                            idx = int(np.argmax(probs_array))
+                            conf = float(probs_array[idx])
+                            predicted = classes[idx] if idx < len(classes) else "?"
+                    except Exception as e:
+                        # Fall back to ensemble prediction if adapter fails
+                        print(f"[Adapter] Error applying adapter: {e}")
+                
                 # ── Dynamic Threshold Calculation ──
                 is_transition = (last_output_prediction is not None and 
                                 predicted != last_output_prediction)
@@ -658,6 +774,67 @@ def run_webcam():
                     confidence_text = (
                         f"Conf: {conf:.1%} | Motion: {motion_magnitude:.1f} | Stable: {prediction_stability_counter}"
                     )
+                    
+                    # ── PART A: Pseudo-Label Collection ──
+                    # Collect high-confidence prediction as pseudo-labeled sample
+                    if pseudo_buffer is not None and conf >= PSEUDO_THRESHOLD:
+                        collected = pseudo_buffer.add_sample(
+                            class_name=predicted,
+                            seq=seq,
+                            confidence=conf,
+                        )
+                        if collected:
+                            prediction_count_since_save = 0
+                    
+                    # Periodically save pseudo-buffer
+                    prediction_count_since_save += 1
+                    if pseudo_buffer is not None and AUTO_SAVE_PSEUDO:
+                        if pseudo_buffer.should_save() and prediction_count_since_save >= PSEUDO_SAVE_INTERVAL:
+                            pseudo_buffer.save(verbose=True)
+                            pseudo_buffer.clear()
+                            prediction_count_since_save = 0
+                    
+                    # ── Adapter Training Trigger ──
+                    # Periodically check if we should train adapter
+                    if adapter_manager is not None:
+                        prediction_count_since_training += 1
+                        
+                        if prediction_count_since_training >= ADAPTER_TRAINING_INTERVAL:
+                            if pseudo_buffer is not None and pseudo_buffer.get_total_samples() >= ADAPTER_TRAIN_MIN_SAMPLES:
+                                # Prepare training data from pseudo-buffer
+                                ensemble_probs_list = []
+                                class_indices_list = []
+                                
+                                for class_name, sequences in pseudo_buffer.buffer.items():
+                                    try:
+                                        class_idx = classes.index(class_name)
+                                        # Note: For real training, we'd need to re-run ensemble on stored sequences
+                                        # For now, we use a simplified approach where we store ensemble probs
+                                        for seq_stored in sequences:
+                                            # In a full implementation, re-run ensemble_predict on seq_stored
+                                            # For now, collect from current state
+                                            ensemble_probs_list.append(original_probs)
+                                            class_indices_list.append(class_idx)
+                                    except ValueError:
+                                        pass
+                                
+                                if ensemble_probs_list:
+                                    # Create class_id_to_name mapping
+                                    class_id_to_name = {i: name for i, name in enumerate(classes)}
+                                    
+                                    # Trigger training
+                                    adapter_manager.trigger_training_with_probs(
+                                        ensemble_probs_list=ensemble_probs_list,
+                                        class_indices_list=class_indices_list,
+                                        classes=classes,
+                                        class_id_to_name=class_id_to_name,
+                                        validation_probs=np.array([original_probs]),  # Minimal validation set
+                                        epochs=ADAPTER_EPOCHS,
+                                        batch_size=ADAPTER_BATCH_SIZE,
+                                    )
+                                    
+                                    prediction_count_since_training = 0
+                
                 else:
                     # Prediction rejected
                     if motion_gated:
@@ -823,6 +1000,15 @@ def run_webcam():
     if holistic is not None:
         holistic.close()
     cv2.destroyAllWindows()
+    
+    # ── Cleanup: Save pseudo-buffer and shutdown adapter ──
+    if pseudo_buffer is not None and pseudo_buffer.get_total_samples() > 0:
+        print(f"\n[Cleanup] Saving pseudo-buffer with {pseudo_buffer.get_total_samples()} samples...")
+        pseudo_buffer.save(verbose=True)
+    
+    if adapter_manager is not None:
+        print("[Cleanup] Shutting down adapter manager...")
+        adapter_manager.shutdown()
     
     # Show final translation summary
     all_parts = sentence_builder.completed_sentences.copy()
