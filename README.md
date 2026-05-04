@@ -12,6 +12,7 @@ Real-time Indian Sign Language word recognition using hand landmarks and a BiGRU
 - **Hand Selection** (NEW): Face-centric single-person hand filtering for multi-person robustness
 - **Automatic sentence building** — signs accumulate into coherent text with NLP post-processing
 - **Webcam data collection** for new samples
+- **Controlled raw-video augmentation** for training-only dataset expansion
 - **Runtime signer validation:**
   - Detects and validates both hands belong to same person (IoU-based)
   - Shows on-screen bounding boxes and confidence scores
@@ -51,6 +52,7 @@ Minimal packages in requirements:
 
 - **main.py** — CLI entry point & orchestration  
 - **preprocess.py** — Video to landmark preprocessing (MediaPipe extraction)
+- **augmented_dataset/** — Controlled raw-video augmentation output
 - **dataset.py** — PyTorch dataset with on-the-fly augmentation & oversampling
 - **model.py** — BiGRU + Attention architecture
 - **train.py** — Training loop, K-fold cross-validation, loss functions
@@ -72,6 +74,54 @@ Minimal packages in requirements:
 ```bash
 python main.py --preprocess
 python main.py --train
+```
+
+### 1b) Build a Controlled Augmented Video Dataset
+
+Run this on your training split only, not validation/test:
+
+```bash
+python main.py --augment-videos --augment-input-dir Dataset --augment-output-dir augmented_dataset
+```
+
+Each class keeps the original videos and generates up to **8 separate augmentations** per source video while capping the total output per class.
+
+**Augmentation types** (preserves hand visibility for MediaPipe):
+- **aug1:** Center crop (baseline)
+- **aug2:** Left-shifted crop (hand positioned left)
+- **aug3:** Right-shifted crop (hand positioned right)
+- **aug4:** Center crop + random effect (scale/zoom, rotation, contrast, color jitter, or noise)
+- **aug5:** Left crop + random effect
+- **aug6:** Right crop + random effect
+- **aug7:** Center crop + stacked effects (two sequential transformations)
+- **aug8:** Center crop + different random effect
+
+**Example: Generate 8 variants per video (default)**
+```bash
+python main.py --augment-videos --augment-input-dir Dataset --augment-output-dir augmented_dataset
+```
+With 10 source videos per class → ~80 augmented + 10 originals = 90 total per class.
+
+**Higher resolution (sharper quality)**
+```bash
+python main.py --augment-videos --augment-input-dir Dataset --augment-output-dir augmented_dataset --augment-width 320 --augment-height 320
+```
+Or even larger: `--augment-width 480 --augment-height 480`
+
+**Generate even more per class (e.g., 200 total)**
+Increase the cap per class:
+```bash
+python main.py --augment-videos --augment-input-dir Dataset --augment-output-dir augmented_dataset --augment-max-per-class 200
+```
+
+**Non-destructive append (keep existing augmentations)**
+```bash
+python main.py --augment-videos --augment-input-dir Dataset --augment-output-dir augmented_dataset --no-clear
+```
+
+**Combine options (high-res, more per-class, 8 variants, non-destructive)**
+```bash
+python main.py --augment-videos --augment-input-dir Dataset --augment-output-dir augmented_dataset --augment-width 320 --augment-height 320 --augment-max-per-class 150 --no-clear
 ```
 
 ### 2) Optional: K-fold Ensemble

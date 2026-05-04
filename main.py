@@ -20,17 +20,51 @@ import sys
 # ── Word-mode functions (video pipeline) ─────────────────────────
 
 
-def run_preprocess():
+def run_preprocess(input_dir: str | None = None):
     """Run the video preprocessing pipeline."""
-    from preprocess import preprocess_dataset
+    from preprocess import DATASET_DIR, preprocess_dataset
+
+    source_dir = input_dir or DATASET_DIR
     print("=" * 60)
     print("  Preprocessing Videos -> Landmarks (.npy)")
     print("=" * 60)
-    stats = preprocess_dataset()
+    print(f"  Source: {source_dir}")
+    stats = preprocess_dataset(source_dir)
     total = sum(stats.values())
     print(
         f"\nTotal processed: {total} videos "
         f"across {len(stats)} classes\n"
+    )
+    return stats
+
+
+def run_augment_videos(
+    input_dir: str,
+    output_dir: str,
+    max_videos_per_class: int,
+    max_augments_per_video: int,
+    target_width: int,
+    target_height: int,
+    clear_output: bool,
+):
+    """Build the controlled augmented raw-video dataset."""
+    from preprocess import augment_video_dataset
+
+    print("=" * 60)
+    print(f"  Augmenting Raw Videos -> {output_dir}")
+    print("=" * 60)
+    stats = augment_video_dataset(
+        input_dir=input_dir,
+        output_dir=output_dir,
+        max_videos_per_class=max_videos_per_class,
+        max_augments_per_video=max_augments_per_video,
+        target_width=target_width,
+        target_height=target_height,
+        clear_output=clear_output,
+    )
+    total = sum(item["total_output"] for item in stats.values())
+    print(
+        f"\nTotal output videos: {total} across {len(stats)} classes\n"
     )
     return stats
 
@@ -115,8 +149,44 @@ def main():
         help="Preprocess videos",
     )
     parser.add_argument(
+        "--preprocess-dir", type=str, default=None,
+        help="Source directory for preprocessing (e.g. augmented_dataset)",
+    )
+    parser.add_argument(
         "--train", action="store_true",
         help="Train a single model",
+    )
+    parser.add_argument(
+        "--augment-videos", action="store_true",
+        help="Create a controlled augmented raw-video dataset",
+    )
+    parser.add_argument(
+        "--augment-input-dir", type=str, default=None,
+        help="Source directory for raw video augmentation",
+    )
+    parser.add_argument(
+        "--augment-output-dir", type=str, default=None,
+        help="Output directory for augmented videos",
+    )
+    parser.add_argument(
+        "--augment-max-per-class", type=int, default=100,
+        help="Maximum total videos to keep per class in augmented output",
+    )
+    parser.add_argument(
+        "--augment-max-per-video", type=int, default=8,
+        help="Maximum augmented variants to generate per source video",
+    )
+    parser.add_argument(
+        "--augment-width", type=int, default=224,
+        help="Output video width for augmented samples",
+    )
+    parser.add_argument(
+        "--augment-height", type=int, default=224,
+        help="Output video height for augmented samples",
+    )
+    parser.add_argument(
+        "--no-clear", action="store_true",
+        help="Do not remove existing augmented output; append instead",
     )
     parser.add_argument(
         "--kfold", action="store_true",
@@ -153,6 +223,21 @@ def main():
             collect_interactive()
         return
 
+    if args.augment_videos:
+        from preprocess import DATASET_DIR, AUGMENTED_DATASET_DIR
+        input_dir = args.augment_input_dir or DATASET_DIR
+        output_dir = args.augment_output_dir or AUGMENTED_DATASET_DIR
+        run_augment_videos(
+            input_dir=input_dir,
+            output_dir=output_dir,
+            max_videos_per_class=args.augment_max_per_class,
+            max_augments_per_video=args.augment_max_per_video,
+            target_width=args.augment_width,
+            target_height=args.augment_height,
+            clear_output=(not args.no_clear),
+        )
+        return
+
     # ── Webcam (always dual mode) ──
     if args.webcam:
         from webcam import run_webcam
@@ -170,12 +255,12 @@ def main():
 
     # Default: preprocess + train
     if not args.preprocess and not args.train:
-        run_preprocess()
+        run_preprocess(args.preprocess_dir)
         run_train_word()
         return
 
     if args.preprocess:
-        run_preprocess()
+        run_preprocess(args.preprocess_dir)
 
     if args.train:
         run_train_word()

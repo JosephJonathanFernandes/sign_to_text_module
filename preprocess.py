@@ -5,7 +5,13 @@ Per frame feature layout:
 with optional velocity appended after sequence-level normalization.
 """
 
+import argparse
+import hashlib
 import os
+import random
+import shutil
+from typing import Callable
+
 import cv2
 import numpy as np
 import mediapipe as mp
@@ -46,6 +52,339 @@ FACE_RIGHT_EYE_INDEX = cfg.preprocessing.face_right_eye_index
 
 
 _FACE_WARNING_SHOWN = False
+AUGMENTED_DATASET_DIR = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "augmented_dataset",
+)
+AUGMENTABLE_VIDEO_EXTENSIONS = (".mp4", ".mov")
+VIDEO_AUGMENT_WIDTH = 224
+VIDEO_AUGMENT_HEIGHT = 224
+VIDEO_AUGMENT_MAX_PER_VIDEO = 8
+VIDEO_AUGMENT_MAX_PER_CLASS = 200
+
+try:
+    from tqdm import tqdm
+except ImportError:
+    tqdm = None
+
+
+def _progress(iterable, desc: str):
+    if tqdm is None:
+        return iterable
+    return tqdm(iterable, desc=desc, unit="item", leave=False)
+
+
+def _is_augmentable_video(filename: str) -> bool:
+    return filename.lower().endswith(AUGMENTABLE_VIDEO_EXTENSIONS)
+
+
+def _copy_original_video(src_path: str, dst_path: str) -> None:
+    os.makedirs(os.path.dirname(dst_path), exist_ok=True)
+    shutil.copy2(src_path, dst_path)
+
+
+def _build_square_crop(
+    frame: np.ndarray,
+    mode: str,
+    target_width: int,
+    target_height: int,
+) -> np.ndarray:
+    """Crop a frame to a square window and resize to the webcam target size."""
+    height, width = frame.shape[:2]
+    crop_size = min(height, width)
+
+    if crop_size <= 0:
+        return cv2.resize(frame, (target_width, target_height), interpolation=cv2.INTER_LANCZOS4)
+
+    x_slack = width - crop_size
+    y_slack = height - crop_size
+
+    if mode == "center":
+        x0 = int(round(x_slack * 0.5)) if x_slack > 0 else 0
+    elif mode == "left":
+        x0 = int(round(x_slack * 0.15)) if x_slack > 0 else 0
+    elif mode == "right":
+        x0 = int(round(x_slack * 0.85)) if x_slack > 0 else 0
+    else:
+        raise ValueError(f"Unknown crop mode: {mode}")
+
+    y0 = int(round(y_slack * 0.5)) if y_slack > 0 else 0
+
+    x0 = max(0, min(x0, width - crop_size))
+    y0 = max(0, min(y0, height - crop_size))
+
+    cropped = frame[y0:y0 + crop_size, x0:x0 + crop_size]
+    interpolation = cv2.INTER_LANCZOS4
+    return cv2.resize(cropped, (target_width, target_height), interpolation=interpolation)
+
+
+def _apply_visual_effect(
+    frame: np.ndarray,
+    effect_name: str,
+    rng: random.Random,
+) -> np.ndarray:
+    """Apply one mild visual effect to a single frame."""
+    if effect_name == "noise":
+        sigma = rng.uniform(2.0, 5.0)
+        noise_map = np.random.normal(0.0, sigma, frame.shape).astype(np.float32)
+        out = frame.astype(np.float32) + noise_map
+        return np.clip(out, 0, 255).astype(np.uint8)
+
+    if effect_name == "brightness":
+        alpha = rng.uniform(0.92, 1.08)
+        beta = rng.randint(-8, 8)
+        return cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
+
+    if effect_name == "contrast":
+        alpha = rng.uniform(0.85, 1.15)
+        beta = 0
+        return cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
+
+    if effect_name == "color_jitter":
+        # Add small random noise to each RGB channel independently
+        b, g, r = cv2.split(frame)
+        for channel in [b, g, r]:
+            noise = np.random.normal(0, rng.uniform(3, 8), channel.shape).astype(np.float32)
+            channel_out = channel.astype(np.float32) + noise
+            channel[:] = np.clip(channel_out, 0, 255).astype(np.uint8)
+        return cv2.merge([b, g, r])
+
+    if effect_name == "scale":
+        # Random zoom in/out (0.85 to 1.15x)
+        scale = rng.uniform(0.85, 1.15)
+        h, w = frame.shape[:2]
+        M = cv2.getRotationMatrix2D((w / 2, h / 2), 0, scale)
+        return cv2.warpAffine(frame, M, (w, h), borderMode=cv2.BORDER_REFLECT)
+
+    if effect_name == "rotation":
+        # Subtle rotation ±3 degrees
+        angle = rng.uniform(-3, 3)
+        h, w = frame.shape[:2]
+        M = cv2.getRotationMatrix2D((w / 2, h / 2), angle, 1.0)
+        return cv2.warpAffine(frame, M, (w, h), borderMode=cv2.BORDER_REFLECT)
+
+    raise ValueError(f"Unknown effect: {effect_name}")
+
+
+def _make_augmented_variants(
+    augment_count: int,
+    seed: int,
+    target_width: int,
+    target_height: int,
+) -> list[tuple[str, Callable[[np.ndarray], np.ndarray]]]:
+    """Build up to 8 independent, frame-wise augmentation variants."""
+    augment_count = max(0, min(augment_count, VIDEO_AUGMENT_MAX_PER_VIDEO))
+    if augment_count <= 0:
+        return []
+
+    rng = random.Random(seed)
+    variants: list[tuple[str, Callable[[np.ndarray], np.ndarray]]] = []
+    effects = ("scale", "rotation", "contrast", "color_jitter", "noise")
+
+    # Variant 1: center crop (baseline)
+    if augment_count >= 1:
+        variants.append(("aug1", lambda frame: _build_square_crop(frame, "center", target_width, target_height)))
+    
+    # Variant 2: left crop
+    if augment_count >= 2:
+        variants.append(("aug2", lambda frame: _build_square_crop(frame, "left", target_width, target_height)))
+    
+    # Variant 3: right crop
+    if augment_count >= 3:
+        variants.append(("aug3", lambda frame: _build_square_crop(frame, "right", target_width, target_height)))
+    
+    # Variant 4: center crop + random effect
+    if augment_count >= 4:
+        effect_name = rng.choice(effects)
+        def _aug4(frame: np.ndarray, effect: str = effect_name, local_rng: random.Random = rng) -> np.ndarray:
+            base = _build_square_crop(frame, "center", target_width, target_height)
+            return _apply_visual_effect(base, effect, local_rng)
+        variants.append(("aug4", _aug4))
+    
+    # Variant 5: left crop + random effect
+    if augment_count >= 5:
+        effect_name = rng.choice(effects)
+        def _aug5(frame: np.ndarray, effect: str = effect_name, local_rng: random.Random = rng) -> np.ndarray:
+            base = _build_square_crop(frame, "left", target_width, target_height)
+            return _apply_visual_effect(base, effect, local_rng)
+        variants.append(("aug5", _aug5))
+    
+    # Variant 6: right crop + random effect
+    if augment_count >= 6:
+        effect_name = rng.choice(effects)
+        def _aug6(frame: np.ndarray, effect: str = effect_name, local_rng: random.Random = rng) -> np.ndarray:
+            base = _build_square_crop(frame, "right", target_width, target_height)
+            return _apply_visual_effect(base, effect, local_rng)
+        variants.append(("aug6", _aug6))
+    
+    # Variant 7: center crop + stacked effects (two sequential effects)
+    if augment_count >= 7:
+        effect1 = rng.choice(effects)
+        effect2 = rng.choice(effects)
+        def _aug7(frame: np.ndarray, e1: str = effect1, e2: str = effect2, local_rng: random.Random = rng) -> np.ndarray:
+            base = _build_square_crop(frame, "center", target_width, target_height)
+            base = _apply_visual_effect(base, e1, local_rng)
+            return _apply_visual_effect(base, e2, local_rng)
+        variants.append(("aug7", _aug7))
+    
+    # Variant 8: center crop + different effect combo
+    if augment_count >= 8:
+        effect_name = rng.choice(effects)
+        def _aug8(frame: np.ndarray, effect: str = effect_name, local_rng: random.Random = rng) -> np.ndarray:
+            base = _build_square_crop(frame, "center", target_width, target_height)
+            return _apply_visual_effect(base, effect, local_rng)
+        variants.append(("aug8", _aug8))
+
+    return variants
+
+
+def _write_augmented_video(
+    video_path: str,
+    output_paths: list[str],
+    transforms: list[Callable[[np.ndarray], np.ndarray]],
+    target_width: int,
+    target_height: int,
+) -> None:
+    """Stream a video once and write all augmented outputs frame-by-frame."""
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        print(f"  [WARN] Cannot open for augmentation: {video_path}")
+        return
+
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    if not fps or fps <= 0:
+        fps = 30.0
+
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    writers = []
+    try:
+        for output_path in output_paths:
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            writers.append(
+                cv2.VideoWriter(
+                    output_path,
+                    fourcc,
+                    fps,
+                    (target_width, target_height),
+                )
+            )
+
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            for writer, transform in zip(writers, transforms):
+                writer.write(transform(frame))
+    finally:
+        cap.release()
+        for writer in writers:
+            writer.release()
+
+
+def augment_video_dataset(
+    input_dir: str = DATASET_DIR,
+    output_dir: str = AUGMENTED_DATASET_DIR,
+    max_videos_per_class: int = VIDEO_AUGMENT_MAX_PER_CLASS,
+    max_augments_per_video: int = VIDEO_AUGMENT_MAX_PER_VIDEO,
+    target_width: int = VIDEO_AUGMENT_WIDTH,
+    target_height: int = VIDEO_AUGMENT_HEIGHT,
+    clear_output: bool = True,
+) -> dict:
+    """
+    Build a controlled augmented video dataset from class folders.
+
+    Copies every original .mp4/.mov file into output_dir and generates up to
+    four additional, separate augmentations per original video until the per-
+    class threshold is reached.
+    """
+    input_dir = os.path.abspath(input_dir)
+    output_dir = os.path.abspath(output_dir)
+
+    if input_dir == output_dir:
+        raise ValueError("input_dir and output_dir must be different")
+
+    if clear_output and os.path.isdir(output_dir):
+        shutil.rmtree(output_dir)
+    os.makedirs(output_dir, exist_ok=True)
+
+    class_folders = sorted([
+        d for d in os.listdir(input_dir)
+        if os.path.isdir(os.path.join(input_dir, d))
+    ])
+    if not class_folders:
+        raise FileNotFoundError(f"No class folders found in {input_dir}")
+
+    print(f"[VideoAug] Found {len(class_folders)} classes")
+    stats = {}
+
+    for cls_folder in _progress(class_folders, "Classes"):
+        cls_in = os.path.join(input_dir, cls_folder)
+        cls_out = os.path.join(output_dir, cls_folder)
+        os.makedirs(cls_out, exist_ok=True)
+
+        videos = sorted([
+            f for f in os.listdir(cls_in)
+            if os.path.isfile(os.path.join(cls_in, f)) and _is_augmentable_video(f)
+        ])
+
+        originals_copied = 0
+        augmented_written = 0
+        remaining_aug_slots = max(0, max_videos_per_class - len(videos))
+
+        print(f"  Class '{cls_folder}': {len(videos)} source videos")
+        if len(videos) >= max_videos_per_class:
+            print(
+                f"    [VideoAug] Originals already meet/exceed the class cap "
+                f"({max_videos_per_class}); skipping augmentation"
+            )
+
+        for index, vid_file in enumerate(_progress(videos, cls_folder)):
+            src_path = os.path.join(cls_in, vid_file)
+            dst_path = os.path.join(cls_out, vid_file)
+            _copy_original_video(src_path, dst_path)
+            originals_copied += 1
+
+            aug_budget = min(max_augments_per_video, remaining_aug_slots)
+            if aug_budget <= 0:
+                continue
+
+            stem, _ = os.path.splitext(vid_file)
+            seed_bytes = f"{cls_folder}/{vid_file}/{index}".encode("utf-8")
+            seed = int.from_bytes(hashlib.sha256(seed_bytes).digest()[:4], "big")
+            variants = _make_augmented_variants(
+                aug_budget,
+                seed=seed,
+                target_width=target_width,
+                target_height=target_height,
+            )
+            if not variants:
+                continue
+
+            output_paths = [os.path.join(cls_out, f"{stem}_{name}.mp4") for name, _ in variants]
+            transforms = [transform for _, transform in variants]
+            _write_augmented_video(
+                src_path,
+                output_paths,
+                transforms,
+                target_width,
+                target_height,
+            )
+            augmented_written += len(variants)
+            remaining_aug_slots -= len(variants)
+
+        stats[cls_folder] = {
+            "originals_copied": originals_copied,
+            "augmented_written": augmented_written,
+            "total_output": originals_copied + augmented_written,
+        }
+        print(
+            f"    [VideoAug] copied={originals_copied}, "
+            f"augmented={augmented_written}, total={originals_copied + augmented_written}"
+        )
+
+    print(f"[VideoAug] Done. Saved to: {output_dir}")
+    return stats
 
 
 def create_landmarker(
@@ -424,32 +763,35 @@ def _add_velocity(sequence: np.ndarray) -> np.ndarray:
     return np.concatenate([sequence, velocity], axis=1).astype(np.float32)
 
 
-def preprocess_dataset() -> dict:
+def preprocess_dataset(input_dir: str = DATASET_DIR) -> dict:
     """
-    Walk through the Dataset directory, extract landmarks from every video,
-    and save the resulting numpy arrays into the processed/ directory.
+    Walk through a class-wise video directory, extract landmarks from every
+    supported video, and save the resulting numpy arrays into processed/.
 
     Returns:
         dict mapping class names to number of videos processed.
     """
     os.makedirs(PROCESSED_DIR, exist_ok=True)
 
+    input_dir = os.path.abspath(input_dir)
+
     # Discover classes from folder names
     class_folders = sorted([
-        d for d in os.listdir(DATASET_DIR)
-        if os.path.isdir(os.path.join(DATASET_DIR, d))
+        d for d in os.listdir(input_dir)
+        if os.path.isdir(os.path.join(input_dir, d))
     ])
 
     if not class_folders:
-        raise FileNotFoundError(f"No class folders found in {DATASET_DIR}")
+        raise FileNotFoundError(f"No class folders found in {input_dir}")
 
     print(f"[Preprocess] Found {len(class_folders)} classes: {class_folders}")
+    print(f"[Preprocess] Reading videos from: {input_dir}")
     stats = {}
 
     for cls_folder in class_folders:
         # Strip leading number prefix like "1. " for clean label
         label = cls_folder.split(". ", 1)[-1].strip().lower()
-        cls_path = os.path.join(DATASET_DIR, cls_folder)
+        cls_path = os.path.join(input_dir, cls_folder)
         save_dir = os.path.join(PROCESSED_DIR, label)
         os.makedirs(save_dir, exist_ok=True)
 

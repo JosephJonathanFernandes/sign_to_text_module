@@ -7,14 +7,11 @@ Uses weighted CrossEntropyLoss + Mixup for handling class imbalance.
 
 import os
 import time
+from collections import defaultdict
 import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from sklearn.model_selection import (
-    StratifiedShuffleSplit, StratifiedKFold,
-    KFold, ShuffleSplit,
-)
 from config import get_config
 
 cfg = get_config()
@@ -91,6 +88,113 @@ def mixup_criterion(criterion, logits, y_a, y_b, lam):
             + (1 - lam) * criterion(logits, y_b))
 
 
+def _is_augmented_sample(name: str) -> bool:
+    """Return True for derived samples such as aug/merge variants."""
+    name = name.lower()
+    return any(tag in name for tag in ("_aug", "_merge", "_mrg"))
+
+
+def _validation_priority(file_path: str) -> tuple[int, str]:
+    """Rank samples so validation prefers MVI and minimizes webcam originals."""
+    name = os.path.basename(file_path).lower()
+    is_mvi = name.startswith("mvi")
+    is_webcam = "webcam" in name
+    is_aug = _is_augmented_sample(name)
+
+    if is_mvi and is_aug:
+        return (0, name)
+    if is_mvi:
+        return (1, name)
+    if not is_webcam:
+        return (2, name)
+    if is_webcam and is_aug:
+        return (3, name)
+    if is_webcam:
+        return (4, name)
+    return (5, name)
+
+
+def _source_aware_split(
+    samples: list[tuple[str, int]],
+    labels: np.ndarray,
+    val_split: float,
+    random_seed: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Split indices per class while biasing validation toward MVI-derived files.
+
+    The goal is to keep class coverage from stratification while selecting the
+    validation subset in this priority order:
+      1. MVI augmented
+      2. MVI original
+            3. Other (non-webcam) files
+            4. Webcam augmented
+            5. Webcam original
+    """
+    rng = np.random.default_rng(random_seed)
+    train_indices: list[int] = []
+    val_indices: list[int] = []
+
+    for cls in np.unique(labels):
+        cls_indices = np.flatnonzero(labels == cls).tolist()
+        if len(cls_indices) <= 1:
+            train_indices.extend(cls_indices)
+            continue
+
+        target_val = int(round(len(cls_indices) * val_split))
+        target_val = max(1, min(len(cls_indices) - 1, target_val))
+
+        grouped: dict[int, list[int]] = defaultdict(list)
+        for idx in cls_indices:
+            grouped[_validation_priority(samples[idx][0])[0]].append(idx)
+
+        for bucket in grouped.values():
+            rng.shuffle(bucket)
+
+        chosen: list[int] = []
+        for priority in range(6):
+            if len(chosen) >= target_val:
+                break
+            bucket = grouped.get(priority, [])
+            remaining = target_val - len(chosen)
+            chosen.extend(bucket[:remaining])
+
+        chosen_set = set(chosen)
+        train_indices.extend(idx for idx in cls_indices if idx not in chosen_set)
+        val_indices.extend(chosen)
+
+    rng.shuffle(train_indices)
+    rng.shuffle(val_indices)
+    return np.asarray(train_indices, dtype=np.int64), np.asarray(val_indices, dtype=np.int64)
+
+
+def _build_source_aware_folds(
+    samples: list[tuple[str, int]],
+    labels: np.ndarray,
+    num_folds: int,
+    random_seed: int,
+) -> list[np.ndarray]:
+    """
+    Build K source-aware validation folds by repeatedly applying the same
+    source-aware split with different random seeds.
+
+    This intentionally prioritizes MVI-heavy validation in every fold (rather
+    than enforcing strict disjoint K-Fold partitions).
+    Returns a list of `num_folds` arrays containing validation indices.
+    """
+    val_split = 1.0 / float(num_folds)
+    folds: list[np.ndarray] = []
+    for fold in range(num_folds):
+        _, val_idx = _source_aware_split(
+            samples,
+            labels,
+            val_split,
+            random_seed + fold,
+        )
+        folds.append(val_idx)
+    return folds
+
+
 # ── Focal Loss (for hard sample mining) ──────────────────────────────
 
 class FocalLoss(nn.Module):
@@ -146,7 +250,7 @@ class FocalLoss(nn.Module):
 def create_data_loaders() -> tuple:
     """
     Create train (with augmentation + oversampling) and val datasets
-    using **stratified** split to ensure every class is represented.
+    using a class-aware split that keeps validation MVI-heavy.
 
     Returns:
         (train_loader, val_loader, num_classes, class_weights, full_ds)
@@ -155,26 +259,15 @@ def create_data_loaders() -> tuple:
     full_ds = ISLDataset(augment=False, min_samples=2, oversample=False)
     total = len(full_ds)
 
-    # Extract labels for stratification
+    # Extract labels for source-aware stratified splitting
     labels = np.array([lbl for _, lbl in full_ds.samples])
 
-    # Use stratified split if all classes have >=2 samples, else plain shuffle
-    class_counts = np.bincount(labels, minlength=full_ds.num_classes)
-    min_class_count = class_counts[class_counts > 0].min()
-    if min_class_count >= 2:
-        splitter = StratifiedShuffleSplit(
-            n_splits=1, test_size=VAL_SPLIT, random_state=RANDOM_SEED
-        )
-        train_idx, val_idx = next(splitter.split(np.zeros(total), labels))
-    else:
-        splitter = ShuffleSplit(
-            n_splits=1, test_size=VAL_SPLIT, random_state=RANDOM_SEED
-        )
-        train_idx, val_idx = next(splitter.split(np.zeros(total)))
-        print(
-            "[Data] Using non-stratified split "
-            "(some classes have <2 samples)"
-        )
+    train_idx, val_idx = _source_aware_split(
+        full_ds.samples,
+        labels,
+        VAL_SPLIT,
+        RANDOM_SEED,
+    )
 
     # Wrap with augmentation + oversampling for train, plain for val
     train_ds = _BalancedAugSubset(full_ds, train_idx.tolist())
@@ -606,24 +699,17 @@ def train_kfold() -> list:
     num_classes = full_ds.num_classes
     labels = np.array([lbl for _, lbl in full_ds.samples])
 
-    # Use stratified K-fold if possible, else plain K-fold
-    class_counts = np.bincount(labels, minlength=num_classes)
-    min_class_count = class_counts[class_counts > 0].min()
-    if min_class_count >= NUM_FOLDS:
-        kf = StratifiedKFold(
-            n_splits=NUM_FOLDS, shuffle=True, random_state=RANDOM_SEED
-        )
-        split_iter = kf.split(np.zeros(len(labels)), labels)
-        print("[KFold] Using stratified K-fold")
-    else:
-        kf = KFold(
-            n_splits=NUM_FOLDS, shuffle=True, random_state=RANDOM_SEED
-        )
-        split_iter = kf.split(np.zeros(len(labels)))
-        print(
-            "[KFold] Using plain K-fold "
-            f"(min class count={min_class_count} < {NUM_FOLDS})"
-        )
+    # Build source-aware folds that spread high-priority (MVI) samples across
+    # every fold so each fold's validation set is MVI-heavy.
+    folds = _build_source_aware_folds(
+        full_ds.samples, labels, NUM_FOLDS, RANDOM_SEED
+    )
+    split_iter = []
+    for fold in range(NUM_FOLDS):
+        val_idx = folds[fold]
+        train_idx = np.setdiff1d(np.arange(len(labels)), val_idx)
+        split_iter.append((train_idx, val_idx))
+    print(f"[KFold] Using source-aware K-fold (num_folds={NUM_FOLDS})")
 
     fold_accs = []
     all_val_correct = 0

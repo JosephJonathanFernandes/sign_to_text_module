@@ -17,6 +17,7 @@ face_landmarker.task
 
 # Dataset videos (too large for git)
 Dataset/
+augmented_dataset/
 assets/
 archive (1)/
 archive (2)/
