@@ -13,6 +13,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from config import get_config
+from pipeline_logger import PipelineLogger
 
 cfg = get_config()
 
@@ -514,6 +515,7 @@ def train(
     num_classes: int,
     class_weights: torch.Tensor = None,
     classes_list: list = None,
+    pipeline_log: PipelineLogger | None = None,
 ) -> SignLanguageGRU:
     """
         Full training loop with:
@@ -525,6 +527,16 @@ def train(
       - Gradient clipping
       - Best model checkpointing
     """
+    if pipeline_log is not None:
+        pipeline_log.event(
+            "train_loop_start",
+            num_classes=num_classes,
+            train_batches=len(train_loader),
+            val_batches=len(val_loader),
+            class_weights=[float(x) for x in class_weights.tolist()] if class_weights is not None else None,
+            use_focal_loss=USE_FOCAL_LOSS,
+        )
+
     model = SignLanguageGRU(num_classes=num_classes).to(DEVICE)
 
     # Select loss function (Focal Loss for hard sample mining, else CE)
@@ -584,6 +596,19 @@ def train(
         cur_lr = optimizer.param_groups[0]["lr"]
         elapsed = time.time() - t0
 
+        if pipeline_log is not None:
+            pipeline_log.event(
+                "train_epoch_end",
+                epoch=epoch,
+                train_loss=round(float(tr_loss), 6),
+                train_acc=round(float(tr_acc), 3),
+                val_loss=round(float(va_loss), 6),
+                val_acc=round(float(va_acc), 3),
+                lr=round(float(cur_lr), 10),
+                elapsed_sec=round(float(elapsed), 3),
+                best_val_acc=round(float(best_val_acc), 3),
+            )
+
         marker = ""
         if va_acc > best_val_acc:
             best_val_acc = va_acc
@@ -596,6 +621,13 @@ def train(
                 "num_classes": num_classes,
                 "classes": classes_list or [],
             }, MODEL_SAVE_PATH)
+            if pipeline_log is not None:
+                pipeline_log.event(
+                    "train_best_checkpoint",
+                    epoch=epoch,
+                    val_acc=round(float(va_acc), 3),
+                    model_path=MODEL_SAVE_PATH,
+                )
             marker = " *"
         else:
             no_improve += 1
@@ -613,10 +645,23 @@ def train(
                 f"\n[Early Stop] No improvement for "
                 f"{PATIENCE} epochs. Stopping."
             )
+            if pipeline_log is not None:
+                pipeline_log.event(
+                    "train_early_stop",
+                    epoch=epoch,
+                    patience=PATIENCE,
+                    best_val_acc=round(float(best_val_acc), 3),
+                )
             break
 
     print(f"\n[Train] Best val accuracy: {best_val_acc:.2f}%")
     print(f"[Train] Model saved to: {MODEL_SAVE_PATH}")
+    if pipeline_log is not None:
+        pipeline_log.event(
+            "train_loop_end",
+            best_val_acc=round(float(best_val_acc), 3),
+            model_path=MODEL_SAVE_PATH,
+        )
 
     # Load best weights
     ckpt = torch.load(
@@ -639,6 +684,7 @@ def _train_fold(
     num_classes: int,
     fold: int,
     save_path: str,
+    pipeline_log: PipelineLogger | None = None,
 ) -> float:
     """
     Train a single fold with balanced oversampling + weighted CE loss.
@@ -648,6 +694,21 @@ def _train_fold(
 
     # Balanced oversampling for training split
     train_ds = _BalancedAugSubset(full_ds, train_idx.tolist())
+    if pipeline_log is not None:
+        train_counts = defaultdict(int)
+        for idx in train_idx:
+            train_counts[int(labels[idx])] += 1
+        val_counts = defaultdict(int)
+        for idx in val_idx:
+            val_counts[int(labels[idx])] += 1
+        pipeline_log.event(
+            "kfold_fold_start",
+            fold=fold,
+            train_size=int(len(train_idx)),
+            val_size=int(len(val_idx)),
+            train_class_counts=dict(train_counts),
+            val_class_counts=dict(val_counts),
+        )
     val_ds = _PlainSubset(full_ds, val_idx.tolist())
 
     train_loader = DataLoader(
@@ -698,7 +759,22 @@ def _train_fold(
         )
         va_loss, va_acc = validate(model, val_loader, criterion)
         scheduler.step(epoch)
+        cur_lr = optimizer.param_groups[0]["lr"]
         elapsed = time.time() - t0
+
+        if pipeline_log is not None:
+            pipeline_log.event(
+                "kfold_fold_epoch_end",
+                fold=fold,
+                epoch=epoch,
+                train_loss=round(float(tr_loss), 6),
+                train_acc=round(float(tr_acc), 3),
+                val_loss=round(float(va_loss), 6),
+                val_acc=round(float(va_acc), 3),
+                lr=round(float(cur_lr), 10),
+                elapsed_sec=round(float(elapsed), 3),
+                best_val_acc=round(float(best_val_acc), 3),
+            )
 
         marker = ""
         if va_acc > best_val_acc:
@@ -712,6 +788,14 @@ def _train_fold(
                 "classes": full_ds.classes,
                 "fold": fold,
             }, save_path)
+            if pipeline_log is not None:
+                pipeline_log.event(
+                    "kfold_fold_best_checkpoint",
+                    fold=fold,
+                    epoch=epoch,
+                    val_acc=round(float(va_acc), 3),
+                    model_path=save_path,
+                )
             marker = " *"
         else:
             no_improve += 1
@@ -726,12 +810,28 @@ def _train_fold(
 
         if no_improve >= PATIENCE:
             print(f"   F{fold} Early stop at epoch {epoch}")
+            if pipeline_log is not None:
+                pipeline_log.event(
+                    "kfold_fold_early_stop",
+                    fold=fold,
+                    epoch=epoch,
+                    patience=PATIENCE,
+                    best_val_acc=round(float(best_val_acc), 3),
+                )
             break
+
+    if pipeline_log is not None:
+        pipeline_log.event(
+            "kfold_fold_end",
+            fold=fold,
+            best_val_acc=round(float(best_val_acc), 3),
+            model_path=save_path,
+        )
 
     return best_val_acc
 
 
-def train_kfold() -> list:
+def train_kfold(pipeline_log: PipelineLogger | None = None) -> list:
     """
     Train NUM_FOLDS models using disjoint source-aware K-fold CV.
     Saves each fold model to ENSEMBLE_DIR/fold_N.pth.
@@ -763,6 +863,13 @@ def train_kfold() -> list:
     print(f"  K-Fold Cross-Validation ({NUM_FOLDS} folds)")
     print(f"  Dataset: {len(full_ds)} samples, {num_classes} classes")
     print(f"{'='*60}\n")
+    if pipeline_log is not None:
+        pipeline_log.event(
+            "kfold_start",
+            num_folds=NUM_FOLDS,
+            dataset_size=int(len(full_ds)),
+            num_classes=int(num_classes),
+        )
 
     total_p = sum(
         p.numel() for p in SignLanguageGRU(num_classes).parameters()
@@ -778,6 +885,7 @@ def train_kfold() -> list:
 
         best_acc = _train_fold(
             full_ds, train_idx, val_idx, num_classes, fold, save_path,
+            pipeline_log=pipeline_log,
         )
         fold_accs.append(best_acc)
         all_val_correct += int(round(best_acc * len(val_idx) / 100))
@@ -797,5 +905,11 @@ def train_kfold() -> list:
     )
     print(f"  Models saved to:     {ENSEMBLE_DIR}/")
     print(f"{'='*60}")
-
+    if pipeline_log is not None:
+        pipeline_log.event(
+            "kfold_end",
+            fold_accuracies=[round(float(x), 3) for x in fold_accs],
+            mean_accuracy=round(float(avg_acc), 3),
+            overall_accuracy=round(float(overall_acc), 3),
+        )
     return fold_accs

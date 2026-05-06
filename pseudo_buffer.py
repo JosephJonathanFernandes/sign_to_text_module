@@ -16,6 +16,7 @@ import numpy as np
 from collections import defaultdict, Counter
 from datetime import datetime
 import json
+from typing import Optional, List, Tuple
 
 
 class PseudoLabelBuffer:
@@ -215,6 +216,43 @@ class PseudoLabelBuffer:
             cls: [seq.copy() for seq in sequences]
             for cls, sequences in self.buffer.items()
         }
+
+    def get_saved_sample_count(self) -> int:
+        """Count saved .npy samples on disk inside the save directory."""
+        total = 0
+        if not os.path.exists(self.save_dir):
+            return 0
+
+        for root, _, files in os.walk(self.save_dir):
+            total += sum(1 for file_name in files if file_name.endswith('.npy'))
+        return total
+
+    def load_saved_samples(self) -> List[Tuple[str, np.ndarray]]:
+        """Load saved pseudo-labeled samples from disk.
+
+        Returns:
+            List of (class_name, sequence) tuples.
+        """
+        samples = []
+        if not os.path.exists(self.save_dir):
+            return samples
+
+        for class_name in sorted(os.listdir(self.save_dir)):
+            class_dir = os.path.join(self.save_dir, class_name)
+            if not os.path.isdir(class_dir):
+                continue
+
+            for file_name in sorted(os.listdir(class_dir)):
+                if not file_name.endswith('.npy'):
+                    continue
+                file_path = os.path.join(class_dir, file_name)
+                try:
+                    seq = np.load(file_path).astype(np.float32)
+                    samples.append((class_name, seq))
+                except Exception:
+                    continue
+
+        return samples
     
     def check_class_imbalance(self, imbalance_ratio: float = 0.7) -> bool:
         """

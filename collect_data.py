@@ -23,6 +23,7 @@ import numpy as np
 import mediapipe as mp
 
 from config import get_config
+from pipeline_logger import PipelineLogger
 
 cfg = get_config()
 from preprocess import (
@@ -166,14 +167,18 @@ def _choose_class():
     return choice.lower().strip()
 
 
-def record_samples(cls_name, num_samples=None):
+def record_samples(cls_name, num_samples=None, pipeline_log: PipelineLogger | None = None):
     """
     Open webcam and record gesture samples for the given class.
 
     Args:
         cls_name: class label (e.g. 'happy')
         num_samples: if set, auto-quit after this many. Otherwise loop.
+        pipeline_log: optional PipelineLogger for structured event logging
     """
+    if pipeline_log:
+        pipeline_log.event("record_start", class_name=cls_name, target_samples=num_samples)
+    
     save_dir = os.path.join(PROCESSED_DIR, cls_name)
     os.makedirs(save_dir, exist_ok=True)
 
@@ -313,6 +318,17 @@ def record_samples(cls_name, num_samples=None):
                     total_now = existing_count + saved
                     print(f"  [SAVED] #{saved} -> {fname}  "
                           f"(hand: {hand_pct:.0%}, total: {total_now})")
+                    if pipeline_log:
+                        pipeline_log.event(
+                            "sample_recorded",
+                            class_name=cls_name,
+                            sample_num=saved,
+                            filename=fname,
+                            frames_with_hand=int(hand_frames),
+                            total_frames=len(raw),
+                            hand_detection_pct=f"{hand_pct:.0%}",
+                            total_samples_for_class=total_now,
+                        )
                     state = "SAVED"
                     save_time = now
 
@@ -404,11 +420,21 @@ def record_samples(cls_name, num_samples=None):
     total_final = existing_count + saved
     print(f"\n[Collect] Done! Saved {saved} new samples for '{cls_name}'.")
     print(f"[Collect] Total samples for '{cls_name}': {total_final}")
+    if pipeline_log:
+        pipeline_log.event(
+            "record_end",
+            class_name=cls_name,
+            new_samples_saved=saved,
+            total_samples_for_class=total_final,
+        )
     return saved
 
 
-def collect_interactive():
+def collect_interactive(pipeline_log: PipelineLogger | None = None):
     """Interactive loop: pick class -> record -> pick again."""
+    if pipeline_log:
+        pipeline_log.event("collect_session_start")
+    
     print("\n" + "=" * 50)
     print("  ISL DATA COLLECTION TOOL")
     print("=" * 50)
@@ -418,6 +444,8 @@ def collect_interactive():
     if existing:
         total = sum(_count_samples(c) for c in existing)
         print(f"\nCurrent data: {len(existing)} classes, {total} samples")
+        if pipeline_log:
+            pipeline_log.event("collect_dataset_stats", num_classes=len(existing), total_samples=total)
 
     while True:
         cls = _choose_class()
@@ -430,7 +458,7 @@ def collect_interactive():
         ).strip()
         n = int(n_str) if n_str.isdigit() else None
 
-        record_samples(cls, num_samples=n)
+        record_samples(cls, num_samples=n, pipeline_log=pipeline_log)
 
         cont = input("\nRecord another class? (y/n): ").strip().lower()
         if cont != "y":
@@ -449,6 +477,8 @@ def collect_interactive():
             print(f"  {cls:<15} {n:>4} samples")
         print(f"  {'TOTAL':<15} {total:>4} samples")
         print("\nTo retrain: python main.py --kfold")
+        if pipeline_log:
+            pipeline_log.event("collect_session_end", total_classes=len(existing), total_samples=total)
     print()
 
 

@@ -97,6 +97,55 @@ class AdapterTrainingManager:
         is_balanced = max_ratio < imbalance_threshold
         
         return is_balanced, max_ratio, dominant_idx
+
+    def _balance_training_data(
+        self,
+        ensemble_probs_list: list,
+        class_indices_list: list,
+        min_samples_per_class: int = 5,
+    ) -> tuple:
+        """
+        Build a balanced training set by undersampling each eligible class to
+        the smallest class count.
+
+        Returns:
+            (balanced_probs, balanced_targets, counts)
+        """
+        if len(ensemble_probs_list) != len(class_indices_list):
+            raise ValueError("Mismatched probs/targets length")
+
+        by_class = {}
+        for probs, class_idx in zip(ensemble_probs_list, class_indices_list):
+            by_class.setdefault(class_idx, []).append(probs)
+
+        counts = {class_idx: len(samples) for class_idx, samples in by_class.items()}
+        eligible = {
+            class_idx: samples
+            for class_idx, samples in by_class.items()
+            if len(samples) >= min_samples_per_class
+        }
+
+        if len(eligible) < 3:
+            return [], [], counts
+
+        target_count = min(len(samples) for samples in eligible.values())
+        if target_count < min_samples_per_class:
+            return [], [], counts
+
+        balanced_probs = []
+        balanced_targets = []
+        for class_idx in sorted(eligible):
+            samples = eligible[class_idx]
+            if len(samples) > target_count:
+                chosen = np.random.choice(len(samples), target_count, replace=False)
+                selected = [samples[i] for i in chosen]
+            else:
+                selected = list(samples)
+
+            balanced_probs.extend(selected)
+            balanced_targets.extend([class_idx] * len(selected))
+
+        return balanced_probs, balanced_targets, counts
     
     def _validate_performance(
         self,
@@ -129,6 +178,11 @@ class AdapterTrainingManager:
         class_id_to_name: dict,
         epochs: int = 2,
         batch_size: int = 8,
+        min_samples_per_class: int = 5,
+        use_class_weights: bool = True,
+        class_weight_power: float = 0.5,
+        class_weight_clip_min: float = 0.5,
+        class_weight_clip_max: float = 3.0,
         validation_probs: Optional[np.ndarray] = None,
     ):
         """
@@ -146,10 +200,51 @@ class AdapterTrainingManager:
         try:
             self.is_training = True
             print("[Adapter] Training thread started")
+
+            balanced_probs, balanced_targets, raw_counts = self._balance_training_data(
+                ensemble_probs_list,
+                class_indices_list,
+                min_samples_per_class=min_samples_per_class,
+            )
+
+            if not balanced_probs:
+                print(
+                    "[Adapter] Skipping training: not enough balanced samples "
+                    f"(need >= {min_samples_per_class} per class and at least 3 classes)"
+                )
+                self.is_training = False
+                return
+
+            if len(balanced_probs) != len(balanced_targets):
+                print("[Adapter] Skipping training: balanced dataset construction failed")
+                self.is_training = False
+                return
+
+            # Compute mild inverse-frequency class weights from the raw saved distribution.
+            # These are normalized and clipped so they help with bias without causing instability.
+            class_weights = {}
+            if use_class_weights:
+                eligible_counts = {
+                    idx: count
+                    for idx, count in raw_counts.items()
+                    if count >= min_samples_per_class
+                }
+                if eligible_counts:
+                    exponent = max(0.0, float(class_weight_power))
+                    raw_weights = {
+                        idx: (1.0 / (float(count) ** exponent)) if exponent > 0.0 else 1.0
+                        for idx, count in eligible_counts.items()
+                    }
+                    mean_weight = float(np.mean(list(raw_weights.values())))
+                    lower = float(class_weight_clip_min)
+                    upper = float(class_weight_clip_max)
+                    for idx, raw_weight in raw_weights.items():
+                        normalized = raw_weight / mean_weight if mean_weight > 0 else 1.0
+                        class_weights[idx] = float(np.clip(normalized, lower, upper))
             
             # Check class balance
             is_balanced, max_ratio, dominant_idx = self._check_class_balance(
-                class_indices_list, imbalance_threshold=0.7
+                balanced_targets, imbalance_threshold=0.7
             )
             
             if not is_balanced:
@@ -163,11 +258,16 @@ class AdapterTrainingManager:
                 return
             
             # Log class distribution
-            print("[Adapter] Training data distribution:")
-            counter = {}
-            for idx in class_indices_list:
-                counter[idx] = counter.get(idx, 0) + 1
-            for idx, count in sorted(counter.items()):
+            print("[Adapter] Raw data distribution:")
+            for idx, count in sorted(raw_counts.items()):
+                name = class_id_to_name.get(idx, f"class_{idx}")
+                print(f"  {name:15s}: {count:3d} samples")
+
+            print("[Adapter] Balanced training distribution:")
+            balanced_counter = {}
+            for idx in balanced_targets:
+                balanced_counter[idx] = balanced_counter.get(idx, 0) + 1
+            for idx, count in sorted(balanced_counter.items()):
                 name = class_id_to_name.get(idx, f"class_{idx}")
                 print(f"  {name:15s}: {count:3d} samples")
             
@@ -177,8 +277,9 @@ class AdapterTrainingManager:
             
             # Train
             result = self.adapter_trainer.train(
-                ensemble_probs_list,
-                class_indices_list,
+                balanced_probs,
+                balanced_targets,
+                class_weights=class_weights,
                 epochs=epochs,
                 batch_size=batch_size,
                 verbose=True,
@@ -220,6 +321,8 @@ class AdapterTrainingManager:
             log_entry = {
                 'timestamp': timestamp,
                 'num_samples': len(ensemble_probs_list),
+                'balanced_samples': len(balanced_probs),
+                'class_weights': class_weights,
                 'epochs': epochs,
                 'status': 'success',
                 'validation_passed': is_valid if validation_probs is not None else None,
@@ -333,6 +436,11 @@ class AdapterTrainingManager:
         validation_probs: Optional[np.ndarray] = None,
         epochs: int = 2,
         batch_size: int = 8,
+        min_samples_per_class: int = 5,
+        use_class_weights: bool = True,
+        class_weight_power: float = 0.5,
+        class_weight_clip_min: float = 0.5,
+        class_weight_clip_max: float = 3.0,
     ) -> bool:
         """
         Trigger training with ensemble probabilities (preferred).
@@ -357,6 +465,22 @@ class AdapterTrainingManager:
         
         if len(ensemble_probs_list) < 20:  # MIN_BUFFER
             return False
+
+        counts = {}
+        for class_idx in class_indices_list:
+            counts[class_idx] = counts.get(class_idx, 0) + 1
+
+        eligible_classes = [
+            class_idx for class_idx, count in counts.items()
+            if count >= min_samples_per_class
+        ]
+
+        if len(eligible_classes) < 3:
+            print(
+                f"[Adapter] Skipping training: need at least 3 classes with "
+                f">= {min_samples_per_class} samples each"
+            )
+            return False
         
         # Start training in background thread
         self.training_thread = threading.Thread(
@@ -368,6 +492,11 @@ class AdapterTrainingManager:
                 class_id_to_name,
                 epochs,
                 batch_size,
+                min_samples_per_class,
+                use_class_weights,
+                class_weight_power,
+                class_weight_clip_min,
+                class_weight_clip_max,
                 validation_probs,
             ),
             daemon=True,

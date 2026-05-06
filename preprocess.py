@@ -10,12 +10,14 @@ import hashlib
 import os
 import random
 import shutil
+import time
 from typing import Callable
 
 import cv2
 import numpy as np
 import mediapipe as mp
 from mediapipe.tasks.python import BaseOptions
+from pipeline_logger import PipelineLogger
 from mediapipe.tasks.python.vision import (
     HandLandmarker,
     HandLandmarkerOptions,
@@ -290,6 +292,8 @@ def augment_video_dataset(
     target_width: int = VIDEO_AUGMENT_WIDTH,
     target_height: int = VIDEO_AUGMENT_HEIGHT,
     clear_output: bool = True,
+    pipeline_log: PipelineLogger | None = None,
+    class_only: str | None = None,
 ) -> dict:
     """
     Build a controlled augmented video dataset from class folders.
@@ -297,7 +301,12 @@ def augment_video_dataset(
     Copies every original .mp4/.mov file into output_dir and generates up to
     four additional, separate augmentations per original video until the per-
     class threshold is reached.
+    
+    Args:
+        class_only: If set, only augment this specific class folder.
     """
+    if pipeline_log:
+        pipeline_log.event("augment_start", input_dir=input_dir, output_dir=output_dir, max_videos_per_class=max_videos_per_class, class_only=class_only)
     input_dir = os.path.abspath(input_dir)
     output_dir = os.path.abspath(output_dir)
 
@@ -314,6 +323,13 @@ def augment_video_dataset(
     ])
     if not class_folders:
         raise FileNotFoundError(f"No class folders found in {input_dir}")
+    
+    if class_only:
+        # Support both exact match ("36. light") and partial match ("light")
+        matching = [c for c in class_folders if c == class_only or class_only in c]
+        if not matching:
+            raise ValueError(f"Class '{class_only}' not found in {input_dir}. Available: {', '.join(class_folders[:5])}...")
+        class_folders = matching
 
     print(f"[VideoAug] Found {len(class_folders)} classes")
     stats = {}
@@ -382,8 +398,18 @@ def augment_video_dataset(
             f"    [VideoAug] copied={originals_copied}, "
             f"augmented={augmented_written}, total={originals_copied + augmented_written}"
         )
+    if pipeline_log:
+        pipeline_log.event(
+            "augment_class_complete",
+            class_name=cls_folder,
+            originals_copied=originals_copied,
+            augmented_written=augmented_written,
+            total_output=originals_copied + augmented_written,
+        )
 
     print(f"[VideoAug] Done. Saved to: {output_dir}")
+    if pipeline_log:
+        pipeline_log.event("augment_end", output_dir=output_dir, total_classes=len(class_folders), stats=stats)
     return stats
 
 
@@ -763,7 +789,7 @@ def _add_velocity(sequence: np.ndarray) -> np.ndarray:
     return np.concatenate([sequence, velocity], axis=1).astype(np.float32)
 
 
-def preprocess_dataset(input_dir: str = DATASET_DIR) -> dict:
+def preprocess_dataset(input_dir: str = DATASET_DIR, pipeline_log: PipelineLogger | None = None) -> dict:
     """
     Walk through a class-wise video directory, extract landmarks from every
     supported video, and save the resulting numpy arrays into processed/.
@@ -771,6 +797,9 @@ def preprocess_dataset(input_dir: str = DATASET_DIR) -> dict:
     Returns:
         dict mapping class names to number of videos processed.
     """
+    if pipeline_log:
+        pipeline_log.event("preprocess_start", input_dir=input_dir, output_dir=PROCESSED_DIR)
+    
     os.makedirs(PROCESSED_DIR, exist_ok=True)
 
     input_dir = os.path.abspath(input_dir)
@@ -786,6 +815,8 @@ def preprocess_dataset(input_dir: str = DATASET_DIR) -> dict:
 
     print(f"[Preprocess] Found {len(class_folders)} classes: {class_folders}")
     print(f"[Preprocess] Reading videos from: {input_dir}")
+    if pipeline_log:
+        pipeline_log.event("preprocess_classes_discovered", num_classes=len(class_folders), class_list=class_folders)
     stats = {}
 
     for cls_folder in class_folders:
@@ -812,10 +843,23 @@ def preprocess_dataset(input_dir: str = DATASET_DIR) -> dict:
             save_path = os.path.join(save_dir, npy_name)
             np.save(save_path, sequence)
             count += 1
+            if pipeline_log:
+                pipeline_log.event(
+                    "preprocess_file_saved",
+                    class_name=label,
+                    video_file=vid_file,
+                    npy_file=npy_name,
+                    sequence_shape=str(sequence.shape),
+                )
 
         stats[label] = count
+        if pipeline_log:
+            pipeline_log.event("preprocess_class_complete", class_name=label, video_count=count)
 
     print(f"[Preprocess] Done. Saved to: {PROCESSED_DIR}")
+    if pipeline_log:
+        total = sum(stats.values())
+        pipeline_log.event("preprocess_end", output_dir=PROCESSED_DIR, total_videos=total, stats=stats)
     return stats
 
 

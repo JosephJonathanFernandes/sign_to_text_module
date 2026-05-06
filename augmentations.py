@@ -473,16 +473,30 @@ def augment_sequence(sequence: np.ndarray, variants: int = 3) -> List[np.ndarray
     return out
 
 
-def augment_dataset(input_dir: str, output_dir: Optional[str] = None, augment_per_sample: int = 3):
+def augment_dataset(input_dir: str, output_dir: Optional[str] = None, augment_per_sample: int = 3, class_only: Optional[str] = None):
     """Augment all .npy files under `input_dir` class subfolders.
 
     Saves augmented files into same class folders under `output_dir` (defaults
     to `input_dir`). Original files are left untouched.
+    
+    Args:
+        class_only: If set, only process this specific class folder (supports partial matching).
     """
     if output_dir is None:
         output_dir = input_dir
 
-    for cls in sorted(os.listdir(input_dir)):
+    all_classes = sorted(os.listdir(input_dir))
+    
+    if class_only:
+        # Support both exact match ("36. light") and partial match ("light")
+        matching = [c for c in all_classes if c == class_only or class_only in c]
+        if not matching:
+            raise ValueError(f"Class '{class_only}' not found in {input_dir}. Available: {', '.join(all_classes[:5])}...")
+        classes_to_process = matching
+    else:
+        classes_to_process = all_classes
+
+    for cls in classes_to_process:
         cls_in = os.path.join(input_dir, cls)
         cls_out = os.path.join(output_dir, cls)
         if not os.path.isdir(cls_in):
@@ -518,6 +532,7 @@ if __name__ == '__main__':
     parser.add_argument('input_dir', nargs='?', default=cfg.paths.processed_dir)
     parser.add_argument('--output_dir', default=None)
     parser.add_argument('--n', type=int, default=3, help='augmentations per sample')
+    parser.add_argument('--class', dest='class_only', default=None, help='only augment this specific class (supports partial name matching)')
     args = parser.parse_args()
 
-    augment_dataset(args.input_dir, args.output_dir, augment_per_sample=args.n)
+    augment_dataset(args.input_dir, args.output_dir, augment_per_sample=args.n, class_only=args.class_only)

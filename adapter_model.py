@@ -53,12 +53,19 @@ class AdapterModel(nn.Module):
             probs: Ensemble probabilities (batch_size, num_classes)
         
         Returns:
-            Adapted probabilities after softmax (batch_size, num_classes)
+            Logits (unnormalized) for downstream softmax/log-softmax application
         """
-        x = self.fc1(probs)
+        # Work in log-prob (logit) space to provide better numeric range for the MLP.
+        eps = 1e-8
+        logp = torch.log(probs + eps)
+
+        x = self.fc1(logp)
         x = self.relu(x)
-        x = self.fc2(x)
-        return F.softmax(x, dim=1)
+        delta = self.fc2(x)
+
+        # Residual: predict a delta to add to the incoming log-probs (stabilizes training)
+        adapted_logits = logp + delta
+        return adapted_logits
     
     def save_weights(self, path: str):
         """Save adapter weights to disk."""
@@ -108,8 +115,10 @@ class AdapterTrainer:
         
         # Create model
         self.model = AdapterModel(num_classes, hidden_dim).to(device)
-        self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
-        self.criterion = nn.KLDivLoss(reduction='batchmean')
+        self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate, weight_decay=1e-5)
+        # Use CrossEntropyLoss on logits for stability (expects class indices).
+        # Class weights can be injected per training run to reduce bias from skewed pseudo-data.
+        self.criterion = nn.CrossEntropyLoss()
         
         # Training statistics
         self.training_history = []
@@ -141,12 +150,8 @@ class AdapterTrainer:
             np.array(ensemble_probs_list, dtype=np.float32)
         ).to(self.device)
         
-        targets_tensor = torch.zeros(
-            len(class_indices_list), self.num_classes,
-            dtype=torch.float32, device=self.device
-        )
-        for idx, class_idx in enumerate(class_indices_list):
-            targets_tensor[idx, class_idx] = 1.0
+        # Targets as integer class indices for CrossEntropyLoss
+        targets_tensor = torch.tensor(class_indices_list, dtype=torch.long, device=self.device)
         
         # Create batches
         dataset = []
@@ -180,14 +185,9 @@ class AdapterTrainer:
             self.optimizer.zero_grad()
             
             # Forward pass
-            adapted_probs = self.model(probs_batch)
-            
-            # KL divergence loss: how well adapted probs match targets
-            # targets are one-hot encoded
-            loss = self.criterion(
-                F.log_softmax(adapted_probs, dim=1),
-                targets_batch
-            )
+            adapted_logits = self.model(probs_batch)
+            # CrossEntropyLoss expects logits and long class targets
+            loss = self.criterion(adapted_logits, targets_batch)
             
             loss.backward()
             self.optimizer.step()
@@ -201,6 +201,7 @@ class AdapterTrainer:
         self,
         ensemble_probs_list: list,
         class_indices_list: list,
+        class_weights: dict = None,
         epochs: int = 2,
         batch_size: int = 8,
         verbose: bool = True,
@@ -211,6 +212,7 @@ class AdapterTrainer:
         Args:
             ensemble_probs_list: List of ensemble probability vectors
             class_indices_list: List of target class indices
+            class_weights: Optional mapping of class index -> weight
             epochs: Number of training epochs
             batch_size: Batch size
             verbose: Print training info
@@ -229,6 +231,15 @@ class AdapterTrainer:
             'batch_size': batch_size,
             'num_samples': len(ensemble_probs_list),
         }
+
+        if class_weights:
+            weight_tensor = torch.ones(self.num_classes, dtype=torch.float32, device=self.device)
+            for class_idx, weight in class_weights.items():
+                if 0 <= int(class_idx) < self.num_classes:
+                    weight_tensor[int(class_idx)] = float(weight)
+            self.criterion = nn.CrossEntropyLoss(weight=weight_tensor)
+        else:
+            self.criterion = nn.CrossEntropyLoss()
         
         dataset = self.create_dataset(
             ensemble_probs_list,
@@ -269,12 +280,13 @@ class AdapterTrainer:
             probs_tensor = torch.from_numpy(
                 original_probs.astype(np.float32)
             ).to(self.device)
-            
+
             # Original confidence
             original_confidence = float(np.max(original_probs, axis=1).mean())
-            
-            # Adapted confidence
-            adapted_probs = self.model(probs_tensor)
+
+            # Adapted confidence: model now returns logits, so apply softmax
+            adapted_logits = self.model(probs_tensor)
+            adapted_probs = F.softmax(adapted_logits, dim=1)
             adapted_confidence = float(
                 adapted_probs.detach().cpu().numpy().max(axis=1).mean()
             )

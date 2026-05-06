@@ -257,6 +257,21 @@ class SentenceBuilder:
             self.words[-1] = self.words[-1] + punct
             self._rebuild_sentence()
         return self.current_sentence
+
+    def flush_pending_word(self) -> Optional[str]:
+        """Force-add the current tracked word if one is still pending."""
+        if not self.current_word or self.current_word == "...":
+            return None
+
+        pending = self.current_word
+        if self.current_word != self.last_added_word:
+            added = self._add_word(self.current_word)
+            if added:
+                self.last_added_word = self.current_word
+                self.frames_since_last_word = 0
+                return added
+
+        return pending.upper()
     
     def clear(self) -> str:
         """Clear entire sentence."""

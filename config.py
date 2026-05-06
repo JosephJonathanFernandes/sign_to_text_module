@@ -273,6 +273,25 @@ class TrainingConfig:
         - 1.0: full inverse frequency (aggressive)
     """
 
+    # Adapter-specific weighting
+    adapter_use_class_weights: bool = True
+    """Apply class-weighted loss when fine-tuning the live adapter."""
+
+    adapter_class_weight_power: float = 0.5
+    """Exponent used for adapter class weights.
+
+    Lower values are smoother and safer:
+        - 0.0: no weighting
+        - 0.5: sqrt inverse frequency
+        - 1.0: full inverse frequency
+    """
+
+    adapter_class_weight_clip_min: float = 0.5
+    """Lower bound for normalized adapter class weights."""
+
+    adapter_class_weight_clip_max: float = 3.0
+    """Upper bound for normalized adapter class weights."""
+
     # Focal loss (hard sample mining)
     use_focal_loss: bool = False
     """Use focal loss instead of standard cross-entropy."""
@@ -328,8 +347,11 @@ class TrainingConfig:
 class InferenceConfig:
     """Inference-time settings for prediction and confidence thresholding."""
 
-    confidence_threshold: float = 0.40
-    """Base confidence threshold for predictions (dynamically adjusted)."""
+    confidence_threshold: float = 0.12
+    """Base confidence threshold for predictions (dynamically adjusted).
+    Lowered to 0.12 to match actual ensemble output distribution (0.1-0.2 range).
+    After disabling temporal smoothing and adapter which were tanking confidence.
+    Can be tuned up if getting false positives."""
 
     prediction_smoothing_window: int = 3
     """Majority vote window size for temporal smoothing (smaller = faster transitions)."""
@@ -358,8 +380,8 @@ class InferenceConfig:
 class MotionConfig:
     """Hand motion detection and gating settings (resolution-independent)."""
 
-    enabled: bool = True
-    """Enable motion-based prediction gating."""
+    enabled: bool = False
+    """Enable motion-based prediction gating. Disabled for sign language (hold poses should be recognized)."""
 
     # Motion threshold (normalized to frame diagonal)
     motion_threshold_normalized: float = 0.015
@@ -380,14 +402,14 @@ class MotionConfig:
     dynamic_threshold_enabled: bool = True
     """Adjust base threshold based on motion and stability."""
 
-    motion_boost_factor: float = 0.15
-    """Reduce threshold by this amount when motion is detected (encourages recognition)."""
+    motion_boost_factor: float = 0.20
+    """Reduce threshold by this amount when motion is detected (encourages recognition during gesture)."""
 
-    stability_boost_factor: float = 0.10
-    """Reduce threshold as sign becomes more stable (cumulative over time)."""
+    stability_boost_factor: float = 0.15
+    """Reduce threshold as sign becomes more stable (encourages recognition during hold)."""
 
-    dynamic_threshold_min: float = 0.20
-    """Never reduce threshold below this floor."""
+    dynamic_threshold_min: float = 0.08
+    """Never reduce threshold below this floor (matches lowered base threshold)."""
 
     def get_motion_threshold_pixels(self, frame_width: int, frame_height: int) -> float:
         """Compute motion threshold in pixels for given frame resolution.
@@ -636,6 +658,7 @@ class Config:
   Early stopping patience: {self.training.patience}
   Label smoothing: {self.training.label_smoothing}
   Class weighting: {self.training.use_class_weights} (power={self.training.class_weight_power})
+    Adapter weighting: {self.training.adapter_use_class_weights} (power={self.training.adapter_class_weight_power}, clip={self.training.adapter_class_weight_clip_min}-{self.training.adapter_class_weight_clip_max})
 
 [Inference]
   Confidence threshold: {self.inference.confidence_threshold}

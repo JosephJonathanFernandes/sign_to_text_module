@@ -356,7 +356,12 @@ def clean_dataset(
     ]
 
     if class_only:
-        class_dirs = [d for d in class_dirs if os.path.basename(d) == class_only]
+        # Support both exact match ("36. light") and partial match ("light")
+        basename_list = [os.path.basename(d) for d in class_dirs]
+        matching_basenames = [b for b in basename_list if b == class_only or class_only in b]
+        if not matching_basenames:
+            raise ValueError(f"Class '{class_only}' not found in {root_abs}. Available: {', '.join(basename_list[:5])}...")
+        class_dirs = [d for d in class_dirs if os.path.basename(d) in matching_basenames]
 
     print("=" * 90)
     print(f"Diversity cleanup started | ROOT_DIR={root_abs}")

@@ -136,14 +136,26 @@ def merge_dataset(
     min_span: int = 3,
     max_span: int = 10,
     mode: str = "hybrid",
+    class_only: Optional[str] = None,
 ):
     """For each class folder under `input_dir`, create `per_sample` merged
     samples per original by splicing a random peer from same class.
+    
+    Args:
+        class_only: If set, only process this specific class folder.
     """
     if output_dir is None:
         output_dir = input_dir
 
-    for cls in sorted(os.listdir(input_dir)):
+    classes_to_process = sorted(os.listdir(input_dir))
+    if class_only:
+        # Support both exact match ("36. light") and partial match ("light")
+        matching = [c for c in classes_to_process if c == class_only or class_only in c]
+        if not matching:
+            raise ValueError(f"Class '{class_only}' not found in {input_dir}. Available: {', '.join(classes_to_process[:5])}...")
+        classes_to_process = matching
+
+    for cls in classes_to_process:
         cls_in = os.path.join(input_dir, cls)
         cls_out = os.path.join(output_dir, cls)
         if not os.path.isdir(cls_in):
@@ -206,6 +218,7 @@ if __name__ == '__main__':
     parser.add_argument('--min_span', type=int, default=3)
     parser.add_argument('--max_span', type=int, default=8)
     parser.add_argument('--mode', choices=['splice', 'blend', 'hand_swap', 'hybrid'], default='hybrid')
+    parser.add_argument('--class', dest='class_only', default=None, help='Only process this specific class')
     args = parser.parse_args()
 
     merge_dataset(
@@ -215,4 +228,5 @@ if __name__ == '__main__':
         min_span=args.min_span,
         max_span=args.max_span,
         mode=args.mode,
+        class_only=args.class_only,
     )

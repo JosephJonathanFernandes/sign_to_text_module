@@ -49,14 +49,18 @@ AUTO_SAVE_PSEUDO = True  # Auto-save when MIN_BUFFER_SIZE is reached
 PSEUDO_SAVE_INTERVAL = 50  # Save every N predictions
 
 # ── Adapter Model (PART B) ──
-ADAPTER_ENABLED = True  # Toggle adaptive learning
+ADAPTER_ENABLED = True  # Toggle adaptive learning (enabled with safety checks)
 ADAPTER_LEARNING_RATE = 1e-4
-ADAPTER_EPOCHS = 2
+ADAPTER_EPOCHS = 10
 ADAPTER_BATCH_SIZE = 8
 ADAPTER_HIDDEN_DIM = 128
-ADAPTER_TRAIN_MIN_SAMPLES = 20  # Trigger training when we have this many
+ADAPTER_TRAIN_MIN_SAMPLES = 40  # Require more samples before training
+ADAPTER_MIN_CLASSES = 3  # Require at least this many classes represented
+ADAPTER_MIN_SAMPLES_PER_CLASS = 5  # Require each participating class to be supported
 ADAPTER_WEIGHTS_DIR = "adapter_weights/"
-ADAPTER_TRAINING_INTERVAL = 100  # Check for training every N predictions
+ADAPTER_TRAINING_INTERVAL = 200  # Check for training every N predictions
+ADAPTER_POLL_INTERVAL = 50  # Poll adapter_weights/ for new models every N predictions
+ADAPTER_MIN_SAVED_SAMPLES = 40  # Train from pseudo_data/ once this many saved samples exist
 
 # Device for adapter
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -362,7 +366,7 @@ def _extract_frame_landmarks(
     return landmarks_vec, hand_infos, face_center, face_landmarks
 
 
-def run_webcam():
+def run_webcam(pipeline_log=None):
     """
         Main webcam loop for continuous word recognition.
 
@@ -382,12 +386,22 @@ def run_webcam():
             print("Loading merged 10+2 ensemble...")
             from ensemble import load_merged_ensemble_10_2
             word_models, word_models_fallback, word_classes, _ = load_merged_ensemble_10_2()
+            if pipeline_log is not None:
+                pipeline_log.event(
+                    "ensemble_loaded",
+                    mode="webcam",
+                    main_models=len(word_models) if word_models else 0,
+                    fallback_models=len(word_models_fallback) if word_models_fallback else 0,
+                    classes=len(word_classes) if word_classes else 0,
+                )
         return word_models, word_models_fallback, word_classes
 
     try:
         ensure_word_models()
     except FileNotFoundError:
         print("[WARN] No word model found  -- train first")
+        if pipeline_log is not None:
+            pipeline_log.event("ensemble_missing", mode="webcam")
 
     # ── Landmarker — optimized for webcam (high conf, face skipping) ──
     landmarker = create_landmarker(num_hands=NUM_HANDS, for_webcam=True)
@@ -398,6 +412,8 @@ def run_webcam():
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("[ERROR] Cannot open webcam.")
+        if pipeline_log is not None:
+            pipeline_log.event("webcam_open_failed")
         return
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
@@ -439,7 +455,7 @@ def run_webcam():
             enable_decay=True,  # Use exponential decay for older frames
             decay_factor=0.3  # Decay weight for older predictions
         )
-        temporal_postprocessor_enabled = True
+        temporal_postprocessor_enabled = False  # DISABLED: Tanking confidence values
     except Exception as e:
         print(f"[WARN] Could not initialize TemporalPostProcessor: {e}")
         temporal_postprocessor = None
@@ -509,6 +525,14 @@ def run_webcam():
             print(f"[Adapter] Initialized: {num_classes} classes, {DEVICE}")
             if latest_adapter:
                 print(f"[Adapter] Loaded weights from {latest_adapter}")
+            if pipeline_log is not None:
+                pipeline_log.event(
+                    "adapter_initialized",
+                    enabled=ADAPTER_ENABLED,
+                    num_classes=num_classes,
+                    device=str(DEVICE),
+                    loaded_weights=latest_adapter,
+                )
         
         except Exception as e:
             print(f"[WARN] Could not initialize adapter: {e}")
@@ -533,6 +557,18 @@ def run_webcam():
         print(f"  ✓ Adapter Learning ENABLED (auto-train at {ADAPTER_TRAIN_MIN_SAMPLES} samples)")
     print(f"  ➜ Just sign! No keyboard input needed (Q/ESC to quit)")
     print("=======================================================================")
+
+    if pipeline_log is not None:
+        pipeline_log.event(
+            "inference_start",
+            num_frames=NUM_FRAMES,
+            confidence_threshold=CONFIDENCE_THRESHOLD,
+            pseudo_buffer_enabled=PSEUDO_BUFFER_ENABLED,
+            adapter_enabled=ADAPTER_ENABLED,
+            adapter_train_min_samples=ADAPTER_TRAIN_MIN_SAMPLES,
+            adapter_min_classes=ADAPTER_MIN_CLASSES,
+            adapter_min_samples_per_class=ADAPTER_MIN_SAMPLES_PER_CLASS,
+        )
 
 
 
@@ -724,24 +760,25 @@ def run_webcam():
                     predicted = classes[idx] if idx < len(classes) else "?"
                 
                 # ── PART B: Adapter Model Application ──
-                # Apply adapter correction to ensemble probabilities if available
+                # DISABLED: Adapter model is producing near-uniform distributions
+                # (converting 0.94 confidence to 0.02). Model needs retraining or investigation.
+                # Temporarily disabled to verify ensemble baseline works correctly.
                 original_probs = probs_array.copy()
-                if adapter_model is not None:
-                    try:
-                        with torch.no_grad():
-                            probs_tensor = torch.from_numpy(
-                                probs_array.astype(np.float32)
-                            ).unsqueeze(0).to(DEVICE)
-                            adapted_probs_tensor = adapter_model(probs_tensor)
-                            probs_array = adapted_probs_tensor.squeeze(0).cpu().numpy()
-                            
-                            # Update prediction from adapted probabilities
-                            idx = int(np.argmax(probs_array))
-                            conf = float(probs_array[idx])
-                            predicted = classes[idx] if idx < len(classes) else "?"
-                    except Exception as e:
-                        # Fall back to ensemble prediction if adapter fails
-                        print(f"[Adapter] Error applying adapter: {e}")
+                # if adapter_model is not None:
+                #     try:
+                #         with torch.no_grad():
+                #             probs_tensor = torch.from_numpy(
+                #                 probs_array.astype(np.float32)
+                #             ).unsqueeze(0).to(DEVICE)
+                #             adapted_probs_tensor = adapter_model(probs_tensor)
+                #             adapted_probs = adapted_probs_tensor.squeeze(0).cpu().numpy()
+                #             probs_array = adapted_probs
+                #             probs = probs_array
+                #             idx = int(np.argmax(probs_array))
+                #             conf = float(probs_array[idx])
+                #             predicted = classes[idx] if idx < len(classes) else "?"
+                #     except Exception as e:
+                #         print(f"[Adapter] Error: {e}")
                 
                 # ── Dynamic Threshold Calculation ──
                 is_transition = (last_output_prediction is not None and 
@@ -749,6 +786,12 @@ def run_webcam():
                 effective_threshold = _calculate_dynamic_threshold(
                     motion_magnitude, prediction_stability_counter, is_transition
                 )
+                
+                # Debug: Log confidence details for low-confidence predictions
+                if conf < 0.15:
+                    print(f"[DEBUG] Low confidence: word={predicted}, conf={conf:.4f} ({conf:.1%}), "
+                          f"ensemble_conf={result['confidence']:.4f}, "
+                          f"top_prob={np.max(probs):.4f}, threshold={effective_threshold:.4f}")
                 
                 # ── Motion Gating ──
                 motion_gated = _is_motion_gating_active(motion_magnitude, frames_in_motion)
@@ -764,7 +807,9 @@ def run_webcam():
                     if predicted == last_output_prediction:
                         prediction_stability_counter += 1
                     else:
+                        # Word changed: clear history for instant switching
                         prediction_stability_counter = 1
+                        prediction_history.clear()
                         last_output_prediction = predicted
                     
                     prediction_history.append(predicted.upper())
@@ -774,6 +819,17 @@ def run_webcam():
                     confidence_text = (
                         f"Conf: {conf:.1%} | Motion: {motion_magnitude:.1f} | Stable: {prediction_stability_counter}"
                     )
+
+                    if pipeline_log is not None:
+                        pipeline_log.event(
+                            "prediction_accepted",
+                            predicted=predicted,
+                            confidence=round(float(conf), 4),
+                            effective_threshold=round(float(effective_threshold), 4),
+                            motion=round(float(motion_magnitude), 2),
+                            stable_frames=prediction_stability_counter,
+                            transition=bool(is_transition),
+                        )
                     
                     # ── PART A: Pseudo-Label Collection ──
                     # Collect high-confidence prediction as pseudo-labeled sample
@@ -785,12 +841,25 @@ def run_webcam():
                         )
                         if collected:
                             prediction_count_since_save = 0
+                            if pipeline_log is not None:
+                                pipeline_log.event(
+                                    "pseudo_sample_collected",
+                                    class_name=predicted,
+                                    confidence=round(float(conf), 4),
+                                    buffer_total=pseudo_buffer.get_total_samples(),
+                                )
                     
                     # Periodically save pseudo-buffer
                     prediction_count_since_save += 1
                     if pseudo_buffer is not None and AUTO_SAVE_PSEUDO:
                         if pseudo_buffer.should_save() and prediction_count_since_save >= PSEUDO_SAVE_INTERVAL:
-                            pseudo_buffer.save(verbose=True)
+                            saved_count = pseudo_buffer.save(verbose=True)
+                            if pipeline_log is not None:
+                                pipeline_log.event(
+                                    "pseudo_buffer_saved",
+                                    saved_samples=int(saved_count),
+                                    total_saved_on_disk=pseudo_buffer.get_saved_sample_count(),
+                                )
                             pseudo_buffer.clear()
                             prediction_count_since_save = 0
                     
@@ -800,40 +869,114 @@ def run_webcam():
                         prediction_count_since_training += 1
                         
                         if prediction_count_since_training >= ADAPTER_TRAINING_INTERVAL:
-                            if pseudo_buffer is not None and pseudo_buffer.get_total_samples() >= ADAPTER_TRAIN_MIN_SAMPLES:
-                                # Prepare training data from pseudo-buffer
+                            disk_sample_count = pseudo_buffer.get_saved_sample_count() if pseudo_buffer is not None else 0
+                            if disk_sample_count >= ADAPTER_MIN_SAVED_SAMPLES:
+                                # Prepare training data from saved pseudo-data on disk.
                                 ensemble_probs_list = []
                                 class_indices_list = []
-                                
-                                for class_name, sequences in pseudo_buffer.buffer.items():
+                                saved_samples = pseudo_buffer.load_saved_samples() if pseudo_buffer is not None else []
+
+                                for class_name, seq_stored in saved_samples:
                                     try:
                                         class_idx = classes.index(class_name)
-                                        # Note: For real training, we'd need to re-run ensemble on stored sequences
-                                        # For now, we use a simplified approach where we store ensemble probs
-                                        for seq_stored in sequences:
-                                            # In a full implementation, re-run ensemble_predict on seq_stored
-                                            # For now, collect from current state
-                                            ensemble_probs_list.append(original_probs)
-                                            class_indices_list.append(class_idx)
                                     except ValueError:
-                                        pass
-                                
+                                        continue
+
+                                    try:
+                                        res = merged_ensemble_predict(
+                                            main_models, fallback_models, seq_stored, use_tta=False
+                                        )
+                                        probs_for_seq = np.array(res['probs'], dtype=np.float32)
+                                        ensemble_probs_list.append(probs_for_seq)
+                                        class_indices_list.append(class_idx)
+                                    except Exception:
+                                        continue
+
                                 if ensemble_probs_list:
                                     # Create class_id_to_name mapping
                                     class_id_to_name = {i: name for i, name in enumerate(classes)}
                                     
-                                    # Trigger training
+                                    # Build a class-balanced holdout so validation reflects all seen classes.
+                                    per_class_indices = {}
+                                    for idx, class_idx in enumerate(class_indices_list):
+                                        per_class_indices.setdefault(class_idx, []).append(idx)
+
+                                    train_mask = np.ones(len(ensemble_probs_list), dtype=bool)
+                                    validation_indices = []
+                                    for class_idx, indices in per_class_indices.items():
+                                        class_count = len(indices)
+                                        if class_count < ADAPTER_MIN_SAMPLES_PER_CLASS:
+                                            continue
+
+                                        holdout = min(
+                                            max(1, class_count // 5),
+                                            max(0, class_count - ADAPTER_MIN_SAMPLES_PER_CLASS),
+                                        )
+                                        if holdout <= 0:
+                                            continue
+
+                                        validation_indices.extend(indices[:holdout])
+                                        for idx in indices[:holdout]:
+                                            train_mask[idx] = False
+
+                                    train_probs = [
+                                        probs for i, probs in enumerate(ensemble_probs_list)
+                                        if train_mask[i]
+                                    ]
+                                    train_targets = [
+                                        class_idx for i, class_idx in enumerate(class_indices_list)
+                                        if train_mask[i]
+                                    ]
+                                    validation_probs = (
+                                        np.array([ensemble_probs_list[i] for i in validation_indices], dtype=np.float32)
+                                        if validation_indices else None
+                                    )
+
+                                    if len(train_probs) < ADAPTER_TRAIN_MIN_SAMPLES:
+                                        print(
+                                            f"[Adapter] Skipping training: only {len(train_probs)} balanced samples after holdout"
+                                        )
+                                        if pipeline_log is not None:
+                                            pipeline_log.event(
+                                                "adapter_training_skipped",
+                                                reason="insufficient_balanced_samples",
+                                                train_samples=int(len(train_probs)),
+                                                min_required=ADAPTER_TRAIN_MIN_SAMPLES,
+                                                disk_samples=int(disk_sample_count),
+                                            )
+                                        prediction_count_since_training = 0
+                                        continue
+
                                     adapter_manager.trigger_training_with_probs(
-                                        ensemble_probs_list=ensemble_probs_list,
-                                        class_indices_list=class_indices_list,
+                                        ensemble_probs_list=train_probs,
+                                        class_indices_list=train_targets,
                                         classes=classes,
                                         class_id_to_name=class_id_to_name,
-                                        validation_probs=np.array([original_probs]),  # Minimal validation set
+                                        validation_probs=validation_probs,
                                         epochs=ADAPTER_EPOCHS,
                                         batch_size=ADAPTER_BATCH_SIZE,
+                                        min_samples_per_class=ADAPTER_MIN_SAMPLES_PER_CLASS,
+                                        use_class_weights=cfg.training.adapter_use_class_weights,
+                                        class_weight_power=cfg.training.adapter_class_weight_power,
+                                        class_weight_clip_min=cfg.training.adapter_class_weight_clip_min,
+                                        class_weight_clip_max=cfg.training.adapter_class_weight_clip_max,
                                     )
-                                    
+
+                                    if pipeline_log is not None:
+                                        pipeline_log.event(
+                                            "adapter_training_requested",
+                                            raw_samples=int(len(ensemble_probs_list)),
+                                            train_samples=int(len(train_probs)),
+                                            val_samples=int(len(validation_indices)),
+                                            disk_samples=int(disk_sample_count),
+                                            class_count=int(len(set(class_indices_list))),
+                                        )
+
+                                    # Reset counter and mark when to poll for new adapter weights
                                     prediction_count_since_training = 0
+                                    last_adapter_poll = 0
+                                else:
+                                    print("[Adapter] Skipping training: no valid saved pseudo-data sequences could be loaded")
                 
                 else:
                     # Prediction rejected
@@ -849,6 +992,16 @@ def run_webcam():
                         f"Rejected: {reason} | Conf: {conf:.1%}"
                     )
 
+                    if pipeline_log is not None:
+                        pipeline_log.event(
+                            "prediction_rejected",
+                            predicted=predicted,
+                            confidence=round(float(conf), 4),
+                            effective_threshold=round(float(effective_threshold), 4),
+                            motion_gated=bool(motion_gated),
+                            reason=reason,
+                        )
+
                 # Update sentence builder (continuous translation)
                 result = sentence_builder.update(prediction_text, conf)
                 added_word = result.get('added_word')
@@ -860,6 +1013,12 @@ def run_webcam():
                 
                 if completed_sentence:
                     print(f"✅ Sentence: {completed_sentence}")
+                    if pipeline_log is not None:
+                        pipeline_log.event(
+                            "sentence_completed",
+                            sentence=completed_sentence,
+                            completed_count=len(sentence_builder.completed_sentences),
+                        )
 
                 top5 = sorted(
                     enumerate(probs), key=lambda x: -x[1],
@@ -1005,10 +1164,24 @@ def run_webcam():
     if pseudo_buffer is not None and pseudo_buffer.get_total_samples() > 0:
         print(f"\n[Cleanup] Saving pseudo-buffer with {pseudo_buffer.get_total_samples()} samples...")
         pseudo_buffer.save(verbose=True)
+        if pipeline_log is not None:
+            pipeline_log.event(
+                "pseudo_buffer_saved_on_cleanup",
+                remaining_buffer_samples=int(pseudo_buffer.get_total_samples()),
+                saved_on_disk=int(pseudo_buffer.get_saved_sample_count()),
+            )
     
     if adapter_manager is not None:
         print("[Cleanup] Shutting down adapter manager...")
         adapter_manager.shutdown()
+        if pipeline_log is not None:
+            pipeline_log.event("adapter_shutdown")
+
+    flushed_word = sentence_builder.flush_pending_word()
+    if flushed_word:
+        print(f"[Cleanup] Flushed pending word: {flushed_word}")
+        if pipeline_log is not None:
+            pipeline_log.event("pending_word_flushed", word=flushed_word)
     
     # Show final translation summary
     all_parts = sentence_builder.completed_sentences.copy()
@@ -1024,7 +1197,11 @@ def run_webcam():
         print(f"{'='*70}\n")
     else:
         print("\nNo translation recorded.")
+        if pipeline_log is not None:
+            pipeline_log.event("no_translation_recorded")
     print("Webcam closed.")
+    if pipeline_log is not None:
+        pipeline_log.event("inference_stop")
 
 
 if __name__ == "__main__":
