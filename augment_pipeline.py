@@ -1,0 +1,167 @@
+#!/usr/bin/env python3
+"""
+Augmentation pipeline orchestrator.
+
+Runs augmentation, merge, and cleanup in sequence:
+1. Augments landmarks N times
+2. Merges augmentations with 4 different modes (splice, blend, hand_swap, hybrid), N times each
+3. Cleans up the dataset once
+
+Usage:
+    python augment_pipeline.py --class old
+    python augment_pipeline.py --class old --augment-iterations 4 --merge-iterations 4
+    
+This will run:
+    - Augmentation: 4 times
+    - Merge: 4 modes × 4 iterations = 16 times total
+    - Cleanup: 1 time
+"""
+
+import argparse
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+
+def run_command(cmd, step_name, iteration=None):
+    """Run a command and report results."""
+    iter_suffix = f" (iteration {iteration})" if iteration is not None else ""
+    print(f"\n{'=' * 70}")
+    print(f"Running: {step_name}{iter_suffix}")
+    print(f"Command: {' '.join(cmd)}")
+    print(f"{'=' * 70}\n")
+    
+    start_time = time.time()
+    try:
+        result = subprocess.run(cmd, check=True)
+        elapsed = time.time() - start_time
+        print(f"\n✓ {step_name}{iter_suffix} completed successfully in {elapsed:.1f}s")
+        return True
+    except subprocess.CalledProcessError as e:
+        elapsed = time.time() - start_time
+        print(f"\n✗ {step_name}{iter_suffix} failed after {elapsed:.1f}s")
+        print(f"  Exit code: {e.returncode}")
+        return False
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Run augmentation pipeline: augment → merge → cleanup"
+    )
+    parser.add_argument(
+        "--class",
+        dest="class_name",
+        required=True,
+        help="Class name to augment (e.g., 'old', 'young')"
+    )
+    parser.add_argument(
+        "--augment-iterations",
+        type=int,
+        default=4,
+        help="Number of times to run augmentation (default: 4)"
+    )
+    parser.add_argument(
+        "--merge-iterations",
+        type=int,
+        default=4,
+        help="Number of times to run merge (default: 4)"
+    )
+    parser.add_argument(
+        "--augment-n",
+        type=int,
+        default=3,
+        help="Number of augmentations per iteration (default: 3)"
+    )
+    parser.add_argument(
+        "--skip-cleanup",
+        action="store_true",
+        help="Skip cleanup step"
+    )
+    
+    args = parser.parse_args()
+    
+    # Validate class name
+    class_name = args.class_name.strip()
+    if not class_name:
+        print("Error: Class name cannot be empty")
+        sys.exit(1)
+    
+    print(f"\n{'*' * 70}")
+    print(f"Augmentation Pipeline")
+    print(f"{'*' * 70}")
+    print(f"Class: {class_name}")
+    print(f"Augment iterations: {args.augment_iterations}")
+    print(f"Merge iterations: {args.merge_iterations}")
+    print(f"Augment N: {args.augment_n}")
+    print(f"{'*' * 70}\n")
+    
+    failed_steps = []
+    
+    # Phase 1: Augmentation
+    print(f"\n### Phase 1: Augmentation ({args.augment_iterations} iterations) ###")
+    for i in range(1, args.augment_iterations + 1):
+        cmd = [
+            sys.executable,
+            "main.py",
+            "--augment-landmarks",
+            "--augment-landmarks-cls",
+            class_name,
+            "--augment-landmarks-n",
+            str(args.augment_n)
+        ]
+        if not run_command(cmd, "Augmentation", iteration=i):
+            failed_steps.append(f"Augmentation iteration {i}")
+    
+    # Phase 2: Merge (all 4 types)
+    merge_modes = ["splice", "blend", "hand_swap", "hybrid"]
+    print(f"\n### Phase 2: Merge (4 modes × {args.merge_iterations} iterations = {4 * args.merge_iterations} total) ###")
+    for mode in merge_modes:
+        for i in range(1, args.merge_iterations + 1):
+            cmd = [
+                sys.executable,
+                "merge_augmentations.py",
+                "processed",
+                "--output_dir",
+                "processed",
+                "--n",
+                "2",
+                "--mode",
+                mode,
+                "--class",
+                class_name
+            ]
+            if not run_command(cmd, f"Merge augmentations ({mode})", iteration=i):
+                failed_steps.append(f"Merge {mode} iteration {i}")
+    
+    # Phase 3: Cleanup
+    if not args.skip_cleanup:
+        print(f"\n### Phase 3: Cleanup ###")
+        cmd = [
+            sys.executable,
+            "cleanup_dataset_npy.py",
+            "--class",
+            class_name
+        ]
+        if not run_command(cmd, "Cleanup dataset"):
+            failed_steps.append("Cleanup")
+    else:
+        print("\n### Phase 3: Cleanup (skipped) ###")
+    
+    # Summary
+    print(f"\n{'=' * 70}")
+    print("PIPELINE SUMMARY")
+    print(f"{'=' * 70}")
+    
+    if failed_steps:
+        print(f"✗ Pipeline completed with {len(failed_steps)} failure(s):")
+        for step in failed_steps:
+            print(f"  - {step}")
+        sys.exit(1)
+    else:
+        print("✓ Pipeline completed successfully!")
+        sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
