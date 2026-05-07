@@ -1,0 +1,44 @@
+2026-05-07 13:26:31,722 | INFO | Logger initialized for collect
+2026-05-07 13:26:31,723 | INFO | Log file: logs\collect_20260507_132631.log
+2026-05-07 13:26:31,723 | INFO | {"event": "record_start", "timestamp": "2026-05-07T13:26:31", "class_name": "wet", "target_samples": 10}
+2026-05-07 13:26:31,728 | INFO | [Collect] Class: 'wet'
+2026-05-07 13:26:31,728 | INFO | [Collect] Existing samples: 184
+2026-05-07 13:26:31,729 | INFO | [Collect] Recording: 90 frames (~3s), sub-sampled to 20
+2026-05-07 13:26:31,729 | INFO | [Collect] Target: 10 new samples
+2026-05-07 13:26:36,986 | INFO | Controls:
+2026-05-07 13:26:36,986 | INFO |   Auto mode enabled: recording until target is reached
+2026-05-07 13:26:36,987 | INFO |   SPACE  - (optional) restart countdown manually
+2026-05-07 13:26:36,987 | INFO |   Q/ESC  - Finish and quit
+2026-05-07 13:26:36,987 | INFO |   [REC] Auto countdown 3s...
+2026-05-07 13:26:44,510 | INFO |   [SAVED] #1 -> webcam_1778140604506.npy  (hand: 100%, total: 185)
+2026-05-07 13:26:44,511 | INFO | {"event": "sample_recorded", "timestamp": "2026-05-07T13:26:44", "class_name": "wet", "sample_num": 1, "filename": "webcam_1778140604506.npy", "frames_with_hand": 90, "total_frames": 90, "hand_detection_pct": "100%", "total_samples_for_class": 185}
+2026-05-07 13:26:44,511 | INFO |   [REC] Next sample in 3s...
+2026-05-07 13:26:52,346 | INFO |   [SAVED] #2 -> webcam_1778140612344.npy  (hand: 100%, total: 186)
+2026-05-07 13:26:52,347 | INFO | {"event": "sample_recorded", "timestamp": "2026-05-07T13:26:52", "class_name": "wet", "sample_num": 2, "filename": "webcam_1778140612344.npy", "frames_with_hand": 90, "total_frames": 90, "hand_detection_pct": "100%", "total_samples_for_class": 186}
+2026-05-07 13:26:52,347 | INFO |   [REC] Next sample in 3s...
+2026-05-07 13:27:00,035 | INFO |   [SAVED] #3 -> webcam_1778140620032.npy  (hand: 100%, total: 187)
+2026-05-07 13:27:00,036 | INFO | {"event": "sample_recorded", "timestamp": "2026-05-07T13:27:00", "class_name": "wet", "sample_num": 3, "filename": "webcam_1778140620032.npy", "frames_with_hand": 90, "total_frames": 90, "hand_detection_pct": "100%", "total_samples_for_class": 187}
+2026-05-07 13:27:00,037 | INFO |   [REC] Next sample in 3s...
+2026-05-07 13:27:07,824 | INFO |   [SAVED] #4 -> webcam_1778140627821.npy  (hand: 100%, total: 188)
+2026-05-07 13:27:07,825 | INFO | {"event": "sample_recorded", "timestamp": "2026-05-07T13:27:07", "class_name": "wet", "sample_num": 4, "filename": "webcam_1778140627821.npy", "frames_with_hand": 90, "total_frames": 90, "hand_detection_pct": "100%", "total_samples_for_class": 188}
+2026-05-07 13:27:07,825 | INFO |   [REC] Next sample in 3s...
+2026-05-07 13:27:15,717 | INFO |   [SAVED] #5 -> webcam_1778140635715.npy  (hand: 100%, total: 189)
+2026-05-07 13:27:15,718 | INFO | {"event": "sample_recorded", "timestamp": "2026-05-07T13:27:15", "class_name": "wet", "sample_num": 5, "filename": "webcam_1778140635715.npy", "frames_with_hand": 90, "total_frames": 90, "hand_detection_pct": "100%", "total_samples_for_class": 189}
+2026-05-07 13:27:15,718 | INFO |   [REC] Next sample in 3s...
+2026-05-07 13:27:23,546 | INFO |   [SAVED] #6 -> webcam_1778140643540.npy  (hand: 100%, total: 190)
+2026-05-07 13:27:23,546 | INFO | {"event": "sample_recorded", "timestamp": "2026-05-07T13:27:23", "class_name": "wet", "sample_num": 6, "filename": "webcam_1778140643540.npy", "frames_with_hand": 90, "total_frames": 90, "hand_detection_pct": "100%", "total_samples_for_class": 190}
+2026-05-07 13:27:23,547 | INFO |   [REC] Next sample in 3s...
+2026-05-07 13:27:31,643 | INFO |   [SAVED] #7 -> webcam_1778140651639.npy  (hand: 100%, total: 191)
+2026-05-07 13:27:31,644 | INFO | {"event": "sample_recorded", "timestamp": "2026-05-07T13:27:31", "class_name": "wet", "sample_num": 7, "filename": "webcam_1778140651639.npy", "frames_with_hand": 90, "total_frames": 90, "hand_detection_pct": "100%", "total_samples_for_class": 191}
+2026-05-07 13:27:31,644 | INFO |   [REC] Next sample in 3s...
+2026-05-07 13:27:39,809 | INFO |   [SAVED] #8 -> webcam_1778140659805.npy  (hand: 100%, total: 192)
+2026-05-07 13:27:39,809 | INFO | {"event": "sample_recorded", "timestamp": "2026-05-07T13:27:39", "class_name": "wet", "sample_num": 8, "filename": "webcam_1778140659805.npy", "frames_with_hand": 90, "total_frames": 90, "hand_detection_pct": "100%", "total_samples_for_class": 192}
+2026-05-07 13:27:39,810 | INFO |   [REC] Next sample in 3s...
+2026-05-07 13:27:47,841 | INFO |   [SAVED] #9 -> webcam_1778140667838.npy  (hand: 100%, total: 193)
+2026-05-07 13:27:47,841 | INFO | {"event": "sample_recorded", "timestamp": "2026-05-07T13:27:47", "class_name": "wet", "sample_num": 9, "filename": "webcam_1778140667838.npy", "frames_with_hand": 90, "total_frames": 90, "hand_detection_pct": "100%", "total_samples_for_class": 193}
+2026-05-07 13:27:47,842 | INFO |   [REC] Next sample in 3s...
+2026-05-07 13:27:55,860 | INFO |   [SAVED] #10 -> webcam_1778140675858.npy  (hand: 100%, total: 194)
+2026-05-07 13:27:55,860 | INFO | {"event": "sample_recorded", "timestamp": "2026-05-07T13:27:55", "class_name": "wet", "sample_num": 10, "filename": "webcam_1778140675858.npy", "frames_with_hand": 90, "total_frames": 90, "hand_detection_pct": "100%", "total_samples_for_class": 194}
+2026-05-07 13:27:57,774 | INFO | [Collect] Done! Saved 10 new samples for 'wet'.
+2026-05-07 13:27:57,776 | INFO | [Collect] Total samples for 'wet': 194
+2026-05-07 13:27:57,776 | INFO | {"event": "record_end", "timestamp": "2026-05-07T13:27:57", "class_name": "wet", "new_samples_saved": 10, "total_samples_for_class": 194}
