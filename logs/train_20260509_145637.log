@@ -1,0 +1,210 @@
+2026-05-09 14:56:37,569 | INFO | Logger initialized for train
+2026-05-09 14:56:37,570 | INFO | Log file: logs\train_20260509_145637.log
+2026-05-09 14:56:37,571 | INFO | {"event": "train_start", "timestamp": "2026-05-09T14:56:37", "processed_dir": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\processed"}
+2026-05-09 14:56:37,571 | INFO | ============================================================
+2026-05-09 14:56:37,572 | INFO |   Training Word Model (BiGRU + Attention)
+2026-05-09 14:56:37,572 | INFO | ============================================================
+2026-05-09 14:56:42,428 | INFO | [Dataset] 17507 samples, 78 classes (augment=False, oversample=False)
+2026-05-09 14:56:42,433 | INFO | [Dataset] Distribution: alive=72, alright=278, bad=294, beautiful=239, big_large=294, blind=224, cheap=221, clean=72, cold=294, cool=294, curved=212, dead=72, deaf=224, deep=72, dirty=72, dry=164, expensive=212, famous=192, fast=294, female=202, flat=212, good=274, good_afternoon=278, good_evening=290, good_morning=278, good_night=278, happy=224, hard=72, he=278, healthy=295, heavy=72, hello=273, high=262, hot=294, how_are_you=273, i=273, idle=130, it=278, light=202, long=294, loose=204, loud=240, low=72, male=202, mean=224, morning=134, narrow=294, new=294, nice=191, old=302, pleased=278, poor=209, quiet=226, rich=214, sad=224, shallow=72, she=278, short=294, sick=164, slow=294, small_little=294, soft=72, strong=72, tall=294, thank_you=273, they=278, thick=214, thin=172, tight=214, ugly=249, warm=304, we=278, weak=72, wet=294, wide=314, you=293, you_all=278, young=304
+2026-05-09 14:56:43,513 | INFO | [BalancedAug] 13120 -> 18408 samples (oversampled)
+2026-05-09 14:56:43,514 | INFO | [BalancedAug] Per class: {0: 236, 1: 236, 2: 236, 3: 236, 4: 236, 5: 236, 6: 236, 7: 236, 8: 236, 9: 236, 10: 236, 11: 236, 12: 236, 13: 236, 14: 236, 15: 236, 16: 236, 17: 236, 18: 236, 19: 236, 20: 236, 21: 236, 22: 236, 23: 236, 24: 236, 25: 236, 26: 236, 27: 236, 28: 236, 29: 236, 30: 236, 31: 236, 32: 236, 33: 236, 34: 236, 35: 236, 36: 236, 37: 236, 38: 236, 39: 236, 40: 236, 41: 236, 42: 236, 43: 236, 44: 236, 45: 236, 46: 236, 47: 236, 48: 236, 49: 236, 50: 236, 51: 236, 52: 236, 53: 236, 54: 236, 55: 236, 56: 236, 57: 236, 58: 236, 59: 236, 60: 236, 61: 236, 62: 236, 63: 236, 64: 236, 65: 236, 66: 236, 67: 236, 68: 236, 69: 236, 70: 236, 71: 236, 72: 236, 73: 236, 74: 236, 75: 236, 76: 236, 77: 236}
+2026-05-09 14:56:43,538 | INFO | [Data] Train: 18408 (balanced+aug) | Val: 4387
+2026-05-09 14:56:43,540 | INFO | [Data] Class weights: ['2.47', '0.64', '0.61', '0.74', '0.61', '0.79', '0.80', '2.47', '0.61', '0.61', '0.84', '2.47', '0.79', '2.47', '2.47', '1.08', '0.84', '0.92', '0.61', '0.88', '0.84', '0.65', '0.64', '0.61', '0.64', '0.64', '0.79', '2.47', '0.64', '0.60', '2.47', '0.65', '0.68', '0.61', '0.65', '0.65', '1.36', '0.64', '0.88', '0.61', '0.87', '0.74', '2.47', '0.88', '0.79', '1.33', '0.61', '0.61', '0.93', '0.59', '0.64', '0.85', '0.78', '0.83', '0.79', '2.47', '0.64', '0.61', '1.08', '0.61', '0.61', '2.47', '2.47', '0.61', '0.65', '0.64', '0.83', '1.03', '0.83', '0.71', '0.58', '0.64', '2.47', '0.61', '0.56', '0.61', '0.64', '0.58']
+2026-05-09 14:56:43,541 | INFO | {"event": "train_loop_start", "timestamp": "2026-05-09T14:56:43", "num_classes": 78, "train_batches": 1151, "val_batches": 275, "class_weights": [2.465447425842285, 0.6400681138038635, 0.6051552891731262, 0.7437662482261658, 0.6051552891731262, 0.7924652695655823, 0.8020130395889282, 2.465447425842285, 0.6051552891731262, 0.6051552891731262, 0.8373217582702637, 2.465447425842285, 0.7924652695655823, 2.465447425842285, 2.465447425842285, 1.082391619682312, 0.8373217582702637, 0.9245427846908569, 0.6051552891731262, 0.875882625579834, 0.8373217582702637, 0.6462823152542114, 0.6400681138038635, 0.61070716381073, 0.6400681138038635, 0.6400681138038635, 0.7924652695655823, 2.465447425842285, 0.6400681138038635, 0.6024170517921448, 2.465447425842285, 0.6494349241256714, 0.6792559623718262, 0.6051552891731262, 0.6494349241256714, 0.6494349241256714, 1.3585118055343628, 0.6400681138038635, 0.875882625579834, 0.6051552891731262, 0.8701578974723816, 0.7396342158317566, 2.465447425842285, 0.875882625579834, 0.7924652695655823, 1.3313416242599487, 0.6051552891731262, 0.6051552891731262, 0.9310081601142883, 0.5890892148017883, 0.6400681138038635, 0.8479883074760437, 0.7831421494483948, 0.8320885300636292, 0.7924652695655823, 2.465447425842285, 0.6400681138038635, 0.6051552891731262, 1.082391619682312, 0.6051552891731262, 0.6051552891731262, 2.465447425842285, 2.465447425842285, 0.6051552891731262, 0.6494349241256714, 0.6400681138038635, 0.8320885300636292, 1.0320477485656738, 0.8320885300636292, 0.7119473814964294, 0.5839217901229858, 0.6400681138038635, 2.465447425842285, 0.6051552891731262, 0.5641278028488159, 0.6051552891731262, 0.6400681138038635, 0.5839217901229858], "use_focal_loss": false}
+2026-05-09 14:56:45,713 | INFO | [Model] Params: 996,468 | Trainable: 996,468
+2026-05-09 14:56:45,714 | INFO | [Model] Architecture:
+2026-05-09 14:56:45,715 | INFO | SignLanguageGRU(
+2026-05-09 14:56:45,715 | INFO |   (input_proj): Sequential(
+2026-05-09 14:56:45,715 | INFO |     (0): Linear(in_features=506, out_features=128, bias=True)
+2026-05-09 14:56:45,715 | INFO |     (1): LayerNorm((128,), eps=1e-05, elementwise_affine=True)
+2026-05-09 14:56:45,716 | INFO |     (2): ReLU()
+2026-05-09 14:56:45,716 | INFO |     (3): Dropout(p=0.175, inplace=False)
+2026-05-09 14:56:45,716 | INFO |   )
+2026-05-09 14:56:45,716 | INFO |   (gru): GRU(128, 128, num_layers=3, batch_first=True, dropout=0.35, bidirectional=True)
+2026-05-09 14:56:45,716 | INFO |   (layer_norm): LayerNorm((256,), eps=1e-05, elementwise_affine=True)
+2026-05-09 14:56:45,717 | INFO |   (attention): HybridAttention(
+2026-05-09 14:56:45,717 | INFO |     (score_nets): ModuleList(
+2026-05-09 14:56:45,717 | INFO |       (0-3): 4 x Sequential(
+2026-05-09 14:56:45,717 | INFO |         (0): Linear(in_features=64, out_features=32, bias=True)
+2026-05-09 14:56:45,717 | INFO |         (1): Tanh()
+2026-05-09 14:56:45,718 | INFO |         (2): Linear(in_features=32, out_features=1, bias=False)
+2026-05-09 14:56:45,718 | INFO |       )
+2026-05-09 14:56:45,718 | INFO |     )
+2026-05-09 14:56:45,718 | INFO |     (temperatures): ParameterList(
+2026-05-09 14:56:45,718 | INFO |         (0): Parameter containing: [torch.float32 of size ]
+2026-05-09 14:56:45,719 | INFO |         (1): Parameter containing: [torch.float32 of size ]
+2026-05-09 14:56:45,719 | INFO |         (2): Parameter containing: [torch.float32 of size ]
+2026-05-09 14:56:45,719 | INFO |         (3): Parameter containing: [torch.float32 of size ]
+2026-05-09 14:56:45,719 | INFO |     )
+2026-05-09 14:56:45,719 | INFO |     (head_proj): Linear(in_features=256, out_features=256, bias=True)
+2026-05-09 14:56:45,720 | INFO |   )
+2026-05-09 14:56:45,720 | INFO |   (spatial_attention): SpatialAttention(
+2026-05-09 14:56:45,720 | INFO |     (spatial_scorer): Sequential(
+2026-05-09 14:56:45,720 | INFO |       (0): Linear(in_features=256, out_features=128, bias=True)
+2026-05-09 14:56:45,720 | INFO |       (1): ReLU()
+2026-05-09 14:56:45,721 | INFO |       (2): Linear(in_features=128, out_features=3, bias=False)
+2026-05-09 14:56:45,721 | INFO |     )
+2026-05-09 14:56:45,721 | INFO |   )
+2026-05-09 14:56:45,721 | INFO |   (dropout): Dropout(p=0.35, inplace=False)
+2026-05-09 14:56:45,722 | INFO |   (fc): Sequential(
+2026-05-09 14:56:45,722 | INFO |     (0): Linear(in_features=256, out_features=96, bias=True)
+2026-05-09 14:56:45,722 | INFO |     (1): ReLU()
+2026-05-09 14:56:45,722 | INFO |     (2): Dropout(p=0.35, inplace=False)
+2026-05-09 14:56:45,722 | INFO |     (3): Linear(in_features=96, out_features=78, bias=True)
+2026-05-09 14:56:45,723 | INFO |   )
+2026-05-09 14:56:45,723 | INFO | )
+2026-05-09 14:56:45,723 | INFO |   Ep |  TrLoss |  TrAcc |  VaLoss |  VaAcc |       LR |    T
+2026-05-09 14:56:45,724 | INFO | ------------------------------------------------------------
+2026-05-09 14:59:49,526 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T14:59:49", "epoch": 1, "train_loss": 3.364866, "train_acc": 13.167, "val_loss": 3.905991, "val_acc": 8.594, "lr": 0.0003, "elapsed_sec": 183.792, "best_val_acc": 0.0}
+2026-05-09 14:59:49,726 | INFO | {"event": "train_best_checkpoint", "timestamp": "2026-05-09T14:59:49", "epoch": 1, "val_acc": 8.594, "model_path": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\model.pth"}
+2026-05-09 14:59:49,728 | INFO |    1 |  3.3649 |  13.2% |  3.9060 |   8.6% | 3.0e-04 | 183.8s *
+2026-05-09 15:03:30,831 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T15:03:30", "epoch": 2, "train_loss": 2.438207, "train_acc": 32.924, "val_loss": 3.307269, "val_acc": 21.062, "lr": 0.0003, "elapsed_sec": 221.102, "best_val_acc": 8.594}
+2026-05-09 15:03:30,874 | INFO | {"event": "train_best_checkpoint", "timestamp": "2026-05-09T15:03:30", "epoch": 2, "val_acc": 21.062, "model_path": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\model.pth"}
+2026-05-09 15:03:30,875 | INFO |    2 |  2.4382 |  32.9% |  3.3073 |  21.1% | 3.0e-04 | 221.1s *
+2026-05-09 15:06:58,062 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T15:06:58", "epoch": 3, "train_loss": 1.996799, "train_acc": 46.996, "val_loss": 2.776389, "val_acc": 34.374, "lr": 0.0003, "elapsed_sec": 207.186, "best_val_acc": 21.062}
+2026-05-09 15:06:58,107 | INFO | {"event": "train_best_checkpoint", "timestamp": "2026-05-09T15:06:58", "epoch": 3, "val_acc": 34.374, "model_path": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\model.pth"}
+2026-05-09 15:06:58,108 | INFO |    3 |  1.9968 |  47.0% |  2.7764 |  34.4% | 3.0e-04 | 207.2s *
+2026-05-09 15:10:27,813 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T15:10:27", "epoch": 4, "train_loss": 1.773777, "train_acc": 56.256, "val_loss": 2.628482, "val_acc": 42.535, "lr": 0.0003, "elapsed_sec": 209.704, "best_val_acc": 34.374}
+2026-05-09 15:10:27,859 | INFO | {"event": "train_best_checkpoint", "timestamp": "2026-05-09T15:10:27", "epoch": 4, "val_acc": 42.535, "model_path": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\model.pth"}
+2026-05-09 15:10:27,860 | INFO |    4 |  1.7738 |  56.3% |  2.6285 |  42.5% | 3.0e-04 | 209.7s *
+2026-05-09 15:13:26,424 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T15:13:26", "epoch": 5, "train_loss": 1.598883, "train_acc": 63.575, "val_loss": 2.291121, "val_acc": 49.168, "lr": 0.0003, "elapsed_sec": 178.562, "best_val_acc": 42.535}
+2026-05-09 15:13:26,466 | INFO | {"event": "train_best_checkpoint", "timestamp": "2026-05-09T15:13:26", "epoch": 5, "val_acc": 49.168, "model_path": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\model.pth"}
+2026-05-09 15:13:26,467 | INFO |    5 |  1.5989 |  63.6% |  2.2911 |  49.2% | 3.0e-04 | 178.6s *
+2026-05-09 15:16:40,440 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T15:16:40", "epoch": 6, "train_loss": 1.500052, "train_acc": 68.308, "val_loss": 2.178887, "val_acc": 54.639, "lr": 0.0003, "elapsed_sec": 193.972, "best_val_acc": 49.168}
+2026-05-09 15:16:40,484 | INFO | {"event": "train_best_checkpoint", "timestamp": "2026-05-09T15:16:40", "epoch": 6, "val_acc": 54.639, "model_path": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\model.pth"}
+2026-05-09 15:16:40,484 | INFO |    6 |  1.5001 |  68.3% |  2.1789 |  54.6% | 3.0e-04 | 194.0s *
+2026-05-09 15:19:53,872 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T15:19:53", "epoch": 7, "train_loss": 1.432041, "train_acc": 71.605, "val_loss": 2.113884, "val_acc": 57.762, "lr": 0.0003, "elapsed_sec": 193.387, "best_val_acc": 54.639}
+2026-05-09 15:19:53,917 | INFO | {"event": "train_best_checkpoint", "timestamp": "2026-05-09T15:19:53", "epoch": 7, "val_acc": 57.762, "model_path": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\model.pth"}
+2026-05-09 15:19:53,917 | INFO |    7 |  1.4320 |  71.6% |  2.1139 |  57.8% | 3.0e-04 | 193.4s *
+2026-05-09 15:22:59,879 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T15:22:59", "epoch": 8, "train_loss": 1.360586, "train_acc": 74.649, "val_loss": 1.988342, "val_acc": 60.406, "lr": 0.0003, "elapsed_sec": 185.961, "best_val_acc": 57.762}
+2026-05-09 15:22:59,920 | INFO | {"event": "train_best_checkpoint", "timestamp": "2026-05-09T15:22:59", "epoch": 8, "val_acc": 60.406, "model_path": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\model.pth"}
+2026-05-09 15:22:59,920 | INFO |    8 |  1.3606 |  74.6% |  1.9883 |  60.4% | 3.0e-04 | 186.0s *
+2026-05-09 15:26:01,405 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T15:26:01", "epoch": 9, "train_loss": 1.294708, "train_acc": 77.089, "val_loss": 2.004287, "val_acc": 61.773, "lr": 0.0003, "elapsed_sec": 181.485, "best_val_acc": 60.406}
+2026-05-09 15:26:01,444 | INFO | {"event": "train_best_checkpoint", "timestamp": "2026-05-09T15:26:01", "epoch": 9, "val_acc": 61.773, "model_path": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\model.pth"}
+2026-05-09 15:26:01,444 | INFO |    9 |  1.2947 |  77.1% |  2.0043 |  61.8% | 3.0e-04 | 181.5s *
+2026-05-09 15:29:12,164 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T15:29:12", "epoch": 10, "train_loss": 1.287476, "train_acc": 78.139, "val_loss": 1.948871, "val_acc": 63.643, "lr": 0.0003, "elapsed_sec": 190.72, "best_val_acc": 61.773}
+2026-05-09 15:29:12,198 | INFO | {"event": "train_best_checkpoint", "timestamp": "2026-05-09T15:29:12", "epoch": 10, "val_acc": 63.643, "model_path": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\model.pth"}
+2026-05-09 15:29:12,198 | INFO |   10 |  1.2875 |  78.1% |  1.9489 |  63.6% | 3.0e-04 | 190.7s *
+2026-05-09 15:32:25,643 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T15:32:25", "epoch": 11, "train_loss": 1.240444, "train_acc": 79.645, "val_loss": 1.873231, "val_acc": 67.267, "lr": 0.0003, "elapsed_sec": 193.443, "best_val_acc": 63.643}
+2026-05-09 15:32:25,694 | INFO | {"event": "train_best_checkpoint", "timestamp": "2026-05-09T15:32:25", "epoch": 11, "val_acc": 67.267, "model_path": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\model.pth"}
+2026-05-09 15:32:25,694 | INFO |   11 |  1.2404 |  79.6% |  1.8732 |  67.3% | 3.0e-04 | 193.4s *
+2026-05-09 15:35:45,887 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T15:35:45", "epoch": 12, "train_loss": 1.183823, "train_acc": 81.707, "val_loss": 1.78027, "val_acc": 69.797, "lr": 0.0003, "elapsed_sec": 200.193, "best_val_acc": 67.267}
+2026-05-09 15:35:45,929 | INFO | {"event": "train_best_checkpoint", "timestamp": "2026-05-09T15:35:45", "epoch": 12, "val_acc": 69.797, "model_path": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\model.pth"}
+2026-05-09 15:35:45,929 | INFO |   12 |  1.1838 |  81.7% |  1.7803 |  69.8% | 3.0e-04 | 200.2s *
+2026-05-09 15:38:59,435 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T15:38:59", "epoch": 13, "train_loss": 1.129903, "train_acc": 83.225, "val_loss": 1.735137, "val_acc": 70.914, "lr": 0.0003, "elapsed_sec": 193.506, "best_val_acc": 69.797}
+2026-05-09 15:38:59,476 | INFO | {"event": "train_best_checkpoint", "timestamp": "2026-05-09T15:38:59", "epoch": 13, "val_acc": 70.914, "model_path": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\model.pth"}
+2026-05-09 15:38:59,476 | INFO |   13 |  1.1299 |  83.2% |  1.7351 |  70.9% | 3.0e-04 | 193.5s *
+2026-05-09 15:42:17,474 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T15:42:17", "epoch": 14, "train_loss": 1.185106, "train_acc": 82.415, "val_loss": 1.788387, "val_acc": 71.689, "lr": 0.0003, "elapsed_sec": 197.999, "best_val_acc": 70.914}
+2026-05-09 15:42:17,517 | INFO | {"event": "train_best_checkpoint", "timestamp": "2026-05-09T15:42:17", "epoch": 14, "val_acc": 71.689, "model_path": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\model.pth"}
+2026-05-09 15:42:17,517 | INFO |   14 |  1.1851 |  82.4% |  1.7884 |  71.7% | 3.0e-04 | 198.0s *
+2026-05-09 15:45:31,680 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T15:45:31", "epoch": 15, "train_loss": 1.146332, "train_acc": 83.441, "val_loss": 1.647846, "val_acc": 73.832, "lr": 0.0003, "elapsed_sec": 194.163, "best_val_acc": 71.689}
+2026-05-09 15:45:31,731 | INFO | {"event": "train_best_checkpoint", "timestamp": "2026-05-09T15:45:31", "epoch": 15, "val_acc": 73.832, "model_path": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\model.pth"}
+2026-05-09 15:45:31,732 | INFO |   15 |  1.1463 |  83.4% |  1.6478 |  73.8% | 3.0e-04 | 194.2s *
+2026-05-09 15:48:56,668 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T15:48:56", "epoch": 16, "train_loss": 1.168865, "train_acc": 83.342, "val_loss": 1.7424, "val_acc": 73.467, "lr": 0.0003, "elapsed_sec": 204.934, "best_val_acc": 73.832}
+2026-05-09 15:48:56,671 | INFO |   16 |  1.1689 |  83.3% |  1.7424 |  73.5% | 3.0e-04 | 204.9s
+2026-05-09 15:52:21,630 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T15:52:21", "epoch": 17, "train_loss": 1.131233, "train_acc": 84.053, "val_loss": 1.812718, "val_acc": 70.139, "lr": 0.0003, "elapsed_sec": 204.909, "best_val_acc": 73.832}
+2026-05-09 15:52:21,637 | INFO |   17 |  1.1312 |  84.1% |  1.8127 |  70.1% | 3.0e-04 | 204.9s
+2026-05-09 15:55:38,271 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T15:55:38", "epoch": 18, "train_loss": 1.11118, "train_acc": 84.901, "val_loss": 1.676608, "val_acc": 74.607, "lr": 0.0003, "elapsed_sec": 196.633, "best_val_acc": 73.832}
+2026-05-09 15:55:38,320 | INFO | {"event": "train_best_checkpoint", "timestamp": "2026-05-09T15:55:38", "epoch": 18, "val_acc": 74.607, "model_path": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\model.pth"}
+2026-05-09 15:55:38,320 | INFO |   18 |  1.1112 |  84.9% |  1.6766 |  74.6% | 3.0e-04 | 196.6s *
+2026-05-09 15:59:05,626 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T15:59:05", "epoch": 19, "train_loss": 1.094895, "train_acc": 85.665, "val_loss": 1.681287, "val_acc": 73.763, "lr": 0.0003, "elapsed_sec": 207.298, "best_val_acc": 74.607}
+2026-05-09 15:59:05,630 | INFO |   19 |  1.0949 |  85.7% |  1.6813 |  73.8% | 3.0e-04 | 207.3s
+2026-05-09 16:02:46,087 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T16:02:46", "epoch": 20, "train_loss": 1.031599, "train_acc": 86.985, "val_loss": 1.738997, "val_acc": 73.9, "lr": 0.0003, "elapsed_sec": 220.446, "best_val_acc": 74.607}
+2026-05-09 16:02:46,102 | INFO |   20 |  1.0316 |  87.0% |  1.7390 |  73.9% | 3.0e-04 | 220.4s
+2026-05-09 16:06:07,527 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T16:06:07", "epoch": 21, "train_loss": 1.065453, "train_acc": 86.327, "val_loss": 1.692833, "val_acc": 74.994, "lr": 0.0003, "elapsed_sec": 201.424, "best_val_acc": 74.607}
+2026-05-09 16:06:07,597 | INFO | {"event": "train_best_checkpoint", "timestamp": "2026-05-09T16:06:07", "epoch": 21, "val_acc": 74.994, "model_path": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\model.pth"}
+2026-05-09 16:06:07,598 | INFO |   21 |  1.0655 |  86.3% |  1.6928 |  75.0% | 3.0e-04 | 201.4s *
+2026-05-09 16:09:14,223 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T16:09:14", "epoch": 22, "train_loss": 1.060117, "train_acc": 86.518, "val_loss": 1.701612, "val_acc": 75.108, "lr": 0.0003, "elapsed_sec": 186.624, "best_val_acc": 74.994}
+2026-05-09 16:09:14,268 | INFO | {"event": "train_best_checkpoint", "timestamp": "2026-05-09T16:09:14", "epoch": 22, "val_acc": 75.108, "model_path": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\model.pth"}
+2026-05-09 16:09:14,268 | INFO |   22 |  1.0601 |  86.5% |  1.7016 |  75.1% | 3.0e-04 | 186.6s *
+2026-05-09 16:12:27,528 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T16:12:27", "epoch": 23, "train_loss": 1.035766, "train_acc": 87.106, "val_loss": 1.739011, "val_acc": 74.994, "lr": 0.0003, "elapsed_sec": 193.258, "best_val_acc": 75.108}
+2026-05-09 16:12:27,543 | INFO |   23 |  1.0358 |  87.1% |  1.7390 |  75.0% | 3.0e-04 | 193.3s
+2026-05-09 16:15:41,908 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T16:15:41", "epoch": 24, "train_loss": 1.009494, "train_acc": 87.951, "val_loss": 1.695123, "val_acc": 75.131, "lr": 0.0003, "elapsed_sec": 194.365, "best_val_acc": 75.108}
+2026-05-09 16:15:41,955 | INFO | {"event": "train_best_checkpoint", "timestamp": "2026-05-09T16:15:41", "epoch": 24, "val_acc": 75.131, "model_path": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\model.pth"}
+2026-05-09 16:15:41,955 | INFO |   24 |  1.0095 |  88.0% |  1.6951 |  75.1% | 3.0e-04 | 194.4s *
+2026-05-09 16:18:59,177 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T16:18:59", "epoch": 25, "train_loss": 1.00736, "train_acc": 87.987, "val_loss": 1.668536, "val_acc": 75.929, "lr": 0.0003, "elapsed_sec": 197.219, "best_val_acc": 75.131}
+2026-05-09 16:18:59,223 | INFO | {"event": "train_best_checkpoint", "timestamp": "2026-05-09T16:18:59", "epoch": 25, "val_acc": 75.929, "model_path": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\model.pth"}
+2026-05-09 16:18:59,224 | INFO |   25 |  1.0074 |  88.0% |  1.6685 |  75.9% | 3.0e-04 | 197.2s *
+2026-05-09 16:22:15,076 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T16:22:15", "epoch": 26, "train_loss": 1.038402, "train_acc": 87.399, "val_loss": 1.655886, "val_acc": 75.883, "lr": 0.0003, "elapsed_sec": 195.852, "best_val_acc": 75.929}
+2026-05-09 16:22:15,082 | INFO |   26 |  1.0384 |  87.4% |  1.6559 |  75.9% | 3.0e-04 | 195.9s
+2026-05-09 16:25:37,131 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T16:25:37", "epoch": 27, "train_loss": 1.015701, "train_acc": 88.03, "val_loss": 1.633973, "val_acc": 76.886, "lr": 0.0003, "elapsed_sec": 202.048, "best_val_acc": 75.929}
+2026-05-09 16:25:37,182 | INFO | {"event": "train_best_checkpoint", "timestamp": "2026-05-09T16:25:37", "epoch": 27, "val_acc": 76.886, "model_path": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\model.pth"}
+2026-05-09 16:25:37,182 | INFO |   27 |  1.0157 |  88.0% |  1.6340 |  76.9% | 3.0e-04 | 202.0s *
+2026-05-09 16:28:47,388 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T16:28:47", "epoch": 28, "train_loss": 1.011487, "train_acc": 88.014, "val_loss": 1.661489, "val_acc": 77.342, "lr": 0.0003, "elapsed_sec": 190.205, "best_val_acc": 76.886}
+2026-05-09 16:28:47,437 | INFO | {"event": "train_best_checkpoint", "timestamp": "2026-05-09T16:28:47", "epoch": 28, "val_acc": 77.342, "model_path": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\model.pth"}
+2026-05-09 16:28:47,437 | INFO |   28 |  1.0115 |  88.0% |  1.6615 |  77.3% | 3.0e-04 | 190.2s *
+2026-05-09 16:32:08,108 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T16:32:08", "epoch": 29, "train_loss": 1.011934, "train_acc": 88.033, "val_loss": 1.757594, "val_acc": 75.655, "lr": 0.0003, "elapsed_sec": 200.67, "best_val_acc": 77.342}
+2026-05-09 16:32:08,111 | INFO |   29 |  1.0119 |  88.0% |  1.7576 |  75.7% | 3.0e-04 | 200.7s
+2026-05-09 16:35:29,194 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T16:35:29", "epoch": 30, "train_loss": 1.028258, "train_acc": 87.798, "val_loss": 1.598892, "val_acc": 77.183, "lr": 0.0003, "elapsed_sec": 201.082, "best_val_acc": 77.342}
+2026-05-09 16:35:29,198 | INFO |   30 |  1.0283 |  87.8% |  1.5989 |  77.2% | 3.0e-04 | 201.1s
+2026-05-09 16:38:53,949 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T16:38:53", "epoch": 31, "train_loss": 1.004157, "train_acc": 88.323, "val_loss": 1.607263, "val_acc": 78.733, "lr": 0.0003, "elapsed_sec": 204.75, "best_val_acc": 77.342}
+2026-05-09 16:38:53,991 | INFO | {"event": "train_best_checkpoint", "timestamp": "2026-05-09T16:38:53", "epoch": 31, "val_acc": 78.733, "model_path": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\model.pth"}
+2026-05-09 16:38:53,992 | INFO |   31 |  1.0042 |  88.3% |  1.6073 |  78.7% | 3.0e-04 | 204.7s *
+2026-05-09 16:42:19,996 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T16:42:19", "epoch": 32, "train_loss": 0.996021, "train_acc": 88.581, "val_loss": 1.655838, "val_acc": 76.841, "lr": 0.0003, "elapsed_sec": 206.003, "best_val_acc": 78.733}
+2026-05-09 16:42:20,001 | INFO |   32 |  0.9960 |  88.6% |  1.6558 |  76.8% | 3.0e-04 | 206.0s
+2026-05-09 16:46:20,580 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T16:46:20", "epoch": 33, "train_loss": 1.045784, "train_acc": 87.538, "val_loss": 1.613426, "val_acc": 77.752, "lr": 0.0003, "elapsed_sec": 240.579, "best_val_acc": 78.733}
+2026-05-09 16:46:20,584 | INFO |   33 |  1.0458 |  87.5% |  1.6134 |  77.8% | 3.0e-04 | 240.6s
+2026-05-09 16:50:29,600 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T16:50:29", "epoch": 34, "train_loss": 1.001982, "train_acc": 88.483, "val_loss": 1.629206, "val_acc": 77.114, "lr": 0.0003, "elapsed_sec": 249.016, "best_val_acc": 78.733}
+2026-05-09 16:50:29,604 | INFO |   34 |  1.0020 |  88.5% |  1.6292 |  77.1% | 3.0e-04 | 249.0s
+2026-05-09 16:54:27,645 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T16:54:27", "epoch": 35, "train_loss": 1.028049, "train_acc": 87.739, "val_loss": 1.654711, "val_acc": 76.294, "lr": 0.0003, "elapsed_sec": 238.039, "best_val_acc": 78.733}
+2026-05-09 16:54:27,649 | INFO |   35 |  1.0280 |  87.7% |  1.6547 |  76.3% | 3.0e-04 | 238.0s
+2026-05-09 16:58:23,788 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T16:58:23", "epoch": 36, "train_loss": 1.017258, "train_acc": 88.274, "val_loss": 1.673394, "val_acc": 76.749, "lr": 0.0003, "elapsed_sec": 236.138, "best_val_acc": 78.733}
+2026-05-09 16:58:23,793 | INFO |   36 |  1.0173 |  88.3% |  1.6734 |  76.7% | 3.0e-04 | 236.1s
+2026-05-09 17:03:23,311 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T17:03:23", "epoch": 37, "train_loss": 0.939678, "train_acc": 89.8, "val_loss": 1.690949, "val_acc": 76.727, "lr": 0.00015, "elapsed_sec": 299.493, "best_val_acc": 78.733}
+2026-05-09 17:03:23,337 | INFO |   37 |  0.9397 |  89.8% |  1.6909 |  76.7% | 1.5e-04 | 299.5s
+2026-05-09 17:07:34,939 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T17:07:34", "epoch": 38, "train_loss": 0.975207, "train_acc": 89.24, "val_loss": 1.636032, "val_acc": 77.593, "lr": 0.00015, "elapsed_sec": 251.592, "best_val_acc": 78.733}
+2026-05-09 17:07:34,954 | INFO |   38 |  0.9752 |  89.2% |  1.6360 |  77.6% | 1.5e-04 | 251.6s
+2026-05-09 17:10:54,578 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T17:10:54", "epoch": 39, "train_loss": 0.934587, "train_acc": 90.431, "val_loss": 1.611802, "val_acc": 78.003, "lr": 0.00015, "elapsed_sec": 199.624, "best_val_acc": 78.733}
+2026-05-09 17:10:54,579 | INFO |   39 |  0.9346 |  90.4% |  1.6118 |  78.0% | 1.5e-04 | 199.6s
+2026-05-09 17:16:58,159 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T17:16:58", "epoch": 40, "train_loss": 0.978759, "train_acc": 89.09, "val_loss": 1.625851, "val_acc": 77.775, "lr": 0.00015, "elapsed_sec": 363.572, "best_val_acc": 78.733}
+2026-05-09 17:16:58,171 | INFO |   40 |  0.9788 |  89.1% |  1.6259 |  77.8% | 1.5e-04 | 363.6s
+2026-05-09 17:20:05,125 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T17:20:05", "epoch": 41, "train_loss": 0.904802, "train_acc": 91.058, "val_loss": 1.569584, "val_acc": 78.892, "lr": 0.00015, "elapsed_sec": 186.953, "best_val_acc": 78.733}
+2026-05-09 17:20:05,632 | INFO | {"event": "train_best_checkpoint", "timestamp": "2026-05-09T17:20:05", "epoch": 41, "val_acc": 78.892, "model_path": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\model.pth"}
+2026-05-09 17:20:05,632 | INFO |   41 |  0.9048 |  91.1% |  1.5696 |  78.9% | 1.5e-04 | 187.0s *
+2026-05-09 17:23:02,727 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T17:23:02", "epoch": 42, "train_loss": 0.902821, "train_acc": 90.877, "val_loss": 1.639398, "val_acc": 78.208, "lr": 0.00015, "elapsed_sec": 177.093, "best_val_acc": 78.892}
+2026-05-09 17:23:02,728 | INFO |   42 |  0.9028 |  90.9% |  1.6394 |  78.2% | 1.5e-04 | 177.1s
+2026-05-09 17:26:15,088 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T17:26:15", "epoch": 43, "train_loss": 0.946618, "train_acc": 90.008, "val_loss": 1.594964, "val_acc": 78.505, "lr": 0.00015, "elapsed_sec": 192.359, "best_val_acc": 78.892}
+2026-05-09 17:26:15,088 | INFO |   43 |  0.9466 |  90.0% |  1.5950 |  78.5% | 1.5e-04 | 192.4s
+2026-05-09 17:29:29,378 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T17:29:29", "epoch": 44, "train_loss": 0.920772, "train_acc": 90.655, "val_loss": 1.613938, "val_acc": 78.345, "lr": 0.00015, "elapsed_sec": 194.288, "best_val_acc": 78.892}
+2026-05-09 17:29:29,378 | INFO |   44 |  0.9208 |  90.7% |  1.6139 |  78.3% | 1.5e-04 | 194.3s
+2026-05-09 17:32:58,022 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T17:32:58", "epoch": 45, "train_loss": 0.890351, "train_acc": 91.051, "val_loss": 1.642575, "val_acc": 78.322, "lr": 0.00015, "elapsed_sec": 208.643, "best_val_acc": 78.892}
+2026-05-09 17:32:58,023 | INFO |   45 |  0.8904 |  91.1% |  1.6426 |  78.3% | 1.5e-04 | 208.6s
+2026-05-09 17:36:15,131 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T17:36:15", "epoch": 46, "train_loss": 0.896313, "train_acc": 91.107, "val_loss": 1.620462, "val_acc": 77.958, "lr": 0.00015, "elapsed_sec": 197.108, "best_val_acc": 78.892}
+2026-05-09 17:36:15,132 | INFO |   46 |  0.8963 |  91.1% |  1.6205 |  78.0% | 1.5e-04 | 197.1s
+2026-05-09 17:39:28,287 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T17:39:28", "epoch": 47, "train_loss": 0.910224, "train_acc": 91.048, "val_loss": 1.634495, "val_acc": 78.55, "lr": 7.5e-05, "elapsed_sec": 193.155, "best_val_acc": 78.892}
+2026-05-09 17:39:28,288 | INFO |   47 |  0.9102 |  91.0% |  1.6345 |  78.6% | 7.5e-05 | 193.2s
+2026-05-09 17:42:44,262 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T17:42:44", "epoch": 48, "train_loss": 0.902691, "train_acc": 91.076, "val_loss": 1.6067, "val_acc": 79.097, "lr": 7.5e-05, "elapsed_sec": 195.972, "best_val_acc": 78.892}
+2026-05-09 17:42:44,314 | INFO | {"event": "train_best_checkpoint", "timestamp": "2026-05-09T17:42:44", "epoch": 48, "val_acc": 79.097, "model_path": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\model.pth"}
+2026-05-09 17:42:44,314 | INFO |   48 |  0.9027 |  91.1% |  1.6067 |  79.1% | 7.5e-05 | 196.0s *
+2026-05-09 17:45:54,971 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T17:45:54", "epoch": 49, "train_loss": 0.937417, "train_acc": 90.118, "val_loss": 1.593653, "val_acc": 79.371, "lr": 7.5e-05, "elapsed_sec": 190.656, "best_val_acc": 79.097}
+2026-05-09 17:45:55,009 | INFO | {"event": "train_best_checkpoint", "timestamp": "2026-05-09T17:45:55", "epoch": 49, "val_acc": 79.371, "model_path": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\model.pth"}
+2026-05-09 17:45:55,010 | INFO |   49 |  0.9374 |  90.1% |  1.5937 |  79.4% | 7.5e-05 | 190.7s *
+2026-05-09 17:49:08,328 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T17:49:08", "epoch": 50, "train_loss": 0.89323, "train_acc": 91.21, "val_loss": 1.57247, "val_acc": 79.462, "lr": 7.5e-05, "elapsed_sec": 193.318, "best_val_acc": 79.371}
+2026-05-09 17:49:08,365 | INFO | {"event": "train_best_checkpoint", "timestamp": "2026-05-09T17:49:08", "epoch": 50, "val_acc": 79.462, "model_path": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\model.pth"}
+2026-05-09 17:49:08,365 | INFO |   50 |  0.8932 |  91.2% |  1.5725 |  79.5% | 7.5e-05 | 193.3s *
+2026-05-09 17:52:09,025 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T17:52:09", "epoch": 51, "train_loss": 0.935163, "train_acc": 90.325, "val_loss": 1.594729, "val_acc": 79.029, "lr": 7.5e-05, "elapsed_sec": 180.659, "best_val_acc": 79.462}
+2026-05-09 17:52:09,026 | INFO |   51 |  0.9352 |  90.3% |  1.5947 |  79.0% | 7.5e-05 | 180.7s
+2026-05-09 17:55:16,416 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T17:55:16", "epoch": 52, "train_loss": 0.89468, "train_acc": 91.193, "val_loss": 1.57947, "val_acc": 79.257, "lr": 7.5e-05, "elapsed_sec": 187.39, "best_val_acc": 79.462}
+2026-05-09 17:55:16,416 | INFO |   52 |  0.8947 |  91.2% |  1.5795 |  79.3% | 7.5e-05 | 187.4s
+2026-05-09 17:58:29,220 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T17:58:29", "epoch": 53, "train_loss": 0.898943, "train_acc": 90.902, "val_loss": 1.596235, "val_acc": 79.439, "lr": 7.5e-05, "elapsed_sec": 192.802, "best_val_acc": 79.462}
+2026-05-09 17:58:29,220 | INFO |   53 |  0.8989 |  90.9% |  1.5962 |  79.4% | 7.5e-05 | 192.8s
+2026-05-09 18:01:49,698 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T18:01:49", "epoch": 54, "train_loss": 0.9248, "train_acc": 90.611, "val_loss": 1.584484, "val_acc": 79.097, "lr": 7.5e-05, "elapsed_sec": 200.475, "best_val_acc": 79.462}
+2026-05-09 18:01:49,702 | INFO |   54 |  0.9248 |  90.6% |  1.5845 |  79.1% | 7.5e-05 | 200.5s
+2026-05-09 18:05:14,162 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T18:05:14", "epoch": 55, "train_loss": 0.887681, "train_acc": 91.206, "val_loss": 1.651454, "val_acc": 78.641, "lr": 7.5e-05, "elapsed_sec": 204.459, "best_val_acc": 79.462}
+2026-05-09 18:05:14,164 | INFO |   55 |  0.8877 |  91.2% |  1.6515 |  78.6% | 7.5e-05 | 204.5s
+2026-05-09 18:08:31,390 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T18:08:31", "epoch": 56, "train_loss": 0.893797, "train_acc": 91.095, "val_loss": 1.611532, "val_acc": 78.983, "lr": 3.75e-05, "elapsed_sec": 197.225, "best_val_acc": 79.462}
+2026-05-09 18:08:31,394 | INFO |   56 |  0.8938 |  91.1% |  1.6115 |  79.0% | 3.7e-05 | 197.2s
+2026-05-09 18:11:53,738 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T18:11:53", "epoch": 57, "train_loss": 0.887125, "train_acc": 91.387, "val_loss": 1.590745, "val_acc": 79.143, "lr": 3.75e-05, "elapsed_sec": 202.342, "best_val_acc": 79.462}
+2026-05-09 18:11:53,743 | INFO |   57 |  0.8871 |  91.4% |  1.5907 |  79.1% | 3.7e-05 | 202.3s
+2026-05-09 18:15:26,129 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T18:15:26", "epoch": 58, "train_loss": 0.880025, "train_acc": 91.616, "val_loss": 1.604951, "val_acc": 79.371, "lr": 3.75e-05, "elapsed_sec": 212.386, "best_val_acc": 79.462}
+2026-05-09 18:15:26,132 | INFO |   58 |  0.8800 |  91.6% |  1.6050 |  79.4% | 3.7e-05 | 212.4s
+2026-05-09 18:18:42,518 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T18:18:42", "epoch": 59, "train_loss": 0.896294, "train_acc": 91.126, "val_loss": 1.620219, "val_acc": 78.983, "lr": 3.75e-05, "elapsed_sec": 196.386, "best_val_acc": 79.462}
+2026-05-09 18:18:42,522 | INFO |   59 |  0.8963 |  91.1% |  1.6202 |  79.0% | 3.7e-05 | 196.4s
+2026-05-09 18:21:55,453 | INFO | {"event": "train_epoch_end", "timestamp": "2026-05-09T18:21:55", "epoch": 60, "train_loss": 0.890481, "train_acc": 91.201, "val_loss": 1.614428, "val_acc": 79.006, "lr": 3.75e-05, "elapsed_sec": 192.931, "best_val_acc": 79.462}
+2026-05-09 18:21:55,456 | INFO |   60 |  0.8905 |  91.2% |  1.6144 |  79.0% | 3.7e-05 | 192.9s
+2026-05-09 18:21:55,456 | INFO | [Early Stop] No improvement for 10 epochs. Stopping.
+2026-05-09 18:21:55,457 | INFO | {"event": "train_early_stop", "timestamp": "2026-05-09T18:21:55", "epoch": 60, "patience": 10, "best_val_acc": 79.462}
+2026-05-09 18:21:55,457 | INFO | [Train] Best val accuracy: 79.46%
+2026-05-09 18:21:55,457 | INFO | [Train] Model saved to: C:\Users\Joseph\Desktop\projects\sign_to_text\model.pth
+2026-05-09 18:21:55,457 | INFO | {"event": "train_loop_end", "timestamp": "2026-05-09T18:21:55", "best_val_acc": 79.462, "model_path": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\model.pth"}
+2026-05-09 18:21:55,525 | INFO | {"event": "train_end", "timestamp": "2026-05-09T18:21:55", "classes": 78, "num_classes": 78}
