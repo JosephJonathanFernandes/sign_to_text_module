@@ -1,27 +1,24 @@
 # ISL Sign To Text
 
-Real-time Indian Sign Language word recognition using hand landmarks and a BiGRU-based classifier.
+Real-time Indian Sign Language word recognition using MediaPipe landmarks, a BiGRU-based sequence classifier, and lightweight sentence post-processing.
+
+This repository currently implements a strong isolated-word recognition pipeline with continuous webcam inference, confidence smoothing, and rule-based text cleanup. It is a good base for adding context-aware sign translation on top.
 
 ## Features
 
-- **Advanced landmark extraction:** Hand + face-relative features (506 dims per frame)
-- **BiGRU + Attention model** with face-proximity biased attention weighting
-- **Single model training and K-fold ensemble** (5 models, 95.83% accuracy)
-- **Live webcam inference** with real-time sentence construction
-- **Temporal Post-Processing** (NEW): Confidence-weighted smoothing + anti-flicker stabilization
-- **Hand Selection** (NEW): Face-centric single-person hand filtering for multi-person robustness
-- **Automatic sentence building** — signs accumulate into coherent text with NLP post-processing
-- **Webcam data collection** for new samples
-- **Controlled raw-video augmentation** for training-only dataset expansion
-- **Runtime signer validation:**
-  - Detects and validates both hands belong to same person (IoU-based)
-  - Shows on-screen bounding boxes and confidence scores
-- **Advanced augmentation:** Mixup, CutMix, noise, scale/rotation jitter
-- **Loss functions:** Focal Loss (hard sample mining) + class-weighted Cross-Entropy
-- **NLP post-processing:** Grammar correction, punctuation insertion, text normalization
-- **Motion gating & dynamic thresholds** — adaptive confidence based on hand velocity
+- **Landmark-based pipeline:** MediaPipe hand + face-relative keypoints stored as compact `.npy` sequences
+- **BiGRU + Attention classifier:** temporal sequence model for isolated sign recognition
+- **K-fold ensemble inference:** more robust prediction by averaging multiple checkpoints
+- **Real-time webcam mode:** sliding-window recognition with signer validation and confidence gating
+- **Sentence builder:** accumulates recognized signs into continuous text
+- **Rule-based NLP post-processing:** grammar cleanup, punctuation insertion, text normalization
+- **Data collection utilities:** webcam capture for new training samples
+- **Raw-video augmentation:** controlled dataset expansion before preprocessing
+- **Landmark augmentation:** sequence-level augmentation on processed `.npy` files
+- **Balanced training:** class weights, mixup, optional focal loss, oversampling
+- **Pseudo-label and adapter hooks:** experimental live adaptation pipeline for future personalization
 
-## Sign Classes (56+)
+## Sign Classes (78)
 
 **Pronouns:** I, he, she, it, we, you, you all, they
 
@@ -30,6 +27,8 @@ Real-time Indian Sign Language word recognition using hand landmarks and a BiGRU
 **Greetings:** Hello, How are you, Alright, Good Morning, Good afternoon, Good evening, Good night
 
 **Other:** Thank you, Pleased, Good, Idle, Morning
+
+The active processed dataset currently contains 78 classes. If you add or remove class folders in `processed/`, retrain the model and ensemble checkpoints.
 
 ## Requirements
 
@@ -50,22 +49,25 @@ Minimal packages in requirements:
 
 ## Project Layout
 
-- **main.py** — CLI entry point & orchestration  
-- **preprocess.py** — Video to landmark preprocessing (MediaPipe extraction)
-- **augmented_dataset/** — Controlled raw-video augmentation output
-- **dataset.py** — PyTorch dataset with on-the-fly augmentation & oversampling
-- **model.py** — BiGRU + Attention architecture
-- **train.py** — Training loop, K-fold cross-validation, loss functions
-- **ensemble.py** — K-fold ensemble loading & test-time augmentation
-- **webcam.py** — Live webcam prediction with signer validation
-- **sentence_builder.py** — Continuous sign→text conversion with word smoothing
-- **nlp_postprocessor.py** — Grammar correction, punctuation, normalization  
+- **main.py** — CLI entry point and pipeline orchestration  
+- **preprocess.py** — MediaPipe extraction and `.npy` generation
+- **augmentations.py** — Landmark-sequence augmentation utilities
+- **augment_pipeline.py** — Raw video augmentation orchestrator
+- **dataset.py** — PyTorch dataset with augmentation and oversampling
+- **model.py** — BiGRU + Attention sequence classifier
+- **train.py** — Training loop, K-fold cross-validation, and loss functions
+- **ensemble.py** — Ensemble loading and test-time augmentation
+- **webcam.py** — Live webcam prediction, smoothing, and sentence building
+- **sentence_builder.py** — Continuous sign-to-text assembly
+- **temporal_postprocessor.py** — Optional temporal smoothing and stabilization
+- **nlp_postprocessor.py** — Rule-based grammar and punctuation cleanup
 - **collect_data.py** — Webcam sample collection utility
-- **config.py** — Hyperparameters & settings
-- **model.pth** — Trained single model checkpoint
-- **ensemble/fold_*.pth** — 5 K-fold ensemble model checkpoints
+- **adapter_model.py** / **adapter_training.py** — Experimental live adaptation components
+- **config.py** — Hyperparameters and derived dimensions
+- **model.pth** — Trained single-model checkpoint
+- **ensemble/** — K-fold ensemble checkpoints
 - **Dataset/** — Raw video files organized by class
-- **processed/** — Preprocessed landmark .npy files (20 frames × 506 dims)
+- **processed/** — Preprocessed landmark `.npy` files (20 frames × 506 dims)
 
 ## Quick Start
 
@@ -185,13 +187,16 @@ Output logits
 - **Class-weighted loss** — Handles imbalanced data using inverse frequency
 - **Mixup augmentation** (α=0.3) — Blends training samples for regularization
 - **Face-proximity biased attention** — Frames with hands near face weighted higher
-- **Motion gating** — Dynamically adjusts confidence based on hand velocity
-- **Label smoothing** (15%) — Prevents overconfident predictions
+- **Label smoothing** — Prevents overconfident predictions
+- **Continuous sentence building** — Sign predictions are accumulated and normalized into text
 
 ## Performance
 
-- **K-Fold Ensemble:** **95.83% mean accuracy** (506 dims, 5 models averaged)
-- **Real-time webcam:** ~30 FPS on Intel Iris Xe GPU
+- **K-Fold Ensemble:** **95.83% mean accuracy** on the earlier smaller benchmark set
+- **Real-time webcam:** approximately 30 FPS on Intel Iris Xe GPU in the current setup
+- **Current dataset:** 78 classes in `processed/`
+
+Performance depends heavily on camera quality, lighting, signer distance, and whether the sign is held long enough for the 20-frame window.
 
 ## Webcam Signer Validation (What You Will See)
 
@@ -215,7 +220,21 @@ Prediction update logic:
 ## Notes
 
 - The same-person check is a runtime safety gate. It does not require re-recording the dataset.
+- The current NLP layer is rule-based. A true context-aware translation model is not yet implemented.
 - If person detection is unstable in a specific environment, use better lighting and a clean background for best results.
+- If you change the number of classes or feature layout, retrain both the single model and ensemble checkpoints.
+
+## Translation Roadmap
+
+The current system is optimized for isolated-word recognition. A practical upgrade path to context-aware translation is:
+
+1. Keep the landmark recognizer and sentence builder as the base.
+2. Add a context buffer that stores recent committed words and confidence scores.
+3. Rescore top-k predictions with a lightweight language model or rule-based prior.
+4. Apply grammar correction only after sentence completion.
+5. Move to gloss-to-text or CSLT only after collecting sentence-level data.
+
+This keeps the system lightweight and deployable while adding incremental intelligence.
 
 ## Troubleshooting
 
