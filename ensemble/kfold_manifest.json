@@ -1,0 +1,52 @@
+{
+  "run_started_at": "2026-05-11T14:52:52",
+  "start_fold": 4,
+  "num_folds": 5,
+  "dataset_size": 17507,
+  "num_classes": 78,
+  "status": "complete",
+  "completed_folds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "folds": {
+    "0": {
+      "status": "complete",
+      "best_val_acc": 91.615,
+      "checkpoint": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\ensemble\\fold_0.pth",
+      "updated_at": "2026-05-11T16:45:55"
+    },
+    "1": {
+      "status": "complete",
+      "best_val_acc": 89.283,
+      "checkpoint": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\ensemble\\fold_1.pth",
+      "updated_at": "2026-05-11T18:48:12"
+    },
+    "2": {
+      "status": "complete",
+      "best_val_acc": 80.514,
+      "checkpoint": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\ensemble\\fold_2.pth",
+      "updated_at": "2026-05-11T20:55:07"
+    },
+    "3": {
+      "status": "complete",
+      "best_val_acc": 91.574,
+      "checkpoint": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\ensemble\\fold_3.pth",
+      "updated_at": "2026-05-11T23:02:42"
+    },
+    "4": {
+      "status": "complete",
+      "best_val_acc": 91.175,
+      "checkpoint": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\ensemble\\fold_4.pth",
+      "updated_at": "2026-05-12T09:21:02"
+    }
+  },
+  "bootstrapped_from_checkpoints": true,
+  "updated_at": "2026-05-12T09:21:02",
+  "fold_accuracies": [
+    91.175
+  ]
+}

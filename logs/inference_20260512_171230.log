@@ -1,0 +1,592 @@
+2026-05-12 17:12:30,490 | INFO | Logger initialized for inference
+2026-05-12 17:12:30,491 | INFO | Log file: logs\inference_20260512_171230.log
+2026-05-12 17:12:35,314 | INFO | ╔═══════════════════════════════════════════════════════════════════════════════╗
+2026-05-12 17:12:35,315 | INFO | ║                    ISL PIPELINE CONFIGURATION SUMMARY                         ║
+2026-05-12 17:12:35,315 | INFO | ╚═══════════════════════════════════════════════════════════════════════════════╝
+2026-05-12 17:12:35,316 | INFO | [Version & Reproducibility]
+2026-05-12 17:12:35,316 | INFO |   Config Version: 2.0.0
+2026-05-12 17:12:35,317 | INFO |   Config Hash: da46c454
+2026-05-12 17:12:35,317 | INFO |   Debug Mode: False
+2026-05-12 17:12:35,317 | INFO | [Feature Dimensions per Frame]
+2026-05-12 17:12:35,317 | INFO |   Landmark features (raw): 126
+2026-05-12 17:12:35,318 | INFO |     └─ (21 landmarks × 3 coords × 2 hands)
+2026-05-12 17:12:35,318 | INFO |   Spatial relative features: 126
+2026-05-12 17:12:35,318 | INFO |     └─ Face-relative: True | Distance matrix: False
+2026-05-12 17:12:35,318 | INFO |   Proximity features: 1
+2026-05-12 17:12:35,319 | INFO |   ─────────────────────────────────
+2026-05-12 17:12:35,319 | INFO |   Total per frame: 253
+2026-05-12 17:12:35,319 | INFO | [Sequence Input]
+2026-05-12 17:12:35,320 | INFO |   Frames: 20
+2026-05-12 17:12:35,320 | INFO |   Use velocity: True
+2026-05-12 17:12:35,320 | INFO |   Input dimension: 506
+2026-05-12 17:12:35,320 | INFO |     ➜ Sequence shape: (batch, 20, 506)
+2026-05-12 17:12:35,321 | INFO | [Motion Detection (Resolution-Independent)]
+2026-05-12 17:12:35,321 | INFO |   Enabled: False
+2026-05-12 17:12:35,321 | INFO |   Frame resolution: 640×480
+2026-05-12 17:12:35,322 | INFO |   Motion threshold (normalized): 0.0150 × diagonal
+2026-05-12 17:12:35,322 | INFO |   Motion threshold (pixels): 12.00
+2026-05-12 17:12:35,322 | INFO |   Idle confidence threshold: 0.7
+2026-05-12 17:12:35,323 | INFO | [Model Architecture]
+2026-05-12 17:12:35,323 | INFO |   Recurrent type: LSTM/GRU
+2026-05-12 17:12:35,323 | INFO |   Hidden size: 128
+2026-05-12 17:12:35,323 | INFO |   Layers: 3 (bidirectional: True)
+2026-05-12 17:12:35,324 | INFO |   Dropout: 0.35
+2026-05-12 17:12:35,324 | INFO |   Proximity attention: True
+2026-05-12 17:12:35,324 | INFO | [Training]
+2026-05-12 17:12:35,324 | INFO |   Batch size: 16
+2026-05-12 17:12:35,325 | INFO |   Learning rate: 0.0003
+2026-05-12 17:12:35,325 | INFO |   Epochs: 60
+2026-05-12 17:12:35,325 | INFO |   Early stopping patience: 10
+2026-05-12 17:12:35,325 | INFO |   Label smoothing: 0.05
+2026-05-12 17:12:35,325 | INFO |   Class weighting: True (power=1.0)
+2026-05-12 17:12:35,327 | INFO |     Adapter weighting: True (power=0.5, clip=0.5-3.0)
+2026-05-12 17:12:35,327 | INFO | [Inference]
+2026-05-12 17:12:35,327 | INFO |   Confidence threshold: 0.12
+2026-05-12 17:12:35,327 | INFO |   Smoothing window: 3
+2026-05-12 17:12:35,328 | INFO |   Transition hysteresis: 0.12
+2026-05-12 17:12:35,328 | INFO | [Hardware]
+2026-05-12 17:12:35,328 | INFO |   Device: CPU
+2026-05-12 17:12:35,329 | INFO |   CPU threads: 11
+2026-05-12 17:12:35,329 | INFO | ╔═══════════════════════════════════════════════════════════════════════════════╗
+2026-05-12 17:12:35,334 | INFO | [Adapter] Using device: cpu
+2026-05-12 17:12:35,345 | INFO | Loading merged 10+2 ensemble...
+2026-05-12 17:12:35,350 | INFO | [Ensemble] Loading ensemble...
+2026-05-12 17:12:35,351 | INFO |   Loading fold models from C:\Users\Joseph\Desktop\projects\sign_to_text\ensemble...
+2026-05-12 17:12:35,453 | INFO |     ✓ fold_0.pth
+2026-05-12 17:12:35,492 | INFO |     ✓ fold_1.pth
+2026-05-12 17:12:35,522 | INFO |     ✓ fold_2.pth
+2026-05-12 17:12:35,552 | INFO |     ✓ fold_3.pth
+2026-05-12 17:12:35,581 | INFO |     ✓ fold_4.pth
+2026-05-12 17:12:35,582 | INFO |   Loading fallback model from C:\Users\Joseph\Desktop\projects\sign_to_text\model.pth...
+2026-05-12 17:12:35,630 | INFO |     ✓ model.pth
+2026-05-12 17:12:35,631 | INFO | [Ensemble] Loaded 5 main models + 1 fallback, 78 classes
+2026-05-12 17:12:35,632 | INFO | {"event": "ensemble_loaded", "timestamp": "2026-05-12T17:12:35", "mode": "webcam", "main_models": 5, "fallback_models": 1, "classes": 78}
+2026-05-12 17:12:40,316 | INFO | [PseudoBuffer] Initialized:
+2026-05-12 17:12:40,316 | INFO |   Save dir: pseudo_data/
+2026-05-12 17:12:40,316 | INFO |   Threshold: 85%
+2026-05-12 17:12:40,317 | INFO |   Per-class cap: 50
+2026-05-12 17:12:40,317 | INFO |   Auto-save at: 20 samples
+2026-05-12 17:12:42,157 | INFO | [AdapterManager] Initialized:
+2026-05-12 17:12:42,157 | INFO |   Adaptation enabled: True
+2026-05-12 17:12:42,158 | INFO |   Weights dir: adapter_weights/
+2026-05-12 17:12:42,160 | INFO | [Adapter] Model loaded from adapter_weights/adapter_test_improved.pt
+2026-05-12 17:12:42,161 | INFO | [Adapter] Initialized: 78 classes, cpu
+2026-05-12 17:12:42,161 | INFO | [Adapter] Loaded weights from adapter_weights/adapter_test_improved.pt
+2026-05-12 17:12:42,161 | INFO | {"event": "adapter_initialized", "timestamp": "2026-05-12T17:12:42", "enabled": true, "num_classes": 78, "device": "cpu", "loaded_weights": "adapter_weights/adapter_test_improved.pt"}
+2026-05-12 17:12:42,161 | INFO | === ISL Sign Language Recognition (Continuous, Automatic Translation) ===
+2026-05-12 17:12:42,164 | INFO |   Sliding window: 20 frames
+2026-05-12 17:12:42,165 | INFO |   Base confidence threshold: 12%
+2026-05-12 17:12:42,165 | INFO |   Word stability: 6 frames
+2026-05-12 17:12:42,165 | INFO |   Auto-sentence timeout: 75 frames (~2.5s)
+2026-05-12 17:12:42,165 | INFO |   ✓ Dynamic thresholds ENABLED (motion boost: 20%, stability boost: 15%)
+2026-05-12 17:12:42,166 | INFO |   ✓ Pseudo-label Collection ENABLED (threshold: 85%)
+2026-05-12 17:12:42,166 | INFO |   ✓ Adapter Learning ENABLED (auto-train at 40 samples)
+2026-05-12 17:12:42,166 | INFO |   ➜ Just sign! No keyboard input needed (Q/ESC to quit)
+2026-05-12 17:12:42,167 | INFO | =======================================================================
+2026-05-12 17:12:42,167 | INFO | {"event": "inference_start", "timestamp": "2026-05-12T17:12:42", "num_frames": 20, "confidence_threshold": 0.12, "pseudo_buffer_enabled": true, "adapter_enabled": true, "adapter_train_min_samples": 40, "adapter_min_classes": 3, "adapter_min_samples_per_class": 5}
+2026-05-12 17:12:58,659 | INFO | [Inference Latency] Model: 179.3ms (5 passes) | TTA prep: 0.0ms | Other: 14.3ms | Total: 193.6ms (5.16 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:12:58,673 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 2.0ms | Total: 14.0ms (71.42 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:12:58,673 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:12:58", "predicted": "hello", "confidence": 0.8963, "effective_threshold": 0.08, "motion": 24.9, "stable_frames": 1, "transition": false}
+2026-05-12 17:12:58,674 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:12:58", "class_name": "hello", "confidence": 0.8963, "buffer_total": 1}
+2026-05-12 17:12:58,944 | INFO | [Inference Latency] Model: 63.0ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 63.0ms (15.87 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:12:58,960 | INFO | [Inference Latency] Model: 16.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 16.0ms (62.50 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:12:58,960 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:12:58", "predicted": "hello", "confidence": 0.9409, "effective_threshold": 0.08, "motion": 35.64, "stable_frames": 2, "transition": false}
+2026-05-12 17:12:58,960 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:12:58", "class_name": "hello", "confidence": 0.9409, "buffer_total": 2}
+2026-05-12 17:12:59,160 | INFO | [Inference Latency] Model: 62.2ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 63.2ms (15.83 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:12:59,176 | INFO | [Inference Latency] Model: 14.4ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 14.4ms (69.68 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:12:59,177 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:12:59", "predicted": "hello", "confidence": 0.9447, "effective_threshold": 0.08, "motion": 37.3, "stable_frames": 3, "transition": false}
+2026-05-12 17:12:59,177 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:12:59", "class_name": "hello", "confidence": 0.9447, "buffer_total": 3}
+2026-05-12 17:12:59,356 | INFO | [Inference Latency] Model: 55.5ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 55.5ms (18.01 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:12:59,369 | INFO | [Inference Latency] Model: 13.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.0ms (76.92 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:12:59,370 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:12:59", "predicted": "hello", "confidence": 0.9473, "effective_threshold": 0.08, "motion": 15.45, "stable_frames": 4, "transition": false}
+2026-05-12 17:12:59,370 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:12:59", "class_name": "hello", "confidence": 0.9473, "buffer_total": 4}
+2026-05-12 17:12:59,543 | INFO | [Inference Latency] Model: 56.3ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 57.3ms (17.46 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:12:59,557 | INFO | [Inference Latency] Model: 13.5ms (1 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 14.5ms (68.91 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:12:59,557 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:12:59", "predicted": "hello", "confidence": 0.9441, "effective_threshold": 0.08, "motion": 27.05, "stable_frames": 5, "transition": false}
+2026-05-12 17:12:59,557 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:12:59", "class_name": "hello", "confidence": 0.9441, "buffer_total": 5}
+2026-05-12 17:12:59,728 | INFO | [Inference Latency] Model: 60.0ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 60.0ms (16.67 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:12:59,741 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.0ms (83.30 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:12:59,742 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:12:59", "predicted": "hello", "confidence": 0.9428, "effective_threshold": 0.08, "motion": 36.25, "stable_frames": 6, "transition": false}
+2026-05-12 17:12:59,742 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:12:59", "class_name": "hello", "confidence": 0.9428, "buffer_total": 6}
+2026-05-12 17:12:59,922 | INFO | [Inference Latency] Model: 40.0ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 41.0ms (24.39 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:12:59,937 | INFO | [Inference Latency] Model: 14.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 14.0ms (71.42 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:12:59,937 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:12:59", "predicted": "hello", "confidence": 0.9473, "effective_threshold": 0.08, "motion": 21.56, "stable_frames": 7, "transition": false}
+2026-05-12 17:12:59,938 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:12:59", "class_name": "hello", "confidence": 0.9473, "buffer_total": 7}
+2026-05-12 17:13:00,127 | INFO | [Inference Latency] Model: 61.0ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 62.0ms (16.13 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:00,139 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.0ms (83.30 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:00,140 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:00", "predicted": "hello", "confidence": 0.9433, "effective_threshold": 0.08, "motion": 42.01, "stable_frames": 8, "transition": false}
+2026-05-12 17:13:00,140 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:00", "class_name": "hello", "confidence": 0.9433, "buffer_total": 8}
+2026-05-12 17:13:00,266 | INFO | [Inference Latency] Model: 31.5ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 31.5ms (31.73 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:00,276 | INFO | [Inference Latency] Model: 9.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 9.0ms (111.10 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:00,277 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:00", "predicted": "hello", "confidence": 0.9416, "effective_threshold": 0.08, "motion": 67.83, "stable_frames": 9, "transition": false}
+2026-05-12 17:13:00,277 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:00", "class_name": "hello", "confidence": 0.9416, "buffer_total": 9}
+2026-05-12 17:13:00,461 | INFO | [Inference Latency] Model: 49.5ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 49.5ms (20.20 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:00,474 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 13.0ms (76.93 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:00,475 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:00", "predicted": "hello", "confidence": 0.9372, "effective_threshold": 0.08, "motion": 83.38, "stable_frames": 10, "transition": false}
+2026-05-12 17:13:00,475 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:00", "class_name": "hello", "confidence": 0.9372, "buffer_total": 10}
+2026-05-12 17:13:00,655 | INFO | [Inference Latency] Model: 61.9ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 61.9ms (16.14 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:00,671 | INFO | [Inference Latency] Model: 14.4ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 14.4ms (69.47 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:00,671 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:00", "predicted": "hello", "confidence": 0.9273, "effective_threshold": 0.08, "motion": 32.15, "stable_frames": 11, "transition": false}
+2026-05-12 17:13:00,672 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:00", "class_name": "hello", "confidence": 0.9273, "buffer_total": 11}
+2026-05-12 17:13:00,812 | INFO | [Inference Latency] Model: 51.2ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 51.2ms (19.53 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:00,826 | INFO | [Inference Latency] Model: 13.1ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.1ms (76.20 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:00,827 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:00", "predicted": "hello", "confidence": 0.9235, "effective_threshold": 0.08, "motion": 64.7, "stable_frames": 12, "transition": false}
+2026-05-12 17:13:00,827 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:00", "class_name": "hello", "confidence": 0.9235, "buffer_total": 12}
+2026-05-12 17:13:01,060 | INFO | [Inference Latency] Model: 64.9ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 64.9ms (15.41 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:01,073 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.0ms (83.30 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:01,074 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:01", "predicted": "hello", "confidence": 0.9065, "effective_threshold": 0.08, "motion": 41.24, "stable_frames": 13, "transition": false}
+2026-05-12 17:13:01,074 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:01", "class_name": "hello", "confidence": 0.9065, "buffer_total": 13}
+2026-05-12 17:13:01,229 | INFO | [Inference Latency] Model: 63.0ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 63.0ms (15.87 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:01,242 | INFO | [Inference Latency] Model: 13.1ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.1ms (76.06 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:01,242 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:01", "predicted": "hello", "confidence": 0.8876, "effective_threshold": 0.08, "motion": 50.04, "stable_frames": 14, "transition": false}
+2026-05-12 17:13:01,243 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:01", "class_name": "hello", "confidence": 0.8876, "buffer_total": 14}
+2026-05-12 17:13:01,458 | INFO | [Inference Latency] Model: 64.7ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 65.7ms (15.22 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:01,477 | INFO | [Inference Latency] Model: 17.0ms (1 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 18.0ms (55.55 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:01,477 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:01", "predicted": "hello", "confidence": 0.8868, "effective_threshold": 0.08, "motion": 41.76, "stable_frames": 15, "transition": false}
+2026-05-12 17:13:01,477 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:01", "class_name": "hello", "confidence": 0.8868, "buffer_total": 15}
+2026-05-12 17:13:11,486 | INFO | [Inference Latency] Model: 54.8ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 54.8ms (18.26 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:11,499 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 13.0ms (76.92 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:11,500 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:11", "predicted": "cold", "confidence": 0.9017, "effective_threshold": 0.08, "motion": 94.28, "stable_frames": 1, "transition": true}
+2026-05-12 17:13:11,500 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:11", "class_name": "cold", "confidence": 0.9017, "buffer_total": 16}
+2026-05-12 17:13:12,003 | INFO | [Inference Latency] Model: 90.7ms (5 passes) | TTA prep: 0.0ms | Other: 2.0ms | Total: 92.7ms (10.79 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:12,017 | INFO | [Inference Latency] Model: 13.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.0ms (76.94 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:12,017 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:12", "predicted": "cold", "confidence": 0.9149, "effective_threshold": 0.08, "motion": 64.83, "stable_frames": 2, "transition": false}
+2026-05-12 17:13:12,017 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:12", "class_name": "cold", "confidence": 0.9149, "buffer_total": 17}
+2026-05-12 17:13:12,017 | INFO | 📝 Added: HELLO
+2026-05-12 17:13:12,737 | INFO | [Inference Latency] Model: 51.0ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 52.0ms (19.23 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:12,749 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.0ms (83.28 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:12,750 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:12", "predicted": "cold", "confidence": 0.9126, "effective_threshold": 0.08, "motion": 122.04, "stable_frames": 3, "transition": false}
+2026-05-12 17:13:12,750 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:12", "class_name": "cold", "confidence": 0.9126, "buffer_total": 18}
+2026-05-12 17:13:12,912 | INFO | [Inference Latency] Model: 38.5ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 38.5ms (25.97 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:12,926 | INFO | [Inference Latency] Model: 12.1ms (1 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 13.2ms (75.99 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:12,926 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:12", "predicted": "cold", "confidence": 0.8984, "effective_threshold": 0.08, "motion": 95.61, "stable_frames": 4, "transition": false}
+2026-05-12 17:13:12,926 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:12", "class_name": "cold", "confidence": 0.8984, "buffer_total": 19}
+2026-05-12 17:13:13,743 | INFO | [Inference Latency] Model: 69.4ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 70.4ms (14.21 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:13,760 | INFO | [Inference Latency] Model: 15.2ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 15.2ms (65.73 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:13,760 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:13", "predicted": "cold", "confidence": 0.9138, "effective_threshold": 0.08, "motion": 67.54, "stable_frames": 5, "transition": false}
+2026-05-12 17:13:13,761 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:13", "class_name": "cold", "confidence": 0.9138, "buffer_total": 20}
+2026-05-12 17:13:13,952 | INFO | [Inference Latency] Model: 51.0ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 52.0ms (19.23 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:13,966 | INFO | [Inference Latency] Model: 14.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 14.0ms (71.40 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:13,967 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:13", "predicted": "cold", "confidence": 0.9307, "effective_threshold": 0.08, "motion": 116.29, "stable_frames": 6, "transition": false}
+2026-05-12 17:13:13,967 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:13", "class_name": "cold", "confidence": 0.9307, "buffer_total": 21}
+2026-05-12 17:13:14,179 | INFO | [Inference Latency] Model: 62.1ms (5 passes) | TTA prep: 0.0ms | Other: 2.0ms | Total: 64.1ms (15.61 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:14,193 | INFO | [Inference Latency] Model: 14.1ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 14.1ms (71.06 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:14,194 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:14", "predicted": "cold", "confidence": 0.932, "effective_threshold": 0.08, "motion": 95.45, "stable_frames": 7, "transition": false}
+2026-05-12 17:13:14,194 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:14", "class_name": "cold", "confidence": 0.932, "buffer_total": 22}
+2026-05-12 17:13:15,185 | INFO | [Inference Latency] Model: 47.4ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 47.4ms (21.08 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:15,195 | INFO | [Inference Latency] Model: 9.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 9.0ms (111.12 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:15,195 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:15", "predicted": "cold", "confidence": 0.9265, "effective_threshold": 0.08, "motion": 73.94, "stable_frames": 8, "transition": false}
+2026-05-12 17:13:15,196 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:15", "class_name": "cold", "confidence": 0.9265, "buffer_total": 23}
+2026-05-12 17:13:15,334 | INFO | [Inference Latency] Model: 38.0ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 39.0ms (25.64 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:15,347 | INFO | [Inference Latency] Model: 13.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.0ms (76.90 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:15,347 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:15", "predicted": "cold", "confidence": 0.9188, "effective_threshold": 0.08, "motion": 31.7, "stable_frames": 9, "transition": false}
+2026-05-12 17:13:15,348 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:15", "class_name": "cold", "confidence": 0.9188, "buffer_total": 24}
+2026-05-12 17:13:26,662 | INFO | [Inference Latency] Model: 87.8ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 87.8ms (11.39 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:26,675 | INFO | [Inference Latency] Model: 13.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.0ms (76.89 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:26,675 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:26", "predicted": "mean", "confidence": 0.9056, "effective_threshold": 0.09, "motion": 5.16, "stable_frames": 1, "transition": true}
+2026-05-12 17:13:26,676 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:26", "class_name": "mean", "confidence": 0.9056, "buffer_total": 25}
+2026-05-12 17:13:26,861 | INFO | [Inference Latency] Model: 60.5ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 61.5ms (16.26 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:26,874 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.0ms (83.37 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:26,875 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:26", "predicted": "mean", "confidence": 0.8977, "effective_threshold": 0.12, "motion": 3.11, "stable_frames": 2, "transition": false}
+2026-05-12 17:13:26,875 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:26", "class_name": "mean", "confidence": 0.8977, "buffer_total": 26}
+2026-05-12 17:13:26,875 | INFO | 📝 Added: COLD
+2026-05-12 17:13:27,038 | INFO | [Inference Latency] Model: 51.1ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 51.1ms (19.57 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:27,051 | INFO | [Inference Latency] Model: 13.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.0ms (76.91 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:27,051 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:27", "predicted": "mean", "confidence": 0.9017, "effective_threshold": 0.12, "motion": 10.83, "stable_frames": 3, "transition": false}
+2026-05-12 17:13:27,052 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:27", "class_name": "mean", "confidence": 0.9017, "buffer_total": 27}
+2026-05-12 17:13:27,222 | INFO | [Inference Latency] Model: 70.6ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 70.6ms (14.16 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:27,237 | INFO | [Inference Latency] Model: 14.4ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 14.4ms (69.67 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:27,238 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:27", "predicted": "mean", "confidence": 0.9348, "effective_threshold": 0.08, "motion": 11.23, "stable_frames": 4, "transition": false}
+2026-05-12 17:13:27,238 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:27", "class_name": "mean", "confidence": 0.9348, "buffer_total": 28}
+2026-05-12 17:13:27,391 | INFO | [Inference Latency] Model: 44.0ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 44.0ms (22.73 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:27,405 | INFO | [Inference Latency] Model: 13.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.0ms (76.85 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:27,406 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:27", "predicted": "mean", "confidence": 0.9424, "effective_threshold": 0.08, "motion": 5.58, "stable_frames": 5, "transition": false}
+2026-05-12 17:13:27,406 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:27", "class_name": "mean", "confidence": 0.9424, "buffer_total": 29}
+2026-05-12 17:13:27,573 | INFO | [Inference Latency] Model: 37.0ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 38.0ms (26.32 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:27,590 | INFO | [Inference Latency] Model: 16.0ms (1 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 17.0ms (58.81 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:27,590 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:27", "predicted": "mean", "confidence": 0.9449, "effective_threshold": 0.08, "motion": 6.37, "stable_frames": 6, "transition": false}
+2026-05-12 17:13:27,591 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:27", "class_name": "mean", "confidence": 0.9449, "buffer_total": 30}
+2026-05-12 17:13:27,779 | INFO | [Inference Latency] Model: 57.0ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 57.0ms (17.54 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:27,792 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.0ms (83.33 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:27,793 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:27", "predicted": "mean", "confidence": 0.944, "effective_threshold": 0.08, "motion": 5.68, "stable_frames": 7, "transition": false}
+2026-05-12 17:13:27,793 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:27", "class_name": "mean", "confidence": 0.944, "buffer_total": 31}
+2026-05-12 17:13:27,932 | INFO | [Inference Latency] Model: 45.5ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 45.5ms (21.97 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:27,946 | INFO | [Inference Latency] Model: 13.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.0ms (76.89 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:27,946 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:27", "predicted": "mean", "confidence": 0.9442, "effective_threshold": 0.08, "motion": 3.27, "stable_frames": 8, "transition": false}
+2026-05-12 17:13:27,947 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:27", "class_name": "mean", "confidence": 0.9442, "buffer_total": 32}
+2026-05-12 17:13:28,117 | INFO | [Inference Latency] Model: 48.5ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 48.5ms (20.61 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:28,131 | INFO | [Inference Latency] Model: 14.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 14.0ms (71.45 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:28,132 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:28", "predicted": "mean", "confidence": 0.9429, "effective_threshold": 0.08, "motion": 2.55, "stable_frames": 9, "transition": false}
+2026-05-12 17:13:28,132 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:28", "class_name": "mean", "confidence": 0.9429, "buffer_total": 33}
+2026-05-12 17:13:28,294 | INFO | [Inference Latency] Model: 59.0ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 60.0ms (16.67 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:28,313 | INFO | [Inference Latency] Model: 18.4ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 18.4ms (54.38 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:28,314 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:28", "predicted": "mean", "confidence": 0.9204, "effective_threshold": 0.08, "motion": 3.56, "stable_frames": 10, "transition": false}
+2026-05-12 17:13:28,314 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:28", "class_name": "mean", "confidence": 0.9204, "buffer_total": 34}
+2026-05-12 17:13:28,465 | INFO | [Inference Latency] Model: 56.5ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 57.5ms (17.39 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:28,481 | INFO | [Inference Latency] Model: 16.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 16.0ms (62.50 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:28,482 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:28", "predicted": "mean", "confidence": 0.9263, "effective_threshold": 0.08, "motion": 3.05, "stable_frames": 11, "transition": false}
+2026-05-12 17:13:28,482 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:28", "class_name": "mean", "confidence": 0.9263, "buffer_total": 35}
+2026-05-12 17:13:28,688 | INFO | [Inference Latency] Model: 57.0ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 58.0ms (17.24 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:28,702 | INFO | [Inference Latency] Model: 13.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.0ms (76.89 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:28,702 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:28", "predicted": "mean", "confidence": 0.9258, "effective_threshold": 0.08, "motion": 3.44, "stable_frames": 12, "transition": false}
+2026-05-12 17:13:28,702 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:28", "class_name": "mean", "confidence": 0.9258, "buffer_total": 36}
+2026-05-12 17:13:28,853 | INFO | [Inference Latency] Model: 41.0ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 41.0ms (24.38 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:28,866 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 13.0ms (76.95 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:28,866 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:28", "predicted": "mean", "confidence": 0.9228, "effective_threshold": 0.08, "motion": 3.25, "stable_frames": 13, "transition": false}
+2026-05-12 17:13:28,867 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:28", "class_name": "mean", "confidence": 0.9228, "buffer_total": 37}
+2026-05-12 17:13:29,061 | INFO | [Inference Latency] Model: 61.5ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 62.5ms (16.00 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:29,076 | INFO | [Inference Latency] Model: 14.0ms (1 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 15.0ms (66.63 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:29,076 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:29", "predicted": "mean", "confidence": 0.9233, "effective_threshold": 0.08, "motion": 6.57, "stable_frames": 14, "transition": false}
+2026-05-12 17:13:29,077 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:29", "class_name": "mean", "confidence": 0.9233, "buffer_total": 38}
+2026-05-12 17:13:29,262 | INFO | [Inference Latency] Model: 44.0ms (5 passes) | TTA prep: 0.0ms | Other: 2.0ms | Total: 46.0ms (21.74 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:29,274 | INFO | [Inference Latency] Model: 12.3ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.3ms (81.28 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:29,275 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:29", "predicted": "mean", "confidence": 0.9257, "effective_threshold": 0.08, "motion": 3.95, "stable_frames": 15, "transition": false}
+2026-05-12 17:13:29,275 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:29", "class_name": "mean", "confidence": 0.9257, "buffer_total": 39}
+2026-05-12 17:13:29,429 | INFO | [Inference Latency] Model: 61.7ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 61.7ms (16.21 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:29,446 | INFO | [Inference Latency] Model: 16.4ms (1 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 17.4ms (57.36 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:29,447 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:29", "predicted": "mean", "confidence": 0.931, "effective_threshold": 0.08, "motion": 3.29, "stable_frames": 16, "transition": false}
+2026-05-12 17:13:29,447 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:29", "class_name": "mean", "confidence": 0.931, "buffer_total": 40}
+2026-05-12 17:13:29,637 | INFO | [Inference Latency] Model: 65.7ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 65.7ms (15.23 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:29,652 | INFO | [Inference Latency] Model: 14.8ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 14.8ms (67.50 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:29,653 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:29", "predicted": "mean", "confidence": 0.9358, "effective_threshold": 0.08, "motion": 7.63, "stable_frames": 17, "transition": false}
+2026-05-12 17:13:29,653 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:29", "class_name": "mean", "confidence": 0.9358, "buffer_total": 41}
+2026-05-12 17:13:29,814 | INFO | [Inference Latency] Model: 54.6ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 55.6ms (17.99 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:29,827 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 13.0ms (76.92 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:29,827 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:29", "predicted": "mean", "confidence": 0.9264, "effective_threshold": 0.08, "motion": 11.2, "stable_frames": 18, "transition": false}
+2026-05-12 17:13:29,827 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:29", "class_name": "mean", "confidence": 0.9264, "buffer_total": 42}
+2026-05-12 17:13:29,987 | INFO | [Inference Latency] Model: 38.0ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 39.0ms (25.64 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:30,000 | INFO | [Inference Latency] Model: 13.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.0ms (76.89 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:30,001 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:30", "predicted": "mean", "confidence": 0.7769, "effective_threshold": 0.08, "motion": 16.23, "stable_frames": 19, "transition": false}
+2026-05-12 17:13:35,076 | INFO | [Inference Latency] Model: 38.6ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 38.6ms (25.92 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:35,086 | INFO | [Inference Latency] Model: 10.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 10.0ms (99.96 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:35,087 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:35", "predicted": "high", "confidence": 0.7969, "effective_threshold": 0.09, "motion": 7.36, "stable_frames": 1, "transition": true}
+2026-05-12 17:13:35,246 | INFO | [Inference Latency] Model: 37.6ms (5 passes) | TTA prep: 0.0ms | Other: 1.2ms | Total: 38.8ms (25.76 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:35,260 | INFO | [Inference Latency] Model: 13.0ms (1 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 14.0ms (71.42 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:35,262 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:35", "predicted": "high", "confidence": 0.7993, "effective_threshold": 0.12, "motion": 5.34, "stable_frames": 2, "transition": false}
+2026-05-12 17:13:35,262 | INFO | 📝 Added: MEAN
+2026-05-12 17:13:35,537 | INFO | [Inference Latency] Model: 37.5ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 37.5ms (26.66 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:35,550 | INFO | [Inference Latency] Model: 13.1ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.1ms (76.55 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:35,551 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:35", "predicted": "high", "confidence": 0.8497, "effective_threshold": 0.08, "motion": 135.85, "stable_frames": 3, "transition": false}
+2026-05-12 17:13:35,704 | INFO | [Inference Latency] Model: 36.0ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 37.0ms (27.03 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:35,716 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.0ms (83.34 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:35,716 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:35", "predicted": "high", "confidence": 0.8799, "effective_threshold": 0.08, "motion": 71.63, "stable_frames": 4, "transition": false}
+2026-05-12 17:13:35,717 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:35", "class_name": "high", "confidence": 0.8799, "buffer_total": 43}
+2026-05-12 17:13:35,860 | INFO | [Inference Latency] Model: 37.1ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 37.1ms (26.98 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:35,872 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.0ms (83.33 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:35,873 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:35", "predicted": "high", "confidence": 0.896, "effective_threshold": 0.08, "motion": 27.13, "stable_frames": 5, "transition": false}
+2026-05-12 17:13:35,873 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:35", "class_name": "high", "confidence": 0.896, "buffer_total": 44}
+2026-05-12 17:13:36,039 | INFO | [Inference Latency] Model: 39.0ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 39.0ms (25.65 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:36,053 | INFO | [Inference Latency] Model: 13.5ms (1 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 14.5ms (69.08 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:36,053 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:36", "predicted": "high", "confidence": 0.8967, "effective_threshold": 0.08, "motion": 14.16, "stable_frames": 6, "transition": false}
+2026-05-12 17:13:36,054 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:36", "class_name": "high", "confidence": 0.8967, "buffer_total": 45}
+2026-05-12 17:13:36,218 | INFO | [Inference Latency] Model: 55.0ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 56.0ms (17.86 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:36,229 | INFO | [Inference Latency] Model: 10.5ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 10.5ms (95.06 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:36,229 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:36", "predicted": "high", "confidence": 0.8394, "effective_threshold": 0.08, "motion": 6.46, "stable_frames": 7, "transition": false}
+2026-05-12 17:13:36,386 | INFO | [Inference Latency] Model: 58.0ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 59.0ms (16.95 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:36,402 | INFO | [Inference Latency] Model: 15.9ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 15.9ms (62.75 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:36,403 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:36", "predicted": "high", "confidence": 0.845, "effective_threshold": 0.08, "motion": 9.86, "stable_frames": 8, "transition": false}
+2026-05-12 17:13:36,563 | INFO | [Inference Latency] Model: 62.9ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 62.9ms (15.89 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:36,577 | INFO | [Inference Latency] Model: 12.1ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.1ms (82.60 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:36,577 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:36", "predicted": "high", "confidence": 0.8381, "effective_threshold": 0.08, "motion": 38.72, "stable_frames": 9, "transition": false}
+2026-05-12 17:13:36,756 | INFO | [Inference Latency] Model: 54.5ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 54.5ms (18.34 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:36,769 | INFO | [Inference Latency] Model: 11.5ms (1 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 12.5ms (80.14 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:36,770 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:36", "predicted": "high", "confidence": 0.7874, "effective_threshold": 0.08, "motion": 102.31, "stable_frames": 10, "transition": false}
+2026-05-12 17:13:36,921 | INFO | [Inference Latency] Model: 53.0ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 53.0ms (18.86 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:36,934 | INFO | [Inference Latency] Model: 11.7ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 11.7ms (85.80 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:36,935 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:36", "predicted": "high", "confidence": 0.8378, "effective_threshold": 0.08, "motion": 253.48, "stable_frames": 11, "transition": false}
+2026-05-12 17:13:37,114 | INFO | [Inference Latency] Model: 63.4ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 64.4ms (15.52 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:37,127 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.0ms (83.29 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:37,128 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:37", "predicted": "high", "confidence": 0.83, "effective_threshold": 0.08, "motion": 92.01, "stable_frames": 12, "transition": false}
+2026-05-12 17:13:37,341 | INFO | [Inference Latency] Model: 61.1ms (5 passes) | TTA prep: 0.0ms | Other: 0.5ms | Total: 61.6ms (16.24 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:37,355 | INFO | [Inference Latency] Model: 13.2ms (1 passes) | TTA prep: 0.0ms | Other: 0.5ms | Total: 13.7ms (72.94 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:37,356 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:37", "predicted": "high", "confidence": 0.8199, "effective_threshold": 0.08, "motion": 37.33, "stable_frames": 13, "transition": false}
+2026-05-12 17:13:37,742 | INFO | [Inference Latency] Model: 86.6ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 86.6ms (11.55 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:37,755 | INFO | [Inference Latency] Model: 12.4ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.4ms (80.66 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:37,755 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:37", "predicted": "high", "confidence": 0.8301, "effective_threshold": 0.08, "motion": 252.98, "stable_frames": 14, "transition": false}
+2026-05-12 17:13:37,900 | INFO | [Inference Latency] Model: 54.0ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 54.0ms (18.52 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:37,914 | INFO | [Inference Latency] Model: 13.0ms (1 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 14.0ms (71.43 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:37,914 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:37", "predicted": "high", "confidence": 0.8536, "effective_threshold": 0.08, "motion": 111.6, "stable_frames": 15, "transition": false}
+2026-05-12 17:13:37,914 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:37", "class_name": "high", "confidence": 0.8536, "buffer_total": 46}
+2026-05-12 17:13:38,097 | INFO | [Inference Latency] Model: 57.0ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 58.0ms (17.24 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:38,109 | INFO | [Inference Latency] Model: 12.2ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.2ms (82.20 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:38,109 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:38", "predicted": "high", "confidence": 0.8861, "effective_threshold": 0.08, "motion": 64.94, "stable_frames": 16, "transition": false}
+2026-05-12 17:13:38,109 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:38", "class_name": "high", "confidence": 0.8861, "buffer_total": 47}
+2026-05-12 17:13:38,303 | INFO | [Inference Latency] Model: 62.0ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 62.0ms (16.13 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:38,317 | INFO | [Inference Latency] Model: 13.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.0ms (76.91 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:38,318 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:38", "predicted": "high", "confidence": 0.818, "effective_threshold": 0.08, "motion": 22.98, "stable_frames": 17, "transition": false}
+2026-05-12 17:13:38,484 | INFO | [Inference Latency] Model: 53.5ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 53.5ms (18.69 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:38,501 | INFO | [Inference Latency] Model: 16.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 16.0ms (62.36 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:38,502 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:38", "predicted": "high", "confidence": 0.8381, "effective_threshold": 0.08, "motion": 8.87, "stable_frames": 18, "transition": false}
+2026-05-12 17:13:38,657 | INFO | [Inference Latency] Model: 36.5ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 36.5ms (27.39 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:38,674 | INFO | [Inference Latency] Model: 16.2ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 16.2ms (61.67 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:38,675 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:38", "predicted": "high", "confidence": 0.8687, "effective_threshold": 0.08, "motion": 3.65, "stable_frames": 19, "transition": false}
+2026-05-12 17:13:38,675 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:38", "class_name": "high", "confidence": 0.8687, "buffer_total": 48}
+2026-05-12 17:13:38,874 | INFO | [Inference Latency] Model: 55.5ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 55.5ms (18.01 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:38,887 | INFO | [Inference Latency] Model: 13.1ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.1ms (76.59 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:38,888 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:38", "predicted": "high", "confidence": 0.8512, "effective_threshold": 0.08, "motion": 17.21, "stable_frames": 20, "transition": false}
+2026-05-12 17:13:38,888 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:38", "class_name": "high", "confidence": 0.8512, "buffer_total": 49}
+2026-05-12 17:13:39,051 | INFO | [Inference Latency] Model: 47.5ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 47.5ms (21.04 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:39,064 | INFO | [Inference Latency] Model: 11.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 11.0ms (90.91 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:39,064 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:39", "predicted": "high", "confidence": 0.6575, "effective_threshold": 0.08, "motion": 63.17, "stable_frames": 21, "transition": false}
+2026-05-12 17:13:39,233 | INFO | [Inference Latency] Model: 58.5ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 58.5ms (17.09 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:39,247 | INFO | [Inference Latency] Model: 13.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.0ms (76.96 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:39,248 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:39", "predicted": "high", "confidence": 0.375, "effective_threshold": 0.08, "motion": 52.58, "stable_frames": 22, "transition": false}
+2026-05-12 17:13:39,463 | INFO | [Inference Latency] Model: 61.5ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 61.5ms (16.26 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:39,474 | INFO | [Inference Latency] Model: 9.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 9.0ms (111.11 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:39,474 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:39", "predicted": "high", "confidence": 0.6349, "effective_threshold": 0.08, "motion": 117.27, "stable_frames": 23, "transition": false}
+2026-05-12 17:13:39,638 | INFO | [Inference Latency] Model: 47.2ms (5 passes) | TTA prep: 0.0ms | Other: 2.0ms | Total: 49.2ms (20.34 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:39,654 | INFO | [Inference Latency] Model: 15.4ms (1 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 16.4ms (60.91 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:39,654 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:39", "predicted": "high", "confidence": 0.6933, "effective_threshold": 0.08, "motion": 151.81, "stable_frames": 24, "transition": false}
+2026-05-12 17:13:39,862 | INFO | [Inference Latency] Model: 68.6ms (5 passes) | TTA prep: 0.0ms | Other: 0.5ms | Total: 69.1ms (14.47 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:39,877 | INFO | [Inference Latency] Model: 14.4ms (1 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 15.4ms (65.04 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:39,878 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:39", "predicted": "high", "confidence": 0.6233, "effective_threshold": 0.08, "motion": 157.58, "stable_frames": 25, "transition": false}
+2026-05-12 17:13:40,068 | INFO | [Inference Latency] Model: 43.5ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 44.5ms (22.46 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:40,081 | INFO | [Inference Latency] Model: 13.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.0ms (76.95 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:40,082 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:40", "predicted": "high", "confidence": 0.7095, "effective_threshold": 0.08, "motion": 148.33, "stable_frames": 26, "transition": false}
+2026-05-12 17:13:40,284 | INFO | [Inference Latency] Model: 63.5ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 64.5ms (15.50 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:40,298 | INFO | [Inference Latency] Model: 14.5ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 14.5ms (68.98 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:40,299 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:40", "predicted": "high", "confidence": 0.8112, "effective_threshold": 0.08, "motion": 93.52, "stable_frames": 27, "transition": false}
+2026-05-12 17:13:40,420 | INFO | [Inference Latency] Model: 33.0ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 34.0ms (29.41 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:40,434 | INFO | [Inference Latency] Model: 13.8ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.8ms (72.33 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:40,435 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:40", "predicted": "high", "confidence": 0.8677, "effective_threshold": 0.08, "motion": 63.12, "stable_frames": 28, "transition": false}
+2026-05-12 17:13:40,435 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:40", "class_name": "high", "confidence": 0.8677, "buffer_total": 50}
+2026-05-12 17:13:40,611 | INFO | [Inference Latency] Model: 64.5ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 64.5ms (15.50 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:40,624 | INFO | [Inference Latency] Model: 13.9ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.9ms (72.11 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:40,624 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:40", "predicted": "high", "confidence": 0.8966, "effective_threshold": 0.08, "motion": 37.78, "stable_frames": 29, "transition": false}
+2026-05-12 17:13:40,625 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:40", "class_name": "high", "confidence": 0.8966, "buffer_total": 51}
+2026-05-12 17:13:40,778 | INFO | [Inference Latency] Model: 54.5ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 54.5ms (18.34 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:40,790 | INFO | [Inference Latency] Model: 12.5ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.5ms (80.07 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:40,790 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:40", "predicted": "high", "confidence": 0.896, "effective_threshold": 0.08, "motion": 16.98, "stable_frames": 30, "transition": false}
+2026-05-12 17:13:40,790 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:40", "class_name": "high", "confidence": 0.896, "buffer_total": 52}
+2026-05-12 17:13:40,970 | INFO | [Inference Latency] Model: 57.2ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 57.2ms (17.48 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:40,985 | INFO | [Inference Latency] Model: 14.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 14.0ms (71.44 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:40,985 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:40", "predicted": "high", "confidence": 0.8991, "effective_threshold": 0.08, "motion": 8.22, "stable_frames": 31, "transition": false}
+2026-05-12 17:13:40,986 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:40", "class_name": "high", "confidence": 0.8991, "buffer_total": 53}
+2026-05-12 17:13:41,198 | INFO | [Inference Latency] Model: 60.7ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 61.7ms (16.20 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:41,215 | INFO | [Inference Latency] Model: 16.5ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 16.5ms (60.47 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:41,215 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:41", "predicted": "high", "confidence": 0.8921, "effective_threshold": 0.08, "motion": 4.68, "stable_frames": 32, "transition": false}
+2026-05-12 17:13:41,216 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:41", "class_name": "high", "confidence": 0.8921, "buffer_total": 54}
+2026-05-12 17:13:41,371 | INFO | [Inference Latency] Model: 41.2ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 41.2ms (24.25 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:41,385 | INFO | [Inference Latency] Model: 13.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.0ms (76.95 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:41,386 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:41", "predicted": "high", "confidence": 0.7957, "effective_threshold": 0.08, "motion": 41.71, "stable_frames": 33, "transition": false}
+2026-05-12 17:13:53,519 | INFO | [Inference Latency] Model: 47.0ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 47.0ms (21.28 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:53,535 | INFO | [Inference Latency] Model: 15.7ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 15.7ms (63.80 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:53,536 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:53", "predicted": "quiet", "confidence": 0.9624, "effective_threshold": 0.09, "motion": 4.52, "stable_frames": 1, "transition": true}
+2026-05-12 17:13:53,536 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:53", "class_name": "quiet", "confidence": 0.9624, "buffer_total": 55}
+2026-05-12 17:13:53,717 | INFO | [Inference Latency] Model: 64.5ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 65.5ms (15.27 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:53,730 | INFO | [Inference Latency] Model: 13.5ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.5ms (74.25 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:53,730 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:53", "predicted": "quiet", "confidence": 0.9628, "effective_threshold": 0.12, "motion": 3.34, "stable_frames": 2, "transition": false}
+2026-05-12 17:13:53,731 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:53", "class_name": "quiet", "confidence": 0.9628, "buffer_total": 56}
+2026-05-12 17:13:53,731 | INFO | 📝 Added: HIGH
+2026-05-12 17:13:53,904 | INFO | [Inference Latency] Model: 59.5ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 59.5ms (16.80 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:53,918 | INFO | [Inference Latency] Model: 12.4ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.4ms (80.80 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:53,918 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:53", "predicted": "quiet", "confidence": 0.9631, "effective_threshold": 0.12, "motion": 3.8, "stable_frames": 3, "transition": false}
+2026-05-12 17:13:53,919 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:53", "class_name": "quiet", "confidence": 0.9631, "buffer_total": 57}
+2026-05-12 17:13:54,101 | INFO | [Inference Latency] Model: 65.3ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 65.3ms (15.32 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:54,117 | INFO | [Inference Latency] Model: 15.7ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 15.7ms (63.55 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:54,117 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:54", "predicted": "quiet", "confidence": 0.9634, "effective_threshold": 0.08, "motion": 2.71, "stable_frames": 4, "transition": false}
+2026-05-12 17:13:54,118 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:54", "class_name": "quiet", "confidence": 0.9634, "buffer_total": 58}
+2026-05-12 17:13:54,274 | INFO | [Inference Latency] Model: 47.5ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 47.5ms (21.05 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:54,287 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 13.0ms (76.92 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:54,287 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:54", "predicted": "quiet", "confidence": 0.9632, "effective_threshold": 0.08, "motion": 2.91, "stable_frames": 5, "transition": false}
+2026-05-12 17:13:54,287 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:54", "class_name": "quiet", "confidence": 0.9632, "buffer_total": 59}
+2026-05-12 17:13:54,456 | INFO | [Inference Latency] Model: 46.5ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 46.5ms (21.50 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:54,471 | INFO | [Inference Latency] Model: 13.9ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.9ms (71.74 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:54,471 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:54", "predicted": "quiet", "confidence": 0.9642, "effective_threshold": 0.08, "motion": 2.44, "stable_frames": 6, "transition": false}
+2026-05-12 17:13:54,472 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:54", "class_name": "quiet", "confidence": 0.9642, "buffer_total": 60}
+2026-05-12 17:13:54,625 | INFO | [Inference Latency] Model: 54.4ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 54.4ms (18.38 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:13:54,638 | INFO | [Inference Latency] Model: 12.5ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.5ms (79.96 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:13:54,639 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:13:54", "predicted": "quiet", "confidence": 0.9636, "effective_threshold": 0.08, "motion": 3.62, "stable_frames": 7, "transition": false}
+2026-05-12 17:13:54,639 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:13:54", "class_name": "quiet", "confidence": 0.9636, "buffer_total": 61}
+2026-05-12 17:14:03,197 | INFO | [Inference Latency] Model: 90.2ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 90.2ms (11.09 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:03,212 | INFO | [Inference Latency] Model: 13.2ms (1 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 14.2ms (70.60 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:03,213 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:03", "predicted": "you", "confidence": 0.9027, "effective_threshold": 0.1087, "motion": 7.96, "stable_frames": 1, "transition": true}
+2026-05-12 17:14:03,213 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:14:03", "class_name": "you", "confidence": 0.9027, "buffer_total": 62}
+2026-05-12 17:14:03,372 | INFO | [Inference Latency] Model: 50.6ms (5 passes) | TTA prep: 0.0ms | Other: 1.5ms | Total: 52.1ms (19.20 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:03,384 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.0ms (83.30 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:03,384 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:03", "predicted": "you", "confidence": 0.8974, "effective_threshold": 0.08, "motion": 15.01, "stable_frames": 2, "transition": false}
+2026-05-12 17:14:03,385 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:14:03", "class_name": "you", "confidence": 0.8974, "buffer_total": 63}
+2026-05-12 17:14:03,385 | INFO | 📝 Added: QUIET
+2026-05-12 17:14:03,562 | INFO | [Inference Latency] Model: 58.0ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 58.0ms (17.24 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:03,575 | INFO | [Inference Latency] Model: 11.7ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 11.7ms (85.45 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:03,576 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:03", "predicted": "you", "confidence": 0.8158, "effective_threshold": 0.12, "motion": 8.07, "stable_frames": 3, "transition": false}
+2026-05-12 17:14:03,769 | INFO | [Inference Latency] Model: 53.5ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 53.5ms (18.69 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:03,781 | INFO | [Inference Latency] Model: 11.0ms (1 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 12.0ms (83.29 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:03,782 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:03", "predicted": "you", "confidence": 0.7651, "effective_threshold": 0.08, "motion": 14.32, "stable_frames": 4, "transition": false}
+2026-05-12 17:14:03,922 | INFO | [Inference Latency] Model: 38.0ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 38.0ms (26.31 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:03,934 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.0ms (83.36 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:03,935 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:03", "predicted": "you", "confidence": 0.7866, "effective_threshold": 0.08, "motion": 12.73, "stable_frames": 5, "transition": false}
+2026-05-12 17:14:04,097 | INFO | [Inference Latency] Model: 52.0ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 52.0ms (19.23 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:04,110 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 13.0ms (76.92 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:04,110 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:04", "predicted": "you", "confidence": 0.8712, "effective_threshold": 0.08, "motion": 9.15, "stable_frames": 6, "transition": false}
+2026-05-12 17:14:04,110 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:14:04", "class_name": "you", "confidence": 0.8712, "buffer_total": 64}
+2026-05-12 17:14:04,298 | INFO | [Inference Latency] Model: 64.3ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 65.3ms (15.31 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:04,311 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 13.0ms (76.94 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:04,311 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:04", "predicted": "you", "confidence": 0.8711, "effective_threshold": 0.08, "motion": 15.61, "stable_frames": 7, "transition": false}
+2026-05-12 17:14:04,312 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:14:04", "class_name": "you", "confidence": 0.8711, "buffer_total": 65}
+2026-05-12 17:14:04,496 | INFO | [Inference Latency] Model: 56.5ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 57.5ms (17.39 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:04,510 | INFO | [Inference Latency] Model: 13.2ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.2ms (75.86 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:04,510 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:04", "predicted": "you", "confidence": 0.8654, "effective_threshold": 0.08, "motion": 13.78, "stable_frames": 8, "transition": false}
+2026-05-12 17:14:04,511 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:14:04", "class_name": "you", "confidence": 0.8654, "buffer_total": 66}
+2026-05-12 17:14:04,677 | INFO | [Inference Latency] Model: 50.5ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 50.5ms (19.79 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:04,690 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 13.0ms (76.93 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:04,690 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:04", "predicted": "you", "confidence": 0.8633, "effective_threshold": 0.08, "motion": 9.47, "stable_frames": 9, "transition": false}
+2026-05-12 17:14:04,690 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:14:04", "class_name": "you", "confidence": 0.8633, "buffer_total": 67}
+2026-05-12 17:14:05,760 | INFO | [Inference Latency] Model: 60.3ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 60.3ms (16.58 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:05,775 | INFO | [Inference Latency] Model: 13.5ms (1 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 14.5ms (69.09 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:05,775 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:05", "predicted": "you", "confidence": 0.87, "effective_threshold": 0.08, "motion": 82.47, "stable_frames": 10, "transition": false}
+2026-05-12 17:14:05,776 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:14:05", "class_name": "you", "confidence": 0.87, "buffer_total": 68}
+2026-05-12 17:14:05,971 | INFO | [Inference Latency] Model: 50.1ms (5 passes) | TTA prep: 0.0ms | Other: 0.5ms | Total: 50.6ms (19.76 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:05,983 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.0ms (83.27 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:05,984 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:05", "predicted": "you", "confidence": 0.8334, "effective_threshold": 0.08, "motion": 37.59, "stable_frames": 11, "transition": false}
+2026-05-12 17:14:06,132 | INFO | [Inference Latency] Model: 46.0ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 46.0ms (21.74 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:06,146 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.0ms (83.33 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:06,146 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:06", "predicted": "you", "confidence": 0.8979, "effective_threshold": 0.08, "motion": 19.68, "stable_frames": 12, "transition": false}
+2026-05-12 17:14:06,146 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:14:06", "class_name": "you", "confidence": 0.8979, "buffer_total": 69}
+2026-05-12 17:14:06,294 | INFO | [Inference Latency] Model: 31.5ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 31.5ms (31.72 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:06,307 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.0ms (83.32 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:06,308 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:06", "predicted": "you", "confidence": 0.8884, "effective_threshold": 0.08, "motion": 17.3, "stable_frames": 13, "transition": false}
+2026-05-12 17:14:06,308 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:14:06", "class_name": "you", "confidence": 0.8884, "buffer_total": 70}
+2026-05-12 17:14:06,477 | INFO | [Inference Latency] Model: 54.6ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 54.6ms (18.31 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:06,493 | INFO | [Inference Latency] Model: 15.6ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 15.6ms (64.10 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:06,493 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:06", "predicted": "you", "confidence": 0.6489, "effective_threshold": 0.08, "motion": 10.83, "stable_frames": 14, "transition": false}
+2026-05-12 17:14:06,651 | INFO | [Inference Latency] Model: 49.0ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 49.0ms (20.41 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:06,666 | INFO | [Inference Latency] Model: 15.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 15.0ms (66.65 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:06,667 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:06", "predicted": "you", "confidence": 0.6737, "effective_threshold": 0.08, "motion": 24.59, "stable_frames": 15, "transition": false}
+2026-05-12 17:14:07,463 | INFO | [Inference Latency] Model: 62.4ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 62.4ms (16.04 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:07,474 | INFO | [Inference Latency] Model: 10.5ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 10.5ms (95.20 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:07,475 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:07", "predicted": "you_all", "confidence": 0.529, "effective_threshold": 0.08, "motion": 60.75, "stable_frames": 1, "transition": true}
+2026-05-12 17:14:07,654 | INFO | [Inference Latency] Model: 41.0ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 42.0ms (23.81 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:07,669 | INFO | [Inference Latency] Model: 14.6ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 14.6ms (68.37 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:07,669 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:07", "predicted": "you_all", "confidence": 0.5773, "effective_threshold": 0.08, "motion": 30.27, "stable_frames": 2, "transition": false}
+2026-05-12 17:14:07,669 | INFO | 📝 Added: YOU
+2026-05-12 17:14:07,839 | INFO | [Inference Latency] Model: 60.0ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 60.0ms (16.67 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:07,854 | INFO | [Inference Latency] Model: 14.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 14.0ms (71.42 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:07,854 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:07", "predicted": "you_all", "confidence": 0.6486, "effective_threshold": 0.12, "motion": 11.29, "stable_frames": 3, "transition": false}
+2026-05-12 17:14:08,025 | INFO | [Inference Latency] Model: 68.2ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 68.2ms (14.67 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:08,041 | INFO | [Inference Latency] Model: 14.6ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 14.6ms (68.46 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:08,041 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:08", "predicted": "you_all", "confidence": 0.6979, "effective_threshold": 0.08, "motion": 12.91, "stable_frames": 4, "transition": false}
+2026-05-12 17:14:08,641 | INFO | [Inference Latency] Model: 89.0ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 89.0ms (11.23 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:08,653 | INFO | [Inference Latency] Model: 11.2ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 11.2ms (89.50 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:08,653 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:08", "predicted": "you_all", "confidence": 0.8372, "effective_threshold": 0.08, "motion": 14.47, "stable_frames": 5, "transition": false}
+2026-05-12 17:14:08,837 | INFO | [Inference Latency] Model: 52.0ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 53.0ms (18.87 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:08,851 | INFO | [Inference Latency] Model: 14.5ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 14.5ms (69.09 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:08,852 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:08", "predicted": "you_all", "confidence": 0.8268, "effective_threshold": 0.08, "motion": 19.06, "stable_frames": 6, "transition": false}
+2026-05-12 17:14:09,043 | INFO | [Inference Latency] Model: 48.4ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 48.4ms (20.64 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:09,057 | INFO | [Inference Latency] Model: 14.4ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 14.4ms (69.25 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:09,059 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:09", "predicted": "you_all", "confidence": 0.8118, "effective_threshold": 0.08, "motion": 15.06, "stable_frames": 7, "transition": false}
+2026-05-12 17:14:09,178 | INFO | [Inference Latency] Model: 36.5ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 36.5ms (27.38 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:09,191 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.0ms (83.33 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:09,192 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:09", "predicted": "you_all", "confidence": 0.8063, "effective_threshold": 0.08, "motion": 10.12, "stable_frames": 8, "transition": false}
+2026-05-12 17:14:09,331 | INFO | [Inference Latency] Model: 44.0ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 44.0ms (22.73 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:09,345 | INFO | [Inference Latency] Model: 13.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.0ms (76.96 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:09,346 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:09", "predicted": "you_all", "confidence": 0.8066, "effective_threshold": 0.08, "motion": 7.73, "stable_frames": 9, "transition": false}
+2026-05-12 17:14:10,036 | INFO | [Inference Latency] Model: 61.0ms (5 passes) | TTA prep: 0.0ms | Other: 1.5ms | Total: 62.5ms (15.99 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:10,047 | INFO | [Inference Latency] Model: 10.0ms (1 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 11.0ms (90.86 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:10,048 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:10", "predicted": "you_all", "confidence": 0.834, "effective_threshold": 0.08, "motion": 11.23, "stable_frames": 10, "transition": false}
+2026-05-12 17:14:10,298 | INFO | [Inference Latency] Model: 39.5ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 39.5ms (25.30 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:10,311 | INFO | [Inference Latency] Model: 12.1ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.1ms (82.54 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:10,312 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:10", "predicted": "you_all", "confidence": 0.6956, "effective_threshold": 0.08, "motion": 41.23, "stable_frames": 11, "transition": false}
+2026-05-12 17:14:10,454 | INFO | [Inference Latency] Model: 41.0ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 42.0ms (23.81 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:10,470 | INFO | [Inference Latency] Model: 13.5ms (1 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 14.5ms (68.90 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:10,470 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:10", "predicted": "you_all", "confidence": 0.6121, "effective_threshold": 0.08, "motion": 31.28, "stable_frames": 12, "transition": false}
+2026-05-12 17:14:10,642 | INFO | [Inference Latency] Model: 63.9ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 64.9ms (15.41 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:10,656 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 2.0ms | Total: 14.0ms (71.43 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:10,656 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:10", "predicted": "you_all", "confidence": 0.5844, "effective_threshold": 0.08, "motion": 22.67, "stable_frames": 13, "transition": false}
+2026-05-12 17:14:10,904 | INFO | [Inference Latency] Model: 37.4ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 37.4ms (26.75 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:10,919 | INFO | [Inference Latency] Model: 15.1ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 15.1ms (66.24 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:10,919 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:10", "predicted": "you_all", "confidence": 0.6659, "effective_threshold": 0.08, "motion": 39.03, "stable_frames": 14, "transition": false}
+2026-05-12 17:14:11,103 | INFO | [Inference Latency] Model: 55.5ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 55.5ms (18.01 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:11,116 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.0ms (83.33 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:11,117 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:11", "predicted": "you_all", "confidence": 0.6763, "effective_threshold": 0.08, "motion": 17.73, "stable_frames": 15, "transition": false}
+2026-05-12 17:14:11,321 | INFO | [Inference Latency] Model: 67.7ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 67.7ms (14.76 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:11,338 | INFO | [Inference Latency] Model: 17.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 17.0ms (58.82 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:11,339 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:11", "predicted": "you_all", "confidence": 0.6135, "effective_threshold": 0.08, "motion": 13.48, "stable_frames": 16, "transition": false}
+2026-05-12 17:14:11,540 | INFO | [Inference Latency] Model: 59.0ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 59.0ms (16.95 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:11,550 | INFO | [Inference Latency] Model: 9.0ms (1 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 10.0ms (100.05 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:11,551 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:11", "predicted": "you_all", "confidence": 0.5095, "effective_threshold": 0.08, "motion": 17.64, "stable_frames": 17, "transition": false}
+2026-05-12 17:14:11,745 | INFO | [Inference Latency] Model: 60.1ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 60.1ms (16.65 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:11,758 | INFO | [Inference Latency] Model: 13.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.0ms (76.92 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:11,759 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:11", "predicted": "you_all", "confidence": 0.3709, "effective_threshold": 0.08, "motion": 15.7, "stable_frames": 18, "transition": false}
+2026-05-12 17:14:11,933 | INFO | [Inference Latency] Model: 51.0ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 51.0ms (19.61 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:11,946 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.0ms (83.33 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:11,946 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:11", "predicted": "you_all", "confidence": 0.3966, "effective_threshold": 0.08, "motion": 34.94, "stable_frames": 19, "transition": false}
+2026-05-12 17:14:12,102 | INFO | [Inference Latency] Model: 59.5ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 60.5ms (16.52 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:12,118 | INFO | [Inference Latency] Model: 15.5ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 15.5ms (64.67 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:12,119 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:12", "predicted": "you_all", "confidence": 0.5411, "effective_threshold": 0.08, "motion": 22.22, "stable_frames": 20, "transition": false}
+2026-05-12 17:14:12,299 | INFO | [Inference Latency] Model: 48.5ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 48.5ms (20.61 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:12,312 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.0ms (83.38 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:12,313 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:12", "predicted": "you_all", "confidence": 0.5564, "effective_threshold": 0.08, "motion": 13.97, "stable_frames": 21, "transition": false}
+2026-05-12 17:14:12,458 | INFO | [Inference Latency] Model: 52.0ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 52.0ms (19.23 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:12,471 | INFO | [Inference Latency] Model: 13.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.0ms (76.87 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:12,473 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:12", "predicted": "you_all", "confidence": 0.5737, "effective_threshold": 0.08, "motion": 13.05, "stable_frames": 22, "transition": false}
+2026-05-12 17:14:12,634 | INFO | [Inference Latency] Model: 48.6ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 49.6ms (20.14 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:12,646 | INFO | [Inference Latency] Model: 11.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 11.0ms (90.92 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:12,647 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:12", "predicted": "you_all", "confidence": 0.585, "effective_threshold": 0.08, "motion": 6.13, "stable_frames": 23, "transition": false}
+2026-05-12 17:14:12,832 | INFO | [Inference Latency] Model: 59.9ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 59.9ms (16.68 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:12,848 | INFO | [Inference Latency] Model: 14.8ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 14.8ms (67.36 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:12,849 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:12", "predicted": "you_all", "confidence": 0.6203, "effective_threshold": 0.08, "motion": 13.15, "stable_frames": 24, "transition": false}
+2026-05-12 17:14:12,996 | INFO | [Inference Latency] Model: 46.0ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 46.0ms (21.72 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:13,015 | INFO | [Inference Latency] Model: 18.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 18.0ms (55.54 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:13,016 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:13", "predicted": "you_all", "confidence": 0.6822, "effective_threshold": 0.08, "motion": 19.3, "stable_frames": 25, "transition": false}
+2026-05-12 17:14:13,194 | INFO | [Inference Latency] Model: 70.4ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 71.4ms (14.00 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:13,208 | INFO | [Inference Latency] Model: 13.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.0ms (76.93 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:13,209 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:13", "predicted": "you_all", "confidence": 0.7195, "effective_threshold": 0.08, "motion": 15.59, "stable_frames": 26, "transition": false}
+2026-05-12 17:14:13,576 | INFO | [Inference Latency] Model: 46.0ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 46.0ms (21.74 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:13,589 | INFO | [Inference Latency] Model: 12.5ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.5ms (79.93 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:13,589 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:13", "predicted": "you_all", "confidence": 0.7129, "effective_threshold": 0.08, "motion": 34.09, "stable_frames": 27, "transition": false}
+2026-05-12 17:14:25,735 | INFO | [Inference Latency] Model: 44.4ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 44.4ms (22.51 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:25,747 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.0ms (83.36 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:25,748 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:25", "predicted": "male", "confidence": 0.9366, "effective_threshold": 0.09, "motion": 6.2, "stable_frames": 1, "transition": true}
+2026-05-12 17:14:25,748 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:14:25", "class_name": "male", "confidence": 0.9366, "buffer_total": 71}
+2026-05-12 17:14:25,933 | INFO | [Inference Latency] Model: 68.9ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 68.9ms (14.52 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:25,946 | INFO | [Inference Latency] Model: 13.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.0ms (76.95 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:25,947 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:25", "predicted": "male", "confidence": 0.9273, "effective_threshold": 0.08, "motion": 17.35, "stable_frames": 2, "transition": false}
+2026-05-12 17:14:25,947 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:14:25", "class_name": "male", "confidence": 0.9273, "buffer_total": 72}
+2026-05-12 17:14:25,947 | INFO | 📝 Added: YOU_ALL
+2026-05-12 17:14:26,149 | INFO | [Inference Latency] Model: 75.2ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 75.2ms (13.29 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:26,165 | INFO | [Inference Latency] Model: 14.6ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 14.6ms (68.45 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:26,166 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:26", "predicted": "male", "confidence": 0.9119, "effective_threshold": 0.08, "motion": 14.6, "stable_frames": 3, "transition": false}
+2026-05-12 17:14:26,166 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:14:26", "class_name": "male", "confidence": 0.9119, "buffer_total": 73}
+2026-05-12 17:14:26,329 | INFO | [Inference Latency] Model: 48.0ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 49.0ms (20.42 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:26,341 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.0ms (83.33 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:26,342 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:26", "predicted": "male", "confidence": 0.9341, "effective_threshold": 0.08, "motion": 16.3, "stable_frames": 4, "transition": false}
+2026-05-12 17:14:26,342 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:14:26", "class_name": "male", "confidence": 0.9341, "buffer_total": 74}
+2026-05-12 17:14:26,503 | INFO | [Inference Latency] Model: 63.0ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 63.0ms (15.87 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:26,516 | INFO | [Inference Latency] Model: 13.5ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.5ms (73.98 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:26,516 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:26", "predicted": "male", "confidence": 0.9398, "effective_threshold": 0.08, "motion": 22.89, "stable_frames": 5, "transition": false}
+2026-05-12 17:14:26,517 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:14:26", "class_name": "male", "confidence": 0.9398, "buffer_total": 75}
+2026-05-12 17:14:26,649 | INFO | [Inference Latency] Model: 37.0ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 37.0ms (27.03 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:26,663 | INFO | [Inference Latency] Model: 13.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 13.0ms (76.92 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:26,663 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:26", "predicted": "male", "confidence": 0.9408, "effective_threshold": 0.08, "motion": 27.18, "stable_frames": 6, "transition": false}
+2026-05-12 17:14:26,664 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:14:26", "class_name": "male", "confidence": 0.9408, "buffer_total": 76}
+2026-05-12 17:14:26,811 | INFO | [Inference Latency] Model: 63.0ms (5 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 64.0ms (15.62 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:26,823 | INFO | [Inference Latency] Model: 12.0ms (1 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 12.0ms (83.33 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:26,823 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:26", "predicted": "male", "confidence": 0.9427, "effective_threshold": 0.08, "motion": 15.89, "stable_frames": 7, "transition": false}
+2026-05-12 17:14:26,824 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:14:26", "class_name": "male", "confidence": 0.9427, "buffer_total": 77}
+2026-05-12 17:14:26,972 | INFO | [Inference Latency] Model: 53.0ms (5 passes) | TTA prep: 0.0ms | Other: 0.0ms | Total: 53.0ms (18.87 FPS) | Config: 5 models, TTA=off
+2026-05-12 17:14:26,985 | INFO | [Inference Latency] Model: 12.5ms (1 passes) | TTA prep: 0.0ms | Other: 1.0ms | Total: 13.5ms (74.00 FPS) | Config: 1 models, TTA=off
+2026-05-12 17:14:26,985 | INFO | {"event": "prediction_accepted", "timestamp": "2026-05-12T17:14:26", "predicted": "male", "confidence": 0.9435, "effective_threshold": 0.08, "motion": 20.93, "stable_frames": 8, "transition": false}
+2026-05-12 17:14:26,985 | INFO | {"event": "pseudo_sample_collected", "timestamp": "2026-05-12T17:14:26", "class_name": "male", "confidence": 0.9435, "buffer_total": 78}
+2026-05-12 17:14:32,014 | INFO | [Cleanup] Saving pseudo-buffer with 78 samples...
+2026-05-12 17:14:32,198 | INFO | [PseudoBuffer] Distribution (78 total samples):
+2026-05-12 17:14:32,198 | INFO |   cold           :   9 samples ( 11.5%) | Conf: 0.92
+2026-05-12 17:14:32,198 | INFO |   hello          :  15 samples ( 19.2%) | Conf: 0.93
+2026-05-12 17:14:32,199 | INFO |   high           :  12 samples ( 15.4%) | Conf: 0.88
+2026-05-12 17:14:32,199 | INFO |   male           :   8 samples ( 10.3%) | Conf: 0.93
+2026-05-12 17:14:32,199 | INFO |   mean           :  18 samples ( 23.1%) | Conf: 0.93
+2026-05-12 17:14:32,200 | INFO |   quiet          :   7 samples (  9.0%) | Conf: 0.96
+2026-05-12 17:14:32,200 | INFO |   you            :   9 samples ( 11.5%) | Conf: 0.88
+2026-05-12 17:14:32,201 | INFO | [PseudoBuffer] ✓ Saved 78 samples to pseudo_data/
+2026-05-12 17:14:32,214 | INFO | {"event": "pseudo_buffer_saved_on_cleanup", "timestamp": "2026-05-12T17:14:32", "remaining_buffer_samples": 78, "saved_on_disk": 675}
+2026-05-12 17:14:32,214 | INFO | [Cleanup] Shutting down adapter manager...
+2026-05-12 17:14:32,215 | INFO | {"event": "adapter_shutdown", "timestamp": "2026-05-12T17:14:32"}
+2026-05-12 17:14:32,215 | INFO | [Cleanup] Flushed pending word: MALE
+2026-05-12 17:14:32,216 | INFO | {"event": "pending_word_flushed", "timestamp": "2026-05-12T17:14:32", "word": "MALE"}
+2026-05-12 17:14:32,216 | INFO | ======================================================================
+2026-05-12 17:14:32,216 | INFO | 📝 FINAL TRANSLATION (0 completed + current)
+2026-05-12 17:14:32,216 | INFO | ======================================================================
+2026-05-12 17:14:32,217 | INFO | HELLO COLD MEAN HIGH QUIET YOU YOU_ALL MALE
+2026-05-12 17:14:32,217 | INFO | ======================================================================
+2026-05-12 17:14:32,217 | INFO | Webcam closed.
+2026-05-12 17:14:32,217 | INFO | {"event": "inference_stop", "timestamp": "2026-05-12T17:14:32"}

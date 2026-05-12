@@ -1,0 +1,7 @@
+2026-05-11 11:23:52,713 | INFO | Logger initialized for kfold_resume
+2026-05-11 11:23:52,714 | INFO | Log file: logs\kfold_resume_20260511_112352.log
+2026-05-11 11:23:52,715 | INFO | {"event": "kfold_resume_start", "timestamp": "2026-05-11T11:23:52", "start_fold": 3, "num_folds": 5}
+2026-05-11 11:23:52,715 | INFO | ============================================================
+2026-05-11 11:23:52,716 | INFO |   K-Fold Training (Resume)
+2026-05-11 11:23:52,716 | INFO |   Starting from fold 3 of 5
+2026-05-11 11:23:52,716 | INFO | ============================================================
