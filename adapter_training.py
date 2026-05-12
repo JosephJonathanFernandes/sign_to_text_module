@@ -347,6 +347,7 @@ class AdapterTrainingManager:
         class_id_to_name: dict,
         epochs: int = 2,
         batch_size: int = 8,
+        min_classes: int = 3,
         min_samples_per_class: int = 3,
     ) -> bool:
         """
@@ -364,22 +365,29 @@ class AdapterTrainingManager:
             True if training was triggered, False otherwise
         """
         if not self.enable_adaptation:
+            print("[Adapter] Skipping training: adaptation is disabled")
             return False
         
         if self.is_training:
+            print("[Adapter] Skipping training: adapter is already training")
             return False  # Already training
         
         total_samples = pseudo_buffer.get_total_samples()
         
         # Check if we have enough samples
         if total_samples < 20:  # MIN_BUFFER
+            print(f"[Adapter] Skipping training: only {total_samples} samples available")
             return False
         
         # Check class distribution
         counts = pseudo_buffer.get_class_counts()
         classes_with_samples = sum(1 for c in counts.values() if c >= min_samples_per_class)
         
-        if classes_with_samples < 2:
+        if classes_with_samples < min_classes:
+            print(
+                f"[Adapter] Skipping training: need at least {min_classes} classes with "
+                f">= {min_samples_per_class} samples each"
+            )
             return False  # Not enough classes represented
         
         # Check class balance
@@ -436,6 +444,7 @@ class AdapterTrainingManager:
         validation_probs: Optional[np.ndarray] = None,
         epochs: int = 2,
         batch_size: int = 8,
+        min_classes: int = 3,
         min_samples_per_class: int = 5,
         use_class_weights: bool = True,
         class_weight_power: float = 0.5,
@@ -458,12 +467,17 @@ class AdapterTrainingManager:
             True if training was triggered, False otherwise
         """
         if not self.enable_adaptation:
+            print("[Adapter] Skipping training: adaptation is disabled")
             return False
         
         if self.is_training:
+            print("[Adapter] Skipping training: adapter is already training")
             return False
         
         if len(ensemble_probs_list) < 20:  # MIN_BUFFER
+            print(
+                f"[Adapter] Skipping training: only {len(ensemble_probs_list)} samples available"
+            )
             return False
 
         counts = {}
@@ -475,9 +489,9 @@ class AdapterTrainingManager:
             if count >= min_samples_per_class
         ]
 
-        if len(eligible_classes) < 3:
+        if len(eligible_classes) < min_classes:
             print(
-                f"[Adapter] Skipping training: need at least 3 classes with "
+                f"[Adapter] Skipping training: need at least {min_classes} classes with "
                 f">= {min_samples_per_class} samples each"
             )
             return False

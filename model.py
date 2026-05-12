@@ -36,6 +36,7 @@ CONV_FRONTEND_DROPOUT = cfg.arch_improvements.conv_frontend_dropout
 USE_DEPTHWISE_TEMPORAL = cfg.arch_improvements.use_depthwise_temporal
 USE_RESIDUAL_CONV = cfg.arch_improvements.use_residual_conv
 USE_GROUPNORM = cfg.arch_improvements.use_groupnorm
+USE_RESIDUAL_ATTENTION_SKIP = cfg.arch_improvements.use_residual_attention_skip
 
 USE_FRAME_WEIGHTING = cfg.arch_improvements.use_frame_weighting
 FRAME_WEIGHT_INIT = cfg.arch_improvements.frame_weight_init
@@ -396,7 +397,7 @@ class SignLanguageGRU(nn.Module):
       - Deeper FC head
     
     ═════════════════════════════════════════════════════════════════════════
-    PHASE 1–7: ARCHITECTURAL IMPROVEMENTS (PRODUCTION-GRADE)
+    PHASE 1–9: ARCHITECTURAL IMPROVEMENTS (PRODUCTION-GRADE)
     ═════════════════════════════════════════════════════════════════════════
     
         PHASE 1: Conv frontend (pointwise + depthwise separable)
@@ -421,6 +422,12 @@ class SignLanguageGRU(nn.Module):
       - Improves gradient flow through deep networks
       - Training stability & convergence
       - Optional: disable with USE_RESIDUAL_GRU_SKIP=False
+    
+    PHASE 9: Residual Skip INTO Attention
+      - Stabilizes attention by mixing in temporal mean
+      - context = attn_context + gru_out.mean(dim=1)
+      - Prevents attention divergence on landmark sequences
+      - Optional: disable with USE_RESIDUAL_ATTENTION_SKIP=False
     """
 
     def __init__(
@@ -707,6 +714,17 @@ class SignLanguageGRU(nn.Module):
             context, alpha = self.attention(gru_out, proximity)
         else:
             context, alpha = self.attention(gru_out)
+        
+        # ────────────────────────────────────────────────────────────────
+        # PHASE 9: Residual Skip INTO Attention
+        # ────────────────────────────────────────────────────────────────
+        # Stabilize attention by mixing in temporal mean from GRU output
+        # Prevents attention from diverging too far from raw signal
+        if USE_RESIDUAL_ATTENTION_SKIP:
+            gru_temporal_mean = gru_out.mean(dim=1)  # (batch, hidden_dim)
+            context = context + gru_temporal_mean
+            if DEBUG_PRINT_SHAPES:
+                print(f"[Phase 9] After residual attention skip: {context.shape}")
         
         # Spatial attention: learn importance of feature groups
         context, spatial_weights = self.spatial_attention(context)

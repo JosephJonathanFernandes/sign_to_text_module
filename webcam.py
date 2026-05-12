@@ -22,6 +22,7 @@ from collections import Counter, deque
 import mediapipe as mp
 import torch
 import os
+import time
 
 from config import get_config
 from pseudo_buffer import PseudoLabelBuffer
@@ -69,13 +70,13 @@ ADAPTER_LEARNING_RATE = 1e-4
 ADAPTER_EPOCHS = 10
 ADAPTER_BATCH_SIZE = 8
 ADAPTER_HIDDEN_DIM = 128
-ADAPTER_TRAIN_MIN_SAMPLES = 40  # Require more samples before training
-ADAPTER_MIN_CLASSES = 3  # Require at least this many classes represented
-ADAPTER_MIN_SAMPLES_PER_CLASS = 5  # Require each participating class to be supported
+ADAPTER_TRAIN_MIN_SAMPLES = cfg.live_inference.adapter_train_min_samples
+ADAPTER_MIN_CLASSES = cfg.live_inference.adapter_min_classes
+ADAPTER_MIN_SAMPLES_PER_CLASS = cfg.live_inference.adapter_min_samples_per_class
 ADAPTER_WEIGHTS_DIR = "adapter_weights/"
-ADAPTER_TRAINING_INTERVAL = 200  # Check for training every N predictions
+ADAPTER_TRAINING_INTERVAL = cfg.live_inference.adapter_training_interval
 ADAPTER_POLL_INTERVAL = 50  # Poll adapter_weights/ for new models every N predictions
-ADAPTER_MIN_SAVED_SAMPLES = 40  # Train from pseudo_data/ once this many saved samples exist
+ADAPTER_MIN_SAVED_SAMPLES = cfg.live_inference.adapter_min_saved_samples
 
 # Device for adapter
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -243,6 +244,53 @@ def _is_motion_gating_active(motion_magnitude, frames_in_motion):
     
     # Gate (suppress) when NO motion at all
     return not (has_current_motion or has_recent_motion)
+
+
+def _log_adapter_skip(pipeline_log, trigger_label: str, reason: str, **details):
+    print(f"[Adapter] Skipping training ({trigger_label}): {reason}")
+    if pipeline_log is not None:
+        pipeline_log.event(
+            "adapter_training_skipped",
+            trigger=trigger_label,
+            reason=reason,
+            **details,
+        )
+
+
+def _compute_adaptive_thresholds(elapsed_seconds: float, base_interval: int, base_min_saved: int):
+    """
+    Auto-tune adapter training thresholds based on session duration.
+    
+    If session is short (< 2 min), aggressively lower thresholds to enable training before exit.
+    If session is long, use normal thresholds.
+    
+    Args:
+        elapsed_seconds: Time since session start
+        base_interval: Normal training interval
+        base_min_saved: Normal minimum saved samples
+    
+    Returns:
+        (adaptive_interval, adaptive_min_saved, is_short_session)
+    """
+    is_short_session = elapsed_seconds < 120  # < 2 minutes
+    
+    if not is_short_session:
+        return base_interval, base_min_saved, False
+    
+    # For short sessions, reduce thresholds based on elapsed time
+    # At 30 sec: interval=50, min_saved=20
+    # At 60 sec: interval=75, min_saved=30
+    # At 120 sec: return to normal
+    
+    progress_ratio = elapsed_seconds / 120.0  # 0 to 1
+    
+    # Interval: from 50 to base_interval
+    adaptive_interval = int(50 + (base_interval - 50) * progress_ratio)
+    
+    # Min saved: from 20 to base_min_saved
+    adaptive_min_saved = int(20 + (base_min_saved - 20) * progress_ratio)
+    
+    return adaptive_interval, adaptive_min_saved, True
 
 
 
@@ -470,11 +518,53 @@ def run_webcam(pipeline_log=None):
             enable_decay=True,  # Use exponential decay for older frames
             decay_factor=0.3  # Decay weight for older predictions
         )
-        temporal_postprocessor_enabled = False  # DISABLED: Tanking confidence values
+        temporal_postprocessor_enabled = True  # ENABLED: Confidence averaging + anti-flicker
     except Exception as e:
         print(f"[WARN] Could not initialize TemporalPostProcessor: {e}")
         temporal_postprocessor = None
         temporal_postprocessor_enabled = False
+
+    # ── Prediction Momentum (majority + confidence commit) ──
+    class PredictionMomentum:
+        """Simple momentum buffer: commit when a class appears >= commit_count
+
+        Keeps recent (idx, conf) tuples in a circular buffer and commits a
+        prediction when majority agreement, average confidence, and minimum
+        occurrences are satisfied.
+        """
+        def __init__(self, window: int = 5, commit_count: int = 3, min_avg_conf: float = 0.6):
+            from collections import Counter
+
+            self.window = window
+            self.commit_count = commit_count
+            self.min_avg_conf = min_avg_conf
+            self._hist = deque(maxlen=window)
+
+        def push(self, idx: int, conf: float) -> None:
+            self._hist.append((int(idx), float(conf)))
+
+        def get_commit(self):
+            """Return (idx, avg_conf) if commit conditions met, else None."""
+            if len(self._hist) < self.commit_count:
+                return None
+            counts = Counter([h[0] for h in self._hist])
+            most, cnt = counts.most_common(1)[0]
+            if cnt < self.commit_count:
+                return None
+            confs = [h[1] for h in self._hist if h[0] == most]
+            avg_conf = sum(confs) / len(confs)
+            if avg_conf < self.min_avg_conf:
+                return None
+            return int(most), float(avg_conf)
+
+        def clear(self):
+            self._hist.clear()
+
+    # Initialize momentum buffer using config values
+    pm_window = cfg.live_inference.momentum_window
+    pm_commit = cfg.live_inference.momentum_commit_count
+    pm_min_conf = cfg.live_inference.momentum_min_avg_conf
+    prediction_momentum = PredictionMomentum(window=pm_window, commit_count=pm_commit, min_avg_conf=pm_min_conf)
 
     # ── Hand Selector (single-person hand filtering via MediaPipe face landmarks) ──
     hand_selector = HandSelector(
@@ -503,6 +593,7 @@ def run_webcam(pipeline_log=None):
     adapter_trainer = None
     adapter_manager = None
     prediction_count_since_training = 0
+    session_start_time = time.time()  # Track session duration for auto-tuning
     
     if ADAPTER_ENABLED:
         try:
@@ -555,13 +646,198 @@ def run_webcam(pipeline_log=None):
             adapter_trainer = None
             adapter_manager = None
 
+    def _attempt_adapter_training(trigger_label: str) -> bool:
+        """Collect saved pseudo-data and start adapter training if safe."""
+        if adapter_manager is None or adapter_trainer is None or word_classes is None:
+            _log_adapter_skip(
+                pipeline_log,
+                trigger_label,
+                "adapter not initialized",
+            )
+            return False
+
+        if pseudo_buffer is None:
+            _log_adapter_skip(
+                pipeline_log,
+                trigger_label,
+                "pseudo-buffer is unavailable",
+            )
+            return False
+
+        disk_sample_count = pseudo_buffer.get_saved_sample_count()
+        
+        # Compute adaptive min_saved based on trigger and session duration
+        min_saved_threshold = ADAPTER_MIN_SAVED_SAMPLES
+        if trigger_label in ("cleanup", "periodic check"):
+            elapsed_secs = time.time() - session_start_time
+            _, adaptive_min_saved, _ = _compute_adaptive_thresholds(
+                elapsed_secs,
+                ADAPTER_TRAINING_INTERVAL,
+                ADAPTER_MIN_SAVED_SAMPLES,
+            )
+            min_saved_threshold = adaptive_min_saved
+        
+        if disk_sample_count < min_saved_threshold:
+            _log_adapter_skip(
+                pipeline_log,
+                trigger_label,
+                f"only {disk_sample_count} saved samples on disk",
+                disk_samples=int(disk_sample_count),
+                min_required=int(min_saved_threshold),
+            )
+            return False
+
+        saved_samples = pseudo_buffer.load_saved_samples()
+        if not saved_samples:
+            _log_adapter_skip(
+                pipeline_log,
+                trigger_label,
+                "no valid saved pseudo-data sequences could be loaded",
+                disk_samples=int(disk_sample_count),
+            )
+            return False
+
+        ensemble_probs_list = []
+        class_indices_list = []
+
+        for class_name, seq_stored in saved_samples:
+            try:
+                class_idx = word_classes.index(class_name)
+            except ValueError:
+                continue
+
+            try:
+                res = merged_ensemble_predict(
+                    main_models, fallback_models, seq_stored, use_tta=LIVE_USE_TTA
+                )
+                probs_for_seq = np.array(res["probs"], dtype=np.float32)
+                ensemble_probs_list.append(probs_for_seq)
+                class_indices_list.append(class_idx)
+            except Exception:
+                continue
+
+        if not ensemble_probs_list:
+            _log_adapter_skip(
+                pipeline_log,
+                trigger_label,
+                "no valid saved pseudo-data sequences could be scored",
+                disk_samples=int(disk_sample_count),
+            )
+            return False
+
+        class_id_to_name = {i: name for i, name in enumerate(word_classes)}
+
+        per_class_indices = {}
+        for idx, class_idx in enumerate(class_indices_list):
+            per_class_indices.setdefault(class_idx, []).append(idx)
+
+        train_mask = np.ones(len(ensemble_probs_list), dtype=bool)
+        validation_indices = []
+        eligible_class_count = 0
+
+        for class_idx, indices in per_class_indices.items():
+            class_count = len(indices)
+            if class_count < ADAPTER_MIN_SAMPLES_PER_CLASS:
+                continue
+
+            eligible_class_count += 1
+            holdout = min(
+                max(1, class_count // 5),
+                max(0, class_count - ADAPTER_MIN_SAMPLES_PER_CLASS),
+            )
+            if holdout <= 0:
+                continue
+
+            validation_indices.extend(indices[:holdout])
+            for idx in indices[:holdout]:
+                train_mask[idx] = False
+
+        if eligible_class_count < ADAPTER_MIN_CLASSES:
+            _log_adapter_skip(
+                pipeline_log,
+                trigger_label,
+                f"only {eligible_class_count} classes reached the per-class minimum",
+                class_count=int(eligible_class_count),
+                min_required=int(ADAPTER_MIN_CLASSES),
+                min_samples_per_class=int(ADAPTER_MIN_SAMPLES_PER_CLASS),
+            )
+            return False
+
+        train_probs = [
+            probs for i, probs in enumerate(ensemble_probs_list)
+            if train_mask[i]
+        ]
+        train_targets = [
+            class_idx for i, class_idx in enumerate(class_indices_list)
+            if train_mask[i]
+        ]
+        validation_probs = (
+            np.array([ensemble_probs_list[i] for i in validation_indices], dtype=np.float32)
+            if validation_indices else None
+        )
+
+        if len(train_probs) < ADAPTER_TRAIN_MIN_SAMPLES:
+            _log_adapter_skip(
+                pipeline_log,
+                trigger_label,
+                f"only {len(train_probs)} balanced samples after holdout",
+                train_samples=int(len(train_probs)),
+                min_required=int(ADAPTER_TRAIN_MIN_SAMPLES),
+                disk_samples=int(disk_sample_count),
+                class_count=int(len(set(class_indices_list))),
+            )
+            return False
+
+        started = adapter_manager.trigger_training_with_probs(
+            ensemble_probs_list=train_probs,
+            class_indices_list=train_targets,
+            classes=word_classes,
+            class_id_to_name=class_id_to_name,
+            validation_probs=validation_probs,
+            epochs=ADAPTER_EPOCHS,
+            batch_size=ADAPTER_BATCH_SIZE,
+            min_classes=ADAPTER_MIN_CLASSES,
+            min_samples_per_class=ADAPTER_MIN_SAMPLES_PER_CLASS,
+            use_class_weights=cfg.training.adapter_use_class_weights,
+            class_weight_power=cfg.training.adapter_class_weight_power,
+            class_weight_clip_min=cfg.training.adapter_class_weight_clip_min,
+            class_weight_clip_max=cfg.training.adapter_class_weight_clip_max,
+        )
+
+        if not started:
+            _log_adapter_skip(
+                pipeline_log,
+                trigger_label,
+                "adapter manager rejected the request",
+                train_samples=int(len(train_probs)),
+                val_samples=int(len(validation_indices)),
+                disk_samples=int(disk_sample_count),
+            )
+            return False
+
+        print(
+            f"[Adapter] Training requested from {trigger_label} "
+            f"({len(train_probs)} train / {len(validation_indices)} val samples)"
+        )
+        if pipeline_log is not None:
+            pipeline_log.event(
+                "adapter_training_requested",
+                trigger=trigger_label,
+                raw_samples=int(len(ensemble_probs_list)),
+                train_samples=int(len(train_probs)),
+                val_samples=int(len(validation_indices)),
+                disk_samples=int(disk_sample_count),
+                class_count=int(len(set(class_indices_list))),
+            )
+        return True
+
     print("\n=== ISL Sign Language Recognition (Continuous, Automatic Translation) ===")
     print(f"  Sliding window: {NUM_FRAMES} frames")
     print(f"  Base confidence threshold: {CONFIDENCE_THRESHOLD:.0%}")
     print(f"  Word stability: {sentence_builder.stability_frames} frames")
     print(f"  Auto-sentence timeout: {sentence_builder.auto_sentence_timeout} frames (~{sentence_builder.auto_sentence_timeout/30:.1f}s)")
     if temporal_postprocessor_enabled:
-        print(f"  ✓ Temporal Smoothing ENABLED (confidence averaging, window: 3 frames)")
+        print(f"  ✓ Temporal Smoothing ENABLED (window: 3 frames, decay: 0.3, anti-flicker: delta=5%)")
     if MOTION_GATING_ENABLED:
         print(f"  ✓ Motion gating ENABLED (motion threshold: {MOTION_THRESHOLD:.1f}px)")
     if DYNAMIC_THRESHOLD_ENABLED:
@@ -569,7 +845,17 @@ def run_webcam(pipeline_log=None):
     if PSEUDO_BUFFER_ENABLED:
         print(f"  ✓ Pseudo-label Collection ENABLED (threshold: {PSEUDO_THRESHOLD:.0%})")
     if ADAPTER_ENABLED and adapter_model is not None:
-        print(f"  ✓ Adapter Learning ENABLED (auto-train at {ADAPTER_TRAIN_MIN_SAMPLES} samples)")
+        print(
+            "  ✓ Adapter Learning ENABLED "
+            f"(every {ADAPTER_TRAINING_INTERVAL} preds, "
+            f"{ADAPTER_MIN_SAVED_SAMPLES}+ saved, "
+            f"{ADAPTER_TRAIN_MIN_SAMPLES}+ train, "
+            f"{ADAPTER_MIN_CLASSES}+ classes, "
+            f"{ADAPTER_MIN_SAMPLES_PER_CLASS}+ per class)"
+        )
+        print(
+            "    + Auto-tuning ENABLED: thresholds lower for short sessions (< 2 min)"
+        )
     print(f"  ➜ Just sign! No keyboard input needed (Q/ESC to quit)")
     print("=======================================================================")
 
@@ -580,7 +866,9 @@ def run_webcam(pipeline_log=None):
             confidence_threshold=CONFIDENCE_THRESHOLD,
             pseudo_buffer_enabled=PSEUDO_BUFFER_ENABLED,
             adapter_enabled=ADAPTER_ENABLED,
+            adapter_training_interval=ADAPTER_TRAINING_INTERVAL,
             adapter_train_min_samples=ADAPTER_TRAIN_MIN_SAMPLES,
+            adapter_min_saved_samples=ADAPTER_MIN_SAVED_SAMPLES,
             adapter_min_classes=ADAPTER_MIN_CLASSES,
             adapter_min_samples_per_class=ADAPTER_MIN_SAMPLES_PER_CLASS,
         )
@@ -819,22 +1107,51 @@ def run_webcam(pipeline_log=None):
                     meets_threshold = conf >= (effective_threshold + TRANSITION_HYSTERESIS)
 
                 if meets_threshold and not motion_gated:
-                    # Valid prediction detected
-                    if predicted == last_output_prediction:
-                        prediction_stability_counter += 1
+                    # Push into momentum buffer and only commit when majority+confidence met
+                    prediction_momentum.push(idx, conf)
+                    commit = prediction_momentum.get_commit()
+                    if commit is None:
+                        # Tentative prediction; don't accept yet
+                        prediction_text = f"... {predicted}?"
+                        confidence_text = f"Tentative: {conf:.1%} | Motion: {motion_magnitude:.1f}"
+                        # Log tentative event for analysis
+                        if pipeline_log is not None:
+                            pipeline_log.event(
+                                "prediction_tentative",
+                                predicted=predicted,
+                                pred_idx=int(idx),
+                                confidence=round(float(conf), 4),
+                                motion=round(float(motion_magnitude), 2),
+                                momentum_window=prediction_momentum.window,
+                                momentum_count=prediction_momentum.commit_count,
+                            )
                     else:
-                        # Word changed: clear history for instant switching
-                        prediction_stability_counter = 1
-                        prediction_history.clear()
-                        last_output_prediction = predicted
-                    
-                    prediction_history.append(predicted.upper())
-                    prediction_text = Counter(
-                        prediction_history
-                    ).most_common(1)[0][0]
-                    confidence_text = (
-                        f"Conf: {conf:.1%} | Motion: {motion_magnitude:.1f} | Stable: {prediction_stability_counter}"
-                    )
+                        committed_idx, avg_conf = commit
+                        committed_predicted = classes[committed_idx] if committed_idx < len(classes) else "?"
+
+                        if committed_predicted == last_output_prediction:
+                            prediction_stability_counter += 1
+                        else:
+                            # Word changed: clear history for instant switching
+                            prediction_stability_counter = 1
+                            prediction_history.clear()
+                            last_output_prediction = committed_predicted
+
+                        prediction_history.append(committed_predicted.upper())
+                        prediction_text = Counter(prediction_history).most_common(1)[0][0]
+                        confidence_text = (
+                            f"Conf: {avg_conf:.1%} | Motion: {motion_magnitude:.1f} | Stable: {prediction_stability_counter}"
+                        )
+                        # Log committed prediction
+                        if pipeline_log is not None:
+                            pipeline_log.event(
+                                "prediction_committed",
+                                predicted=committed_predicted,
+                                committed_idx=int(committed_idx),
+                                avg_conf=round(float(avg_conf), 4),
+                                motion=round(float(motion_magnitude), 2),
+                                stable_frames=int(prediction_stability_counter),
+                            )
 
                     if pipeline_log is not None:
                         pipeline_log.event(
@@ -884,115 +1201,23 @@ def run_webcam(pipeline_log=None):
                     if adapter_manager is not None:
                         prediction_count_since_training += 1
                         
-                        if prediction_count_since_training >= ADAPTER_TRAINING_INTERVAL:
-                            disk_sample_count = pseudo_buffer.get_saved_sample_count() if pseudo_buffer is not None else 0
-                            if disk_sample_count >= ADAPTER_MIN_SAVED_SAMPLES:
-                                # Prepare training data from saved pseudo-data on disk.
-                                ensemble_probs_list = []
-                                class_indices_list = []
-                                saved_samples = pseudo_buffer.load_saved_samples() if pseudo_buffer is not None else []
-
-                                for class_name, seq_stored in saved_samples:
-                                    try:
-                                        class_idx = classes.index(class_name)
-                                    except ValueError:
-                                        continue
-
-                                    try:
-                                        res = merged_ensemble_predict(
-                                            main_models, fallback_models, seq_stored, use_tta=LIVE_USE_TTA
-                                        )
-                                        probs_for_seq = np.array(res['probs'], dtype=np.float32)
-                                        ensemble_probs_list.append(probs_for_seq)
-                                        class_indices_list.append(class_idx)
-                                    except Exception:
-                                        continue
-
-                                if ensemble_probs_list:
-                                    # Create class_id_to_name mapping
-                                    class_id_to_name = {i: name for i, name in enumerate(classes)}
-                                    
-                                    # Build a class-balanced holdout so validation reflects all seen classes.
-                                    per_class_indices = {}
-                                    for idx, class_idx in enumerate(class_indices_list):
-                                        per_class_indices.setdefault(class_idx, []).append(idx)
-
-                                    train_mask = np.ones(len(ensemble_probs_list), dtype=bool)
-                                    validation_indices = []
-                                    for class_idx, indices in per_class_indices.items():
-                                        class_count = len(indices)
-                                        if class_count < ADAPTER_MIN_SAMPLES_PER_CLASS:
-                                            continue
-
-                                        holdout = min(
-                                            max(1, class_count // 5),
-                                            max(0, class_count - ADAPTER_MIN_SAMPLES_PER_CLASS),
-                                        )
-                                        if holdout <= 0:
-                                            continue
-
-                                        validation_indices.extend(indices[:holdout])
-                                        for idx in indices[:holdout]:
-                                            train_mask[idx] = False
-
-                                    train_probs = [
-                                        probs for i, probs in enumerate(ensemble_probs_list)
-                                        if train_mask[i]
-                                    ]
-                                    train_targets = [
-                                        class_idx for i, class_idx in enumerate(class_indices_list)
-                                        if train_mask[i]
-                                    ]
-                                    validation_probs = (
-                                        np.array([ensemble_probs_list[i] for i in validation_indices], dtype=np.float32)
-                                        if validation_indices else None
-                                    )
-
-                                    if len(train_probs) < ADAPTER_TRAIN_MIN_SAMPLES:
-                                        print(
-                                            f"[Adapter] Skipping training: only {len(train_probs)} balanced samples after holdout"
-                                        )
-                                        if pipeline_log is not None:
-                                            pipeline_log.event(
-                                                "adapter_training_skipped",
-                                                reason="insufficient_balanced_samples",
-                                                train_samples=int(len(train_probs)),
-                                                min_required=ADAPTER_TRAIN_MIN_SAMPLES,
-                                                disk_samples=int(disk_sample_count),
-                                            )
-                                        prediction_count_since_training = 0
-                                        continue
-
-                                    adapter_manager.trigger_training_with_probs(
-                                        ensemble_probs_list=train_probs,
-                                        class_indices_list=train_targets,
-                                        classes=classes,
-                                        class_id_to_name=class_id_to_name,
-                                        validation_probs=validation_probs,
-                                        epochs=ADAPTER_EPOCHS,
-                                        batch_size=ADAPTER_BATCH_SIZE,
-                                        min_samples_per_class=ADAPTER_MIN_SAMPLES_PER_CLASS,
-                                        use_class_weights=cfg.training.adapter_use_class_weights,
-                                        class_weight_power=cfg.training.adapter_class_weight_power,
-                                        class_weight_clip_min=cfg.training.adapter_class_weight_clip_min,
-                                        class_weight_clip_max=cfg.training.adapter_class_weight_clip_max,
-                                    )
-
-                                    if pipeline_log is not None:
-                                        pipeline_log.event(
-                                            "adapter_training_requested",
-                                            raw_samples=int(len(ensemble_probs_list)),
-                                            train_samples=int(len(train_probs)),
-                                            val_samples=int(len(validation_indices)),
-                                            disk_samples=int(disk_sample_count),
-                                            class_count=int(len(set(class_indices_list))),
-                                        )
-
-                                    # Reset counter and mark when to poll for new adapter weights
-                                    prediction_count_since_training = 0
-                                    last_adapter_poll = 0
-                                else:
-                                    print("[Adapter] Skipping training: no valid saved pseudo-data sequences could be loaded")
+                        # Compute adaptive thresholds based on session duration
+                        elapsed_secs = time.time() - session_start_time
+                        adaptive_interval, adaptive_min_saved, is_short_session = _compute_adaptive_thresholds(
+                            elapsed_secs,
+                            ADAPTER_TRAINING_INTERVAL,
+                            ADAPTER_MIN_SAVED_SAMPLES,
+                        )
+                        
+                        if is_short_session and adaptive_interval != ADAPTER_TRAINING_INTERVAL:
+                            print(f"[Adapter] Short session detected ({elapsed_secs:.0f}s): lowering interval {ADAPTER_TRAINING_INTERVAL} → {adaptive_interval}")
+                        
+                        if prediction_count_since_training >= adaptive_interval:
+                            if _attempt_adapter_training("periodic check"):
+                                prediction_count_since_training = 0
+                                last_adapter_poll = 0
+                            else:
+                                prediction_count_since_training = 0
                 
                 else:
                     # Prediction rejected
@@ -1186,6 +1411,11 @@ def run_webcam(pipeline_log=None):
                 remaining_buffer_samples=int(pseudo_buffer.get_total_samples()),
                 saved_on_disk=int(pseudo_buffer.get_saved_sample_count()),
             )
+
+    if ADAPTER_ENABLED and adapter_manager is not None:
+        if _attempt_adapter_training("cleanup"):
+            if pipeline_log is not None:
+                pipeline_log.event("adapter_training_requested_on_cleanup")
     
     if adapter_manager is not None:
         print("[Cleanup] Shutting down adapter manager...")

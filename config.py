@@ -574,6 +574,18 @@ class ArchitectureImprovementsConfig:
     use_groupnorm: bool = True
     """Use GroupNorm after conv frontend instead of BatchNorm/LayerNorm (PHASE 6)."""
 
+    use_residual_attention_skip: bool = True
+    """Enable residual skip connection: gru_out.mean() → attention context (PHASE 9).
+    
+    Stabilizes attention on landmark systems by mixing in temporal mean:
+    context = attn_context + gru_out.mean(dim=1)
+    
+    Benefits:
+    - Prevents attention from diverging too far from raw temporal signal
+    - Improves stability on high-variance landmark sequences
+    - Reduces need for aggressive regularization
+    """
+
 
 @dataclass
 class LiveInferenceConfig:
@@ -611,10 +623,46 @@ class LiveInferenceConfig:
     - Effective FPS
     """
 
+    adapter_training_interval: int = 200
+    """Check adapter training every N predictions during live inference."""
+
+    adapter_train_min_samples: int = 40
+    """Require at least this many balanced training samples after holdout."""
+
+    adapter_min_saved_samples: int = 40
+    """Require at least this many saved pseudo samples on disk before training."""
+
+    adapter_min_classes: int = 3
+    """Require at least this many classes with enough samples for adaptation."""
+
+    adapter_min_samples_per_class: int = 5
+    """Require each participating class to have at least this many samples."""
+
     def validate(self) -> None:
         """Validate live inference configuration."""
         assert self.ensemble_size in (1, 3, 5), \
             f"ensemble_size must be 1, 3, or 5, got {self.ensemble_size}"
+        assert self.adapter_training_interval > 0, "adapter_training_interval must be positive"
+        assert self.adapter_train_min_samples > 0, "adapter_train_min_samples must be positive"
+        assert self.adapter_min_saved_samples > 0, "adapter_min_saved_samples must be positive"
+        assert self.adapter_min_classes >= 3, "adapter_min_classes must be at least 3"
+        assert self.adapter_min_samples_per_class > 0, "adapter_min_samples_per_class must be positive"
+        assert self.momentum_window >= 3, "momentum_window must be at least 3"
+        assert self.momentum_commit_count > 0, "momentum_commit_count must be positive"
+        assert self.momentum_commit_count <= self.momentum_window, \
+            "momentum_commit_count must be <= momentum_window"
+        assert 0.0 < self.momentum_min_avg_conf < 1.0, \
+            "momentum_min_avg_conf must be in (0, 1)"
+
+    # Prediction momentum parameters for live inference (majority + confidence commit)
+    momentum_window: int = 5
+    """Number of recent predictions to keep for momentum majority voting (3-5 recommended)."""
+
+    momentum_commit_count: int = 3
+    """Minimum occurrences of the same class within `momentum_window` required to commit."""
+
+    momentum_min_avg_conf: float = 0.6
+    """Minimum average confidence on the agreeing entries required to commit prediction."""
 
 
 # ========================================================================================
