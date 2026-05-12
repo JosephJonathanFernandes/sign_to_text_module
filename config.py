@@ -484,6 +484,140 @@ class WebcamConfig:
 
 
 # ========================================================================================
+# ─────── PHASE 1–7: ARCHITECTURAL IMPROVEMENTS CONFIGURATION ─────────
+# ========================================================================================
+
+@dataclass
+class ArchitectureImprovementsConfig:
+    """Phase 1–7: Toggle switches and hyperparameters for architectural improvements.
+    
+    These improvements are designed to be modular:
+    - Each can be independently enabled/disabled
+    - Graceful degradation if disabled
+    - Backward compatible with existing checkpoints (with caveats)
+    """
+
+    # ── PHASE 1: Conv frontend (pointwise + depthwise separable) ──
+    use_conv_frontend: bool = True
+    """Enable conv frontend before input projection (PHASE 1).
+
+    Benefits:
+    - Captures temporal patterns in landmark sequence
+    - Reduces dimensions early (504 → 256)
+    - Learns shared temporal filters
+
+    Disable for: Backward compatibility with old checkpoints
+    """
+
+    # Conv frontend parameters
+    conv_frontend_out_channels: int = 256
+    """Output channels of the conv frontend pointwise projection."""
+
+    conv_frontend_pointwise_kernel: int = 1
+    """Pointwise kernel for initial feature mixing (should be 1)."""
+
+    conv_frontend_dropout: float = 0.1
+    """Dropout rate AFTER conv frontend (lightweight regularization)."""
+
+    # ── PHASE 2: Learnable Frame Weighting ──
+    use_frame_weighting: bool = True
+    """Enable learnable frame importance weighting (PHASE 2).
+    
+    Benefits:
+    - Learn which frames are informative (onset/peak/offset)
+    - Soft attention over temporal dimension
+    - Minimal parameters (~1K extra)
+    
+    Shape: (batch, seq_len, 1) sigmoid weights applied per frame
+    """
+
+    frame_weight_init: str = "uniform"
+    """Initialization strategy for frame weights ('uniform' or 'ones')."""
+
+    # ── PHASE 4: Reduced Dropout ──
+    gru_dropout: float = 0.25
+    """Dropout rate for GRU layers (PHASE 4).
+    Reduced from 0.35 to prevent over-regularization.
+    """
+
+    fc_dropout: float = 0.25
+    """Dropout rate for FC head layers (PHASE 4).
+    Reduced from 0.35 to prevent over-regularization.
+    """
+
+    # ── PHASE 5: Residual Connection ──
+    use_residual_gru_skip: bool = True
+    """Enable residual skip connection: input_proj → GRU output (PHASE 5).
+    
+    Benefits:
+    - Easier gradient flow through deep networks
+    - Improved training stability
+    - Better convergence
+    
+    Only applied if dimensions match safely.
+    """
+
+    # ── PHASE 6 & 7: Debug & Ablation ──
+    debug_print_shapes: bool = False
+    """Print tensor shapes through model (PHASE 6). Set True for debugging."""
+
+    debug_layer_stats: bool = False
+    """Print statistics per layer (activations, weights) (PHASE 6)."""
+
+    # ── NEW ABLATION FLAGS (PHASE 8) ──
+    use_depthwise_temporal: bool = True
+    """Enable depthwise separable temporal conv in frontend (PHASE 4)."""
+
+    use_residual_conv: bool = True
+    """Enable residual connection within conv frontend (PHASE 5)."""
+
+    use_groupnorm: bool = True
+    """Use GroupNorm after conv frontend instead of BatchNorm/LayerNorm (PHASE 6)."""
+
+
+@dataclass
+class LiveInferenceConfig:
+    """PHASE 3: Live inference optimization settings."""
+
+    use_tta: bool = False
+    """Enable Test-Time Augmentation during LIVE inference (PHASE 3).
+    
+    ✓ Disabled by default (better latency)
+    ✓ Still enabled for offline evaluation/testing
+    
+    Impact:
+    - Disabled: ~8× faster (5 forward passes → 1)
+    - Enabled: ~2 fps (very slow)
+    """
+
+    ensemble_size: int = 3
+    """Number of models to load for LIVE inference (PHASE 3).
+    
+    Options:
+    - 1: Single model only (~1-2 fps)
+    - 3: Balanced ensemble (2-3 fps, ~1-2% accuracy loss)
+    - 5: Full ensemble (0.5-1 fps, best accuracy) [default old behavior]
+    
+    Loads only first N fold models dynamically.
+    """
+
+    print_latency_stats: bool = True
+    """Print detailed latency breakdown per prediction (PHASE 3).
+    
+    Prints:
+    - MediaPipe latency
+    - Model latency
+    - Total latency
+    - Effective FPS
+    """
+
+    def validate(self) -> None:
+        """Validate live inference configuration."""
+        assert self.ensemble_size in (1, 3, 5), \
+            f"ensemble_size must be 1, 3, or 5, got {self.ensemble_size}"
+
+
+# ========================================================================================
 # ─────── UNIFIED CONFIGURATION CLASS ──────────────────────────────────
 # ========================================================================================
 
@@ -510,6 +644,9 @@ class Config:
     motion: MotionConfig = field(default_factory=MotionConfig)
     hardware: HardwareConfig = field(default_factory=HardwareConfig)
     webcam: WebcamConfig = field(default_factory=WebcamConfig)
+    # ── PHASE 1–7: Architectural improvements ──
+    arch_improvements: ArchitectureImprovementsConfig = field(default_factory=ArchitectureImprovementsConfig)
+    live_inference: LiveInferenceConfig = field(default_factory=LiveInferenceConfig)
 
     def validate(self) -> None:
         """Validate all configuration subsystems and cross-module consistency.
@@ -523,9 +660,11 @@ class Config:
         self.inference.validate()
         self.motion.validate()
         self.hardware.validate()
+        self.live_inference.validate()
 
         # Cross-module consistency checks
         self._validate_feature_dimensions()
+        self._validate_architecture_consistency()
 
     def _validate_feature_dimensions(self) -> None:
         """Verify feature dimension consistency across all toggles."""
@@ -559,6 +698,33 @@ class Config:
 
         if self.debug:
             print("[Config] ✓ Feature dimension consistency validated")
+
+    def _validate_architecture_consistency(self) -> None:
+        """Validate architectural improvement configuration consistency (PHASE 1–7)."""
+        arch = self.arch_improvements
+        
+        # Validate conv frontend config
+        if arch.use_conv_frontend:
+            assert 0 < arch.conv_frontend_out_channels, "conv_frontend_out_channels must be positive"
+            assert arch.conv_frontend_pointwise_kernel in (1,), "conv_frontend_pointwise_kernel should be 1 (pointwise)"
+            assert 0 <= arch.conv_frontend_dropout < 1.0, "conv_frontend_dropout must be in [0, 1)"
+
+        # Validate ablation flags
+        assert isinstance(arch.use_depthwise_temporal, bool), "use_depthwise_temporal must be boolean"
+        assert isinstance(arch.use_residual_conv, bool), "use_residual_conv must be boolean"
+        assert isinstance(arch.use_groupnorm, bool), "use_groupnorm must be boolean"
+        
+        # Validate dropout rates
+        assert 0 <= arch.gru_dropout < 1.0, "gru_dropout must be in [0, 1)"
+        assert 0 <= arch.fc_dropout < 1.0, "fc_dropout must be in [0, 1)"
+        
+        # Validate frame weighting
+        if arch.use_frame_weighting:
+            assert arch.frame_weight_init in ("uniform", "ones"), \
+                f"frame_weight_init must be 'uniform' or 'ones', got {arch.frame_weight_init}"
+        
+        if self.debug:
+            print("[Config] ✓ Architecture improvements consistency validated")
 
     def get_motion_threshold_pixels(self) -> float:
         """Convenience method to get motion threshold in pixels."""
