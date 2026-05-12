@@ -92,14 +92,32 @@ class ISLDataset(Dataset):
         }
 
         # Collect all .npy file paths with labels, grouped by class
+        # Validate files during collection to skip corrupt ones
         class_samples = {i: [] for i in range(len(filtered_dirs))}
+        corrupt_files = []
         for cls_name in filtered_dirs:
             cls_dir = os.path.join(root_dir, cls_name)
             cls_idx = self.class_to_idx[cls_name]
             for fname in os.listdir(cls_dir):
                 if fname.endswith(".npy"):
                     fpath = os.path.join(cls_dir, fname)
-                    class_samples[cls_idx].append((fpath, cls_idx))
+                    # Quick validation: try to load file
+                    try:
+                        test_data = np.load(fpath)
+                        if test_data.size > 0:
+                            class_samples[cls_idx].append((fpath, cls_idx))
+                        else:
+                            corrupt_files.append((fpath, "Empty file"))
+                    except Exception as e:
+                        corrupt_files.append((fpath, str(e)))
+        
+        if corrupt_files:
+            print(f"[Dataset] WARNING: Found {len(corrupt_files)} corrupt files:")
+            for fpath, err in corrupt_files[:5]:
+                print(f"  - {os.path.basename(fpath)}: {err}")
+            if len(corrupt_files) > 5:
+                print(f"  ... and {len(corrupt_files) - 5} more")
+            print("[Dataset] Corrupt files will be skipped.")
 
         # Balanced oversampling: repeat minority class samples
         if oversample and class_samples:
@@ -144,9 +162,41 @@ class ISLDataset(Dataset):
             sequence: FloatTensor (NUM_FRAMES, INPUT_SIZE)
             proximity: FloatTensor (NUM_FRAMES,)
             label:    LongTensor scalar
+        
+        Handles corrupt files by retrying with different samples or raising informative error.
         """
+        import sys
+        
         fpath, label = self.samples[idx]
-        seq = np.load(fpath).astype(np.float32)
+        
+        # Try to load the file with error handling
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                seq = np.load(fpath).astype(np.float32)
+                if seq.size == 0:
+                    raise ValueError("Empty file")
+                break
+            except (OSError, ValueError, RuntimeError) as e:
+                if attempt == max_retries - 1:
+                    # Last attempt failed - provide detailed error
+                    error_msg = (
+                        f"\n[Dataset] ❌ CORRUPT FILE DETECTED:\n"
+                        f"  Path: {fpath}\n"
+                        f"  Error: {str(e)}\n"
+                        f"  Index: {idx}\n"
+                        f"\nTo fix this issue:\n"
+                        f"  1. Delete the file: rm \"{fpath}\"\n"
+                        f"  2. Re-run training\n"
+                        f"\nOr clean all corrupt files:\n"
+                        f"  python cleanup_dataset_npy.py\n"
+                    )
+                    print(error_msg, file=sys.stderr)
+                    raise RuntimeError(error_msg) from e
+                # Try again
+                import time
+                time.sleep(0.01 * (attempt + 1))
+        
         seq, proximity = self._prepare_sequence(
             seq,
             augment=self.augment,

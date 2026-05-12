@@ -6,6 +6,14 @@ Sentences auto-complete after ~2 seconds of no new signs.
 
 Controls:
     Q/ESC  - Quit (only control needed)
+
+════════════════════════════════════════════════════════════════════════════════════
+PHASE 3: LIVE INFERENCE OPTIMIZATION
+════════════════════════════════════════════════════════════════════════════════════
+- Dynamic ensemble size (1, 3, or 5 models via LIVE_ENSEMBLE_SIZE)
+- Configurable TTA (disabled by default for better latency via LIVE_USE_TTA)
+- Optional latency reporting via PRINT_LATENCY_STATS
+- All settings controlled through config.live_inference
 """
 
 import cv2
@@ -38,6 +46,13 @@ MOTION_BOOST_FACTOR = cfg.motion.motion_boost_factor
 STABILITY_BOOST_FACTOR = cfg.motion.stability_boost_factor
 DYNAMIC_THRESHOLD_MIN = cfg.motion.dynamic_threshold_min
 TRANSITION_HYSTERESIS = cfg.inference.transition_hysteresis
+
+# ════════════════════════════════════════════════════════════════════════════════════
+# PHASE 3: Live inference optimization configuration
+# ════════════════════════════════════════════════════════════════════════════════════
+LIVE_ENSEMBLE_SIZE = cfg.live_inference.ensemble_size
+LIVE_USE_TTA = cfg.live_inference.use_tta
+PRINT_LATENCY_STATS = cfg.live_inference.print_latency_stats
 
 # ── Pseudo-Label Collection (PART A) ──
 PSEUDO_BUFFER_ENABLED = True  # Toggle pseudo-label collection
@@ -741,8 +756,9 @@ def run_webcam(pipeline_log=None):
             try:
                 from ensemble import merged_ensemble_predict
                 main_models, fallback_models, classes = ensure_word_models()
+                # PHASE 3: Use config-driven TTA setting (disabled by default for live inference)
                 result = merged_ensemble_predict(
-                    main_models, fallback_models, seq, use_tta=False,
+                    main_models, fallback_models, seq, use_tta=LIVE_USE_TTA,
                 )
                 idx = result['pred_idx']
                 conf = result['confidence']
@@ -884,7 +900,7 @@ def run_webcam(pipeline_log=None):
 
                                     try:
                                         res = merged_ensemble_predict(
-                                            main_models, fallback_models, seq_stored, use_tta=False
+                                            main_models, fallback_models, seq_stored, use_tta=LIVE_USE_TTA
                                         )
                                         probs_for_seq = np.array(res['probs'], dtype=np.float32)
                                         ensemble_probs_list.append(probs_for_seq)

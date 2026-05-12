@@ -6,7 +6,9 @@ Uses weighted CrossEntropyLoss + Mixup for handling class imbalance.
 """
 
 import os
+import json
 import time
+from datetime import datetime
 from collections import defaultdict
 import numpy as np
 import torch
@@ -31,6 +33,7 @@ PATIENCE = cfg.training.patience
 SCHEDULER_PATIENCE = cfg.training.scheduler_patience
 GRAD_CLIP = cfg.training.grad_clip
 ENSEMBLE_DIR = cfg.paths.ensemble_dir
+KFOLD_MANIFEST_PATH = os.path.join(ENSEMBLE_DIR, "kfold_manifest.json")
 NUM_FOLDS = cfg.paths.num_folds
 USE_CLASS_WEIGHTS = cfg.training.use_class_weights
 CLASS_WEIGHT_POWER = cfg.training.class_weight_power
@@ -68,6 +71,66 @@ def _compute_inverse_class_weights(
     # Normalize to have mean weight = 1
     class_weights = class_weights / class_weights.sum() * num_classes
     return torch.FloatTensor(class_weights).to(DEVICE)
+
+
+def _now_iso() -> str:
+    return datetime.now().isoformat(timespec="seconds")
+
+
+def _load_kfold_manifest() -> dict:
+    if not os.path.exists(KFOLD_MANIFEST_PATH):
+        return {}
+    try:
+        with open(KFOLD_MANIFEST_PATH, "r", encoding="utf-8") as manifest_file:
+            return json.load(manifest_file)
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _save_kfold_manifest(manifest: dict) -> None:
+    os.makedirs(ENSEMBLE_DIR, exist_ok=True)
+    manifest["updated_at"] = _now_iso()
+    with open(KFOLD_MANIFEST_PATH, "w", encoding="utf-8") as manifest_file:
+        json.dump(manifest, manifest_file, indent=2, ensure_ascii=False)
+        manifest_file.write("\n")
+
+
+def _init_kfold_manifest(start_fold: int, num_folds: int, dataset_size: int, num_classes: int) -> dict:
+    manifest = _load_kfold_manifest()
+    manifest.update(
+        {
+            "run_started_at": manifest.get("run_started_at") or _now_iso(),
+            "start_fold": start_fold,
+            "num_folds": num_folds,
+            "dataset_size": dataset_size,
+            "num_classes": num_classes,
+            "status": "in_progress",
+            "completed_folds": manifest.get("completed_folds", []),
+            "folds": manifest.get("folds", {}),
+        }
+    )
+    return manifest
+
+
+def _record_kfold_fold(manifest: dict, fold: int, best_acc: float, save_path: str) -> None:
+    completed_folds = manifest.setdefault("completed_folds", [])
+    if fold not in completed_folds:
+        completed_folds.append(fold)
+        completed_folds.sort()
+    folds = manifest.setdefault("folds", {})
+    folds[str(fold)] = {
+        "status": "complete",
+        "best_val_acc": round(float(best_acc), 3),
+        "checkpoint": save_path,
+        "updated_at": _now_iso(),
+    }
+    _save_kfold_manifest(manifest)
+
+
+def _finalize_kfold_manifest(manifest: dict, fold_accs: list[float]) -> None:
+    manifest["status"] = "complete"
+    manifest["fold_accuracies"] = [round(float(x), 3) for x in fold_accs]
+    _save_kfold_manifest(manifest)
 
 
 # ── Mixup Utility ─────────────────────────────────────────────────
@@ -831,17 +894,27 @@ def _train_fold(
     return best_val_acc
 
 
-def train_kfold(pipeline_log: PipelineLogger | None = None) -> list:
+def train_kfold(pipeline_log: PipelineLogger | None = None, start_fold: int = 0) -> list:
     """
     Train NUM_FOLDS models using disjoint source-aware K-fold CV.
     Saves each fold model to ENSEMBLE_DIR/fold_N.pth.
     Returns list of per-fold best validation accuracies.
+    
+    Args:
+        pipeline_log: Optional logger for pipeline events
+        start_fold: Starting fold index (0-indexed). Default: 0
     """
     os.makedirs(ENSEMBLE_DIR, exist_ok=True)
 
     full_ds = ISLDataset(augment=False, min_samples=2)
     num_classes = full_ds.num_classes
     labels = np.array([lbl for _, lbl in full_ds.samples])
+    manifest = _init_kfold_manifest(
+        start_fold=start_fold,
+        num_folds=NUM_FOLDS,
+        dataset_size=len(full_ds),
+        num_classes=num_classes,
+    )
 
     # Build source-aware folds that spread high-priority (MVI) samples across
     # every fold so each fold's validation set is MVI-heavy.
@@ -876,7 +949,7 @@ def train_kfold(pipeline_log: PipelineLogger | None = None) -> list:
     )
     print(f"[Model] Params per fold: {total_p:,}\n")
 
-    for fold, (train_idx, val_idx) in enumerate(split_iter):
+    for fold, (train_idx, val_idx) in enumerate(split_iter[start_fold:], start=start_fold):
         save_path = os.path.join(ENSEMBLE_DIR, f"fold_{fold}.pth")
         print(
             f"--- Fold {fold} ---  "
@@ -888,6 +961,7 @@ def train_kfold(pipeline_log: PipelineLogger | None = None) -> list:
             pipeline_log=pipeline_log,
         )
         fold_accs.append(best_acc)
+        _record_kfold_fold(manifest, fold, best_acc, save_path)
         all_val_correct += int(round(best_acc * len(val_idx) / 100))
         all_val_total += len(val_idx)
 
@@ -912,4 +986,5 @@ def train_kfold(pipeline_log: PipelineLogger | None = None) -> list:
             mean_accuracy=round(float(avg_acc), 3),
             overall_accuracy=round(float(overall_acc), 3),
         )
+    _finalize_kfold_manifest(manifest, fold_accs)
     return fold_accs

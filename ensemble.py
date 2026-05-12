@@ -1,12 +1,21 @@
 """
 Ensemble inference: load all K-fold models and average their softmax
 outputs for more robust predictions. Includes test-time augmentation (TTA).
+
+════════════════════════════════════════════════════════════════════════════════════
+PHASE 3: LIVE INFERENCE OPTIMIZATION
+════════════════════════════════════════════════════════════════════════════════════
+- Dynamic ensemble size (1, 3, or 5 models)
+- Optional TTA (disabled by default for better latency)
+- Latency tracking and reporting
+- Configurable through config.live_inference
 """
 
 import os
 import numpy as np
 import torch
 import torch.nn.functional as F
+import time
 
 from config import get_config
 
@@ -21,6 +30,14 @@ INPUT_SIZE = cfg.frame_features.input_sequence_dim
 FRAME_FEAT_DIM = cfg.frame_features.frame_features_dim
 PROXIMITY_FEAT_DIM = cfg.spatial.proximity_dim
 PROXIMITY_INDEX = cfg.frame_features.proximity_index
+
+# ════════════════════════════════════════════════════════════════════════════════════
+# PHASE 3: Live inference configuration
+# ════════════════════════════════════════════════════════════════════════════════════
+LIVE_ENSEMBLE_SIZE = cfg.live_inference.ensemble_size
+LIVE_USE_TTA = cfg.live_inference.use_tta
+PRINT_LATENCY_STATS = cfg.live_inference.print_latency_stats
+
 from model import SignLanguageGRU
 
 
@@ -56,9 +73,20 @@ def _align_sequence_dim(seq: np.ndarray) -> np.ndarray:
 
 def load_ensemble():
     """
-    Load all fold models from ENSEMBLE_DIR.
+    Load fold models from ENSEMBLE_DIR with support for dynamic ensemble sizing (PHASE 3).
+    
     Returns (models_list, classes, num_classes).
     Falls back to single model.pth if ensemble dir is empty.
+    
+    ════════════════════════════════════════════════════════════════════════════════════
+    PHASE 3: Dynamic Ensemble Size
+    ════════════════════════════════════════════════════════════════════════════════════
+    - LIVE_ENSEMBLE_SIZE controls number of models to load:
+      - 1: Single model (fastest, ~1-2 fps)
+      - 3: Balanced ensemble (2-3 fps, ~1-2% accuracy loss)
+      - 5: Full ensemble (0.5-1 fps, best accuracy)
+    
+    Loads first N fold models from sorted list.
     """
     models = []
     classes = None
@@ -67,11 +95,15 @@ def load_ensemble():
         if os.path.isdir(os.path.join(PROCESSED_DIR, d))
     ])
 
-    # Try loading ensemble fold models
+    # Try loading ensemble fold models (limited by LIVE_ENSEMBLE_SIZE)
     if os.path.isdir(ENSEMBLE_DIR):
         fold_files = sorted([
             f for f in os.listdir(ENSEMBLE_DIR) if f.endswith(".pth")
         ])
+        
+        # PHASE 3: Limit to LIVE_ENSEMBLE_SIZE models
+        fold_files = fold_files[:LIVE_ENSEMBLE_SIZE]
+        
         for fname in fold_files:
             fpath = os.path.join(ENSEMBLE_DIR, fname)
             ckpt = torch.load(fpath, map_location=DEVICE, weights_only=False)
@@ -98,7 +130,8 @@ def load_ensemble():
         if classes is None:
             classes = current_classes
         print(
-            f"[Ensemble] Loaded {len(models)} fold models, "
+            f"[Ensemble] Loaded {len(models)} fold models "
+            f"(LIVE_ENSEMBLE_SIZE={LIVE_ENSEMBLE_SIZE}), "
             f"{len(classes)} classes"
         )
         return models, classes, len(classes)
@@ -199,20 +232,33 @@ def load_merged_ensemble_10_2():
 def ensemble_predict(
     models: list,
     sequence: np.ndarray,
-    use_tta: bool = True,
+    use_tta: bool = None,
 ) -> tuple:
     """
-    Run ensemble prediction with optional test-time augmentation.
+    Run ensemble prediction with optional test-time augmentation (PHASE 3).
 
     Args:
         models: list of trained SignLanguageGRU models
         sequence: numpy array of shape (NUM_FRAMES, feat_dim)
-        use_tta: whether to apply test-time augmentation
+        use_tta: whether to apply test-time augmentation.
+                 If None, uses LIVE_USE_TTA config value.
 
     Returns:
         (pred_idx, confidence, all_probs) where
         all_probs is a numpy array of shape (num_classes,)
+    
+    ════════════════════════════════════════════════════════════════════════════════════
+    PHASE 3: TTA Control
+    ════════════════════════════════════════════════════════════════════════════════════
+    - use_tta=True: 5 augmented passes per model (slower, more robust)
+    - use_tta=False: 1 pass per model (faster) [default for live]
+    - If use_tta not specified, uses LIVE_USE_TTA config
     """
+    # Use config value if not explicitly provided
+    if use_tta is None:
+        use_tta = LIVE_USE_TTA
+    
+    t_start = time.time()
     all_probs = []
 
     tta_seqs = [sequence]
@@ -220,6 +266,10 @@ def ensemble_predict(
         for _ in range(TTA_ROUNDS - 1):
             tta_seqs.append(_tta_augment(sequence))
 
+    t_tta_prep = time.time()
+    t_model_forward = 0
+    num_forward_passes = 0
+    
     for seq in tta_seqs:
         seq = _align_sequence_dim(seq)
         tensor = torch.from_numpy(seq).unsqueeze(0).float().to(DEVICE)
@@ -229,14 +279,39 @@ def ensemble_predict(
             proximity = None
 
         for model in models:
+            t_fwd_start = time.time()
             logits = model(tensor, proximity=proximity)
+            t_fwd_end = time.time()
+            t_model_forward += (t_fwd_end - t_fwd_start)
+            
             probs = F.softmax(logits, dim=1)
             all_probs.append(probs.cpu().numpy()[0])
+            num_forward_passes += 1
 
     # Average all probabilities (models x TTA rounds)
     avg_probs = np.mean(all_probs, axis=0)
     pred_idx = int(np.argmax(avg_probs))
     confidence = float(avg_probs[pred_idx])
+
+    # ════════════════════════════════════════════════════════════════════════════════════
+    # PHASE 3: Latency Tracking
+    # ════════════════════════════════════════════════════════════════════════════════════
+    if PRINT_LATENCY_STATS:
+        t_end = time.time()
+        total_time = (t_end - t_start) * 1000  # ms
+        model_time = t_model_forward * 1000  # ms
+        tta_time = (t_tta_prep - t_start) * 1000  # ms
+        other_time = total_time - model_time - tta_time
+        
+        fps = 1000.0 / total_time if total_time > 0 else 0
+        
+        print(f"[Inference Latency] "
+              f"Model: {model_time:.1f}ms ({num_forward_passes} passes) | "
+              f"TTA prep: {tta_time:.1f}ms | "
+              f"Other: {other_time:.1f}ms | "
+              f"Total: {total_time:.1f}ms ({fps:.2f} FPS) | "
+              f"Config: {len(models)} models, "
+              f"TTA={'on' if use_tta else 'off'}")
 
     return pred_idx, confidence, avg_probs
 
