@@ -61,8 +61,8 @@ AUGMENTED_DATASET_DIR = os.path.join(
 AUGMENTABLE_VIDEO_EXTENSIONS = (".mp4", ".mov")
 VIDEO_AUGMENT_WIDTH = 224
 VIDEO_AUGMENT_HEIGHT = 224
-VIDEO_AUGMENT_MAX_PER_VIDEO = 8
-VIDEO_AUGMENT_MAX_PER_CLASS = 200
+VIDEO_AUGMENT_MAX_PER_VIDEO = 33  # 3 crops × 10 effects + 3 spatial-only = 33
+VIDEO_AUGMENT_MAX_PER_CLASS = 900
 
 try:
     from tqdm import tqdm
@@ -165,6 +165,47 @@ def _apply_visual_effect(
         M = cv2.getRotationMatrix2D((w / 2, h / 2), angle, 1.0)
         return cv2.warpAffine(frame, M, (w, h), borderMode=cv2.BORDER_REFLECT)
 
+    if effect_name == "hue":
+        # Random hue shift in HSV color space
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV).astype(np.float32)
+        hue_shift = rng.uniform(-15, 15)
+        hsv[:, :, 0] = np.clip(hsv[:, :, 0] + hue_shift, 0, 179)
+        return cv2.cvtColor(np.uint8(hsv), cv2.COLOR_HSV2BGR)
+
+    if effect_name == "fog":
+        # Simulate fog by adding white Gaussian noise and reducing contrast
+        fog_intensity = rng.uniform(0.15, 0.35)
+        fog_layer = np.random.normal(200, 30, frame.shape).astype(np.float32)
+        frame_float = frame.astype(np.float32)
+        # Blend frame with fog
+        fogged = frame_float * (1.0 - fog_intensity) + fog_layer * fog_intensity
+        return np.clip(fogged, 0, 255).astype(np.uint8)
+
+    if effect_name == "pixel_dropout":
+        # Random pixel dropout (set random pixels to 0 or blur them)
+        frame_out = frame.copy()
+        h, w = frame.shape[:2]
+        dropout_rate = rng.uniform(0.02, 0.08)  # 2-8% of pixels
+        num_pixels = int(h * w * dropout_rate)
+        for _ in range(num_pixels):
+            y, x = rng.randint(0, h), rng.randint(0, w)
+            frame_out[y, x] = [rng.randint(0, 256) for _ in range(3)]
+        return frame_out
+
+    if effect_name == "coarse_dropout":
+        # Drop random patches (like DropBlock regularization)
+        frame_out = frame.copy().astype(np.float32)
+        h, w = frame.shape[:2]
+        block_size = rng.randint(8, 24)
+        num_blocks = rng.randint(2, 6)
+        for _ in range(num_blocks):
+            y = rng.randint(0, max(1, h - block_size))
+            x = rng.randint(0, max(1, w - block_size))
+            y_end = min(y + block_size, h)
+            x_end = min(x + block_size, w)
+            frame_out[y:y_end, x:x_end] = rng.randint(100, 200)
+        return np.clip(frame_out, 0, 255).astype(np.uint8)
+
     raise ValueError(f"Unknown effect: {effect_name}")
 
 
@@ -174,68 +215,65 @@ def _make_augmented_variants(
     target_width: int,
     target_height: int,
 ) -> list[tuple[str, Callable[[np.ndarray], np.ndarray]]]:
-    """Build up to 8 independent, frame-wise augmentation variants."""
-    augment_count = max(0, min(augment_count, VIDEO_AUGMENT_MAX_PER_VIDEO))
+    """Build all combination variants: 3 crops × 10 effects = 30 total.
+    
+    Systematically covers ALL combinations:
+    - Variants 1-3: Spatial only (center, left, right crops)
+    - Variants 4-33: All 3 crops × 10 effects (center+effect, left+effect, right+effect)
+    
+    Order:
+    - Variants 4-13: center crop + each effect (brightness through coarse_dropout)
+    - Variants 14-23: left crop + each effect
+    - Variants 24-33: right crop + each effect
+    """
+    augment_count = max(0, min(augment_count, 33))  # Support up to 33 variants
     if augment_count <= 0:
         return []
 
     rng = random.Random(seed)
     variants: list[tuple[str, Callable[[np.ndarray], np.ndarray]]] = []
-    effects = ("scale", "rotation", "contrast", "color_jitter", "noise")
+    
+    # All effects in deterministic order
+    all_effects = (
+        "brightness", "contrast", "hue", "fog", "rotation", 
+        "scale", "color_jitter", "noise", "pixel_dropout", "coarse_dropout"
+    )
+    
+    # All crop positions
+    all_crops = ("center", "left", "right")
 
-    # Variant 1: center crop (baseline)
-    if augment_count >= 1:
-        variants.append(("aug1", lambda frame: _build_square_crop(frame, "center", target_width, target_height)))
+    # Variant 1-3: Spatial only (baseline variants)
+    for crop_idx, crop_pos in enumerate(all_crops, 1):
+        if augment_count >= crop_idx:
+            def _spatial_only(
+                frame: np.ndarray, 
+                pos: str = crop_pos
+            ) -> np.ndarray:
+                return _build_square_crop(frame, pos, target_width, target_height)
+            variants.append((f"aug{crop_idx}", _spatial_only))
     
-    # Variant 2: left crop
-    if augment_count >= 2:
-        variants.append(("aug2", lambda frame: _build_square_crop(frame, "left", target_width, target_height)))
-    
-    # Variant 3: right crop
-    if augment_count >= 3:
-        variants.append(("aug3", lambda frame: _build_square_crop(frame, "right", target_width, target_height)))
-    
-    # Variant 4: center crop + random effect
-    if augment_count >= 4:
-        effect_name = rng.choice(effects)
-        def _aug4(frame: np.ndarray, effect: str = effect_name, local_rng: random.Random = rng) -> np.ndarray:
-            base = _build_square_crop(frame, "center", target_width, target_height)
-            return _apply_visual_effect(base, effect, local_rng)
-        variants.append(("aug4", _aug4))
-    
-    # Variant 5: left crop + random effect
-    if augment_count >= 5:
-        effect_name = rng.choice(effects)
-        def _aug5(frame: np.ndarray, effect: str = effect_name, local_rng: random.Random = rng) -> np.ndarray:
-            base = _build_square_crop(frame, "left", target_width, target_height)
-            return _apply_visual_effect(base, effect, local_rng)
-        variants.append(("aug5", _aug5))
-    
-    # Variant 6: right crop + random effect
-    if augment_count >= 6:
-        effect_name = rng.choice(effects)
-        def _aug6(frame: np.ndarray, effect: str = effect_name, local_rng: random.Random = rng) -> np.ndarray:
-            base = _build_square_crop(frame, "right", target_width, target_height)
-            return _apply_visual_effect(base, effect, local_rng)
-        variants.append(("aug6", _aug6))
-    
-    # Variant 7: center crop + stacked effects (two sequential effects)
-    if augment_count >= 7:
-        effect1 = rng.choice(effects)
-        effect2 = rng.choice(effects)
-        def _aug7(frame: np.ndarray, e1: str = effect1, e2: str = effect2, local_rng: random.Random = rng) -> np.ndarray:
-            base = _build_square_crop(frame, "center", target_width, target_height)
-            base = _apply_visual_effect(base, e1, local_rng)
-            return _apply_visual_effect(base, e2, local_rng)
-        variants.append(("aug7", _aug7))
-    
-    # Variant 8: center crop + different effect combo
-    if augment_count >= 8:
-        effect_name = rng.choice(effects)
-        def _aug8(frame: np.ndarray, effect: str = effect_name, local_rng: random.Random = rng) -> np.ndarray:
-            base = _build_square_crop(frame, "center", target_width, target_height)
-            return _apply_visual_effect(base, effect, local_rng)
-        variants.append(("aug8", _aug8))
+    # Variants 4-33: All crop × effect combinations
+    variant_idx = 4
+    for crop_pos in all_crops:
+        for effect_name in all_effects:
+            if variant_idx > augment_count:
+                break
+            
+            # Create closure with current crop_pos and effect_name
+            def _aug_crop_effect(
+                frame: np.ndarray,
+                crop: str = crop_pos,
+                effect: str = effect_name,
+                local_rng: random.Random = rng
+            ) -> np.ndarray:
+                base = _build_square_crop(frame, crop, target_width, target_height)
+                return _apply_visual_effect(base, effect, local_rng)
+            
+            variants.append((f"aug{variant_idx}", _aug_crop_effect))
+            variant_idx += 1
+        
+        if variant_idx > augment_count:
+            break
 
     return variants
 

@@ -397,6 +397,182 @@ def simulate_face_anchor_shift(seq: np.ndarray) -> np.ndarray:
     return _pack_seq(pos_new, vel_new)
 
 
+def landmark_3d_rotation(seq: np.ndarray, axis: str = 'z', angle: Optional[float] = None) -> np.ndarray:
+    """Apply 3D rotation to landmark coordinates around specified axis (x, y, or z).
+    
+    Simulates camera angle changes or hand rotation in 3D space.
+    axis: 'x', 'y', or 'z' (random if not specified)
+    angle: rotation angle in degrees (random in ±15 degrees if not specified)
+    """
+    pos, vel = _split_pos_vel(seq)
+    
+    if axis is None or not isinstance(axis, str) or axis.lower() not in ['x', 'y', 'z']:
+        axis = np.random.choice(['x', 'y', 'z'])
+    else:
+        axis = axis.lower()
+    
+    if angle is None:
+        angle = np.random.uniform(-15, 15)
+    
+    angle_rad = np.radians(float(angle))
+    cos_a = np.cos(angle_rad)
+    sin_a = np.sin(angle_rad)
+    
+    total_dims = pos.shape[1]
+    landmark_coords = (total_dims // 3) * 3
+    
+    if landmark_coords <= 0:
+        pos_new = pos.copy()
+    else:
+        n_landmarks = landmark_coords // 3
+        landmark_block = pos[:, :landmark_coords].copy().reshape(NUM_FRAMES, n_landmarks, 3)
+        
+        # Apply rotation matrix
+        for t in range(NUM_FRAMES):
+            for i in range(n_landmarks):
+                x, y, z = landmark_block[t, i]
+                
+                if axis == 'x':
+                    # Rotation around X axis
+                    y_new = y * cos_a - z * sin_a
+                    z_new = y * sin_a + z * cos_a
+                    landmark_block[t, i] = [x, y_new, z_new]
+                elif axis == 'y':
+                    # Rotation around Y axis
+                    x_new = x * cos_a + z * sin_a
+                    z_new = -x * sin_a + z * cos_a
+                    landmark_block[t, i] = [x_new, y, z_new]
+                elif axis == 'z':
+                    # Rotation around Z axis (most common)
+                    x_new = x * cos_a - y * sin_a
+                    y_new = x * sin_a + y * cos_a
+                    landmark_block[t, i] = [x_new, y_new, z]
+        
+        landmark_flat = landmark_block.reshape(NUM_FRAMES, -1)
+        if landmark_coords < total_dims:
+            tail = pos[:, landmark_coords:]
+            pos_new = np.concatenate([landmark_flat, tail], axis=1)
+        else:
+            pos_new = landmark_flat
+    
+    vel_new = _recompute_velocity(pos_new) if vel is not None else None
+    return _pack_seq(pos_new, vel_new)
+
+
+def landmark_pixel_dropout(seq: np.ndarray, dropout_rate: Optional[float] = None) -> np.ndarray:
+    """Randomly drop (zero out) individual landmarks, simulating missing detection.
+    
+    dropout_rate: fraction of landmarks to drop (default: random 0.05-0.15)
+    """
+    pos, vel = _split_pos_vel(seq)
+    
+    if dropout_rate is None:
+        dropout_rate = np.random.uniform(0.05, 0.15)
+    
+    total_dims = pos.shape[1]
+    landmark_coords = (total_dims // 3) * 3
+    
+    if landmark_coords <= 0:
+        pos_new = pos.copy()
+    else:
+        n_landmarks = landmark_coords // 3
+        num_to_drop = max(1, int(np.ceil(n_landmarks * dropout_rate)))
+        drop_indices = np.random.choice(n_landmarks, num_to_drop, replace=False)
+        
+        landmark_block = pos[:, :landmark_coords].copy().reshape(NUM_FRAMES, n_landmarks, 3)
+        for idx in drop_indices:
+            landmark_block[:, idx, :] = 0.0  # Zero out the landmark
+        
+        landmark_flat = landmark_block.reshape(NUM_FRAMES, -1)
+        if landmark_coords < total_dims:
+            tail = pos[:, landmark_coords:]
+            pos_new = np.concatenate([landmark_flat, tail], axis=1)
+        else:
+            pos_new = landmark_flat
+    
+    vel_new = _recompute_velocity(pos_new) if vel is not None else None
+    return _pack_seq(pos_new, vel_new)
+
+
+def landmark_coarse_dropout(seq: np.ndarray, block_size: Optional[int] = None) -> np.ndarray:
+    """Drop a contiguous block of landmarks (like DropBlock for sequences).
+    
+    Simulates occlusion or partial hand loss. Zeros out a random range of landmarks.
+    block_size: number of consecutive landmarks to drop (default: random 2-6)
+    """
+    pos, vel = _split_pos_vel(seq)
+    
+    if block_size is None:
+        block_size = np.random.randint(2, 7)
+    
+    total_dims = pos.shape[1]
+    landmark_coords = (total_dims // 3) * 3
+    
+    if landmark_coords <= 0:
+        pos_new = pos.copy()
+    else:
+        n_landmarks = landmark_coords // 3
+        if block_size >= n_landmarks:
+            # Drop all landmarks
+            pos_new = pos.copy()
+            pos_new[:, :landmark_coords] = 0.0
+        else:
+            start_idx = np.random.randint(0, n_landmarks - block_size + 1)
+            end_idx = start_idx + block_size
+            
+            landmark_block = pos[:, :landmark_coords].copy().reshape(NUM_FRAMES, n_landmarks, 3)
+            landmark_block[:, start_idx:end_idx, :] = 0.0  # Zero out block
+            
+            landmark_flat = landmark_block.reshape(NUM_FRAMES, -1)
+            if landmark_coords < total_dims:
+                tail = pos[:, landmark_coords:]
+                pos_new = np.concatenate([landmark_flat, tail], axis=1)
+            else:
+                pos_new = landmark_flat
+    
+    vel_new = _recompute_velocity(pos_new) if vel is not None else None
+    return _pack_seq(pos_new, vel_new)
+
+
+def landmark_fog_noise(seq: np.ndarray, intensity: Optional[float] = None) -> np.ndarray:
+    """Add enhanced noise to simulate poor visibility (fog-like effect).
+    
+    intensity: noise standard deviation (default: random 0.03-0.08)
+    """
+    pos, vel = _split_pos_vel(seq)
+    
+    if intensity is None:
+        intensity = np.random.uniform(0.03, 0.08)
+    
+    # Add heavier Gaussian noise
+    noise = np.random.randn(*pos.shape).astype(np.float32) * float(intensity)
+    pos_noisy = pos + noise
+    
+    vel_new = _recompute_velocity(pos_noisy) if vel is not None else None
+    return _pack_seq(pos_noisy, vel_new)
+
+
+def landmark_brightness_contrast(seq: np.ndarray, scale: Optional[float] = None) -> np.ndarray:
+    """Scale landmark magnitudes to simulate brightness/contrast changes.
+    
+    Increases or decreases the spread of landmark values around their mean.
+    scale: multiplier for contrast (default: random 0.85-1.15)
+    """
+    pos, vel = _split_pos_vel(seq)
+    
+    if scale is None:
+        scale = np.random.uniform(0.85, 1.15)
+    
+    # Compute per-frame mean
+    pos_new = pos.copy()
+    for t in range(NUM_FRAMES):
+        frame_mean = pos_new[t].mean()
+        pos_new[t] = (pos_new[t] - frame_mean) * float(scale) + frame_mean
+    
+    vel_new = _recompute_velocity(pos_new) if vel is not None else None
+    return _pack_seq(pos_new, vel_new)
+
+
 def augment_sequence(sequence: np.ndarray, variants: int = 3) -> List[np.ndarray]:
     """Generate multiple augmented versions of a single sequence.
 
@@ -418,6 +594,11 @@ def augment_sequence(sequence: np.ndarray, variants: int = 3) -> List[np.ndarray
         (random_translation, 0.6),
         (random_scaling, 0.6),
         (horizontal_flip, 0.15),
+        (landmark_3d_rotation, 0.6),
+        (landmark_pixel_dropout, 0.35),
+        (landmark_coarse_dropout, 0.25),
+        (landmark_fog_noise, 0.5),
+        (landmark_brightness_contrast, 0.4),
     ]
 
     while len(out) < variants and attempts < variants * 6:
@@ -464,6 +645,17 @@ def augment_sequence(sequence: np.ndarray, variants: int = 3) -> List[np.ndarray
                 s = simulate_hand_proportions(s)
             elif fn is simulate_face_anchor_shift:
                 s = simulate_face_anchor_shift(s)
+            elif fn is landmark_3d_rotation:
+                axis = rng.choice(['x', 'y', 'z'])
+                s = landmark_3d_rotation(s, axis=axis)
+            elif fn is landmark_pixel_dropout:
+                s = landmark_pixel_dropout(s)
+            elif fn is landmark_coarse_dropout:
+                s = landmark_coarse_dropout(s)
+            elif fn is landmark_fog_noise:
+                s = landmark_fog_noise(s)
+            elif fn is landmark_brightness_contrast:
+                s = landmark_brightness_contrast(s)
 
         # final dtype & shape check
         s = np.asarray(s, dtype=np.float32)

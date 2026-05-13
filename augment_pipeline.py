@@ -21,7 +21,11 @@ import argparse
 import subprocess
 import sys
 import time
+import os
 from pathlib import Path
+from config import get_config
+
+cfg = get_config()
 
 
 def run_command(cmd, step_name, iteration=None):
@@ -52,26 +56,27 @@ def main():
     parser.add_argument(
         "--class",
         dest="class_name",
-        required=True,
-        help="Class name to augment (e.g., 'old', 'young')"
+        required=False,
+        default=None,
+        help="Class name to augment (e.g., 'old', 'young'). If not provided, runs for ALL classes."
     )
     parser.add_argument(
         "--augment-iterations",
         type=int,
-        default=4,
-        help="Number of times to run augmentation (default: 4)"
+        default=10,
+        help="Number of times to run augmentation (default: 10)"
     )
     parser.add_argument(
         "--merge-iterations",
         type=int,
-        default=4,
-        help="Number of times to run merge (default: 4)"
+        default=10,
+        help="Number of times to run merge (default: 10)"
     )
     parser.add_argument(
         "--augment-n",
         type=int,
-        default=3,
-        help="Number of augmentations per iteration (default: 3)"
+        default=10,
+        help="Number of augmentations per iteration (default: 10)"
     )
     parser.add_argument(
         "--skip-cleanup",
@@ -81,72 +86,87 @@ def main():
     
     args = parser.parse_args()
     
-    # Validate class name
-    class_name = args.class_name.strip()
-    if not class_name:
-        print("Error: Class name cannot be empty")
-        sys.exit(1)
+    # Get class list
+    if args.class_name:
+        classes = [args.class_name.strip()]
+    else:
+        # Get all classes from processed directory
+        processed_dir = cfg.paths.processed_dir
+        classes = sorted([
+            d for d in os.listdir(processed_dir)
+            if os.path.isdir(os.path.join(processed_dir, d))
+        ])
+        if not classes:
+            print(f"Error: No classes found in {processed_dir}")
+            sys.exit(1)
     
     print(f"\n{'*' * 70}")
     print(f"Augmentation Pipeline")
     print(f"{'*' * 70}")
-    print(f"Class: {class_name}")
+    print(f"Classes to process: {len(classes)} - {', '.join(classes[:5])}{'...' if len(classes) > 5 else ''}")
     print(f"Augment iterations: {args.augment_iterations}")
     print(f"Merge iterations: {args.merge_iterations}")
     print(f"Augment N: {args.augment_n}")
     print(f"{'*' * 70}\n")
     
     failed_steps = []
+    total_classes = len(classes)
     
-    # Phase 1: Augmentation
-    print(f"\n### Phase 1: Augmentation ({args.augment_iterations} iterations) ###")
-    for i in range(1, args.augment_iterations + 1):
-        cmd = [
-            sys.executable,
-            "main.py",
-            "--augment-landmarks",
-            "--augment-landmarks-cls",
-            class_name,
-            "--augment-landmarks-n",
-            str(args.augment_n)
-        ]
-        if not run_command(cmd, "Augmentation", iteration=i):
-            failed_steps.append(f"Augmentation iteration {i}")
-    
-    # Phase 2: Merge (all 4 types)
-    merge_modes = ["splice", "blend", "hand_swap", "hybrid"]
-    print(f"\n### Phase 2: Merge (4 modes × {args.merge_iterations} iterations = {4 * args.merge_iterations} total) ###")
-    for mode in merge_modes:
-        for i in range(1, args.merge_iterations + 1):
+    # Process each class
+    for class_idx, class_name in enumerate(classes, 1):
+        print(f"\n{'#' * 70}")
+        print(f"Processing Class {class_idx}/{total_classes}: {class_name}")
+        print(f"{'#' * 70}\n")
+        
+        # Phase 1: Augmentation
+        print(f"\n### Phase 1: Augmentation ({args.augment_iterations} iterations) ###")
+        for i in range(1, args.augment_iterations + 1):
             cmd = [
                 sys.executable,
-                "merge_augmentations.py",
-                "processed",
-                "--output_dir",
-                "processed",
-                "--n",
-                "2",
-                "--mode",
-                mode,
+                "main.py",
+                "--augment-landmarks",
+                "--augment-landmarks-cls",
+                class_name,
+                "--augment-landmarks-n",
+                str(args.augment_n)
+            ]
+            if not run_command(cmd, f"[{class_name}] Augmentation", iteration=i):
+                failed_steps.append(f"{class_name}: Augmentation iteration {i}")
+        
+        # Phase 2: Merge (all 4 types)
+        merge_modes = ["splice", "blend", "hand_swap", "hybrid"]
+        print(f"\n### Phase 2: Merge (4 modes × {args.merge_iterations} iterations = {4 * args.merge_iterations} total) ###")
+        for mode in merge_modes:
+            for i in range(1, args.merge_iterations + 1):
+                cmd = [
+                    sys.executable,
+                    "merge_augmentations.py",
+                    "processed",
+                    "--output_dir",
+                    "processed",
+                    "--n",
+                    "2",
+                    "--mode",
+                    mode,
+                    "--class",
+                    class_name
+                ]
+                if not run_command(cmd, f"[{class_name}] Merge ({mode})", iteration=i):
+                    failed_steps.append(f"{class_name}: Merge {mode} iteration {i}")
+        
+        # Phase 3: Cleanup (per class)
+        if not args.skip_cleanup:
+            print(f"\n### Phase 3: Cleanup ###")
+            cmd = [
+                sys.executable,
+                "cleanup_dataset_npy.py",
                 "--class",
                 class_name
             ]
-            if not run_command(cmd, f"Merge augmentations ({mode})", iteration=i):
-                failed_steps.append(f"Merge {mode} iteration {i}")
-    
-    # Phase 3: Cleanup
-    if not args.skip_cleanup:
-        print(f"\n### Phase 3: Cleanup ###")
-        cmd = [
-            sys.executable,
-            "cleanup_dataset_npy.py",
-            "--class",
-            class_name
-        ]
-        if not run_command(cmd, "Cleanup dataset"):
-            failed_steps.append("Cleanup")
-    else:
-        print("\n### Phase 3: Cleanup (skipped) ###")
+            if not run_command(cmd, f"[{class_name}] Cleanup"):
+                failed_steps.append(f"{class_name}: Cleanup")
+        else:
+            print(f"\n### Phase 3: Cleanup (skipped) ###")
     
     # Summary
     print(f"\n{'=' * 70}")
@@ -159,7 +179,7 @@ def main():
             print(f"  - {step}")
         sys.exit(1)
     else:
-        print("✓ Pipeline completed successfully!")
+        print(f"✓ Pipeline completed successfully for {total_classes} class(es)!")
         sys.exit(0)
 
 
