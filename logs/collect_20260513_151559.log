@@ -1,0 +1,18 @@
+2026-05-13 15:15:59,419 | INFO | Logger initialized for collect
+2026-05-13 15:15:59,420 | INFO | Log file: logs\collect_20260513_151559.log
+2026-05-13 15:15:59,420 | INFO | {"event": "record_start", "timestamp": "2026-05-13T15:15:59", "class_name": "heavy", "target_samples": 20}
+2026-05-13 15:15:59,422 | INFO | [Collect] Class: 'heavy'
+2026-05-13 15:15:59,423 | INFO | [Collect] Existing samples: 72
+2026-05-13 15:15:59,423 | INFO | [Collect] Recording: 90 frames (~3s), sub-sampled to 20
+2026-05-13 15:15:59,423 | INFO | [Collect] Target: 20 new samples
+2026-05-13 15:16:04,551 | INFO | Controls:
+2026-05-13 15:16:04,552 | INFO |   Auto mode enabled: recording until target is reached
+2026-05-13 15:16:04,552 | INFO |   SPACE  - (optional) restart countdown manually
+2026-05-13 15:16:04,552 | INFO |   Q/ESC  - Finish and quit
+2026-05-13 15:16:04,553 | INFO |   [REC] Auto countdown 3s...
+2026-05-13 15:16:15,955 | INFO |   [SAVED] #1 -> webcam_1778665575952.npy  (hand: 100%, total: 73)
+2026-05-13 15:16:15,956 | INFO | {"event": "sample_recorded", "timestamp": "2026-05-13T15:16:15", "class_name": "heavy", "sample_num": 1, "filename": "webcam_1778665575952.npy", "frames_with_hand": 90, "total_frames": 90, "hand_detection_pct": "100%", "total_samples_for_class": 73}
+2026-05-13 15:16:15,956 | INFO |   [REC] Next sample in 3s...
+2026-05-13 15:16:20,349 | INFO | [Collect] Done! Saved 1 new samples for 'heavy'.
+2026-05-13 15:16:20,350 | INFO | [Collect] Total samples for 'heavy': 73
+2026-05-13 15:16:20,350 | INFO | {"event": "record_end", "timestamp": "2026-05-13T15:16:20", "class_name": "heavy", "new_samples_saved": 1, "total_samples_for_class": 73}
