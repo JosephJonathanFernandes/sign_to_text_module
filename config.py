@@ -47,6 +47,8 @@ class PathsConfig:
         os.path.dirname(os.path.abspath(__file__)), "Dataset"))
     processed_dir: str = field(default_factory=lambda: os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "processed"))
+    augmented_dataset_dir: str = field(default_factory=lambda: os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "augmented_dataset"))
     model_save_path: str = field(default_factory=lambda: os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "model.pth"))
     ensemble_dir: str = field(default_factory=lambda: os.path.join(

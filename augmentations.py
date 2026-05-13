@@ -12,6 +12,8 @@ All augmentations preserve the feature layout and final shape.
 """
 from __future__ import annotations
 
+import contextlib
+import hashlib
 import os
 import uuid
 from typing import List, Optional
@@ -30,6 +32,16 @@ INPUT_SIZE = cfg.frame_features.input_sequence_dim
 NUM_FRAMES = cfg.preprocessing.num_frames
 USE_VELOCITY = cfg.frame_features.use_velocity
 PROXIMITY_DIM = cfg.spatial.proximity_dim
+DEFAULT_AUGMENT_VARIANTS = 20
+
+
+_FINGER_GROUPS = {
+    "thumb": [1, 2, 3, 4],
+    "index": [5, 6, 7, 8],
+    "middle": [9, 10, 11, 12],
+    "ring": [13, 14, 15, 16],
+    "pinky": [17, 18, 19, 20],
+}
 
 
 def _is_webcam_file(filename: str) -> bool:
@@ -117,6 +129,22 @@ def _pack_seq(pos: np.ndarray, vel: Optional[np.ndarray]) -> np.ndarray:
     elif out.shape[1] > INPUT_SIZE:
         out = out[:, :INPUT_SIZE]
     return out.astype(np.float32)
+
+
+def _variant_seed(sequence: np.ndarray, variant_name: str) -> int:
+    payload = np.ascontiguousarray(sequence, dtype=np.float32).tobytes() + variant_name.encode("utf-8")
+    digest = hashlib.sha256(payload).digest()
+    return int.from_bytes(digest[:4], "big", signed=False)
+
+
+@contextlib.contextmanager
+def _temporary_numpy_seed(seed: int):
+    state = np.random.get_state()
+    np.random.seed(seed)
+    try:
+        yield
+    finally:
+        np.random.set_state(state)
 
 
 def temporal_speed_variation(seq: np.ndarray, speed_factor: float) -> np.ndarray:
@@ -573,91 +601,279 @@ def landmark_brightness_contrast(seq: np.ndarray, scale: Optional[float] = None)
     return _pack_seq(pos_new, vel_new)
 
 
-def augment_sequence(sequence: np.ndarray, variants: int = 3) -> List[np.ndarray]:
-    """Generate multiple augmented versions of a single sequence.
+def time_shift_with_wrap_or_pad(seq: np.ndarray, max_shift: int = 3, mode: Optional[str] = None) -> np.ndarray:
+    """Shift sequence in time using wrap-around or zero-padding.
 
-    The function composes random combinations of the elementary augmentations
-    while keeping the output count equal to `variants`.
+    mode:
+        - 'wrap': circular shift
+        - 'pad': shift with zero-fill on exposed side
+        - None: randomly chooses between wrap and pad
     """
-    out = []
-    rng = np.random.RandomState()
+    pos, vel = _split_pos_vel(seq)
+    T = pos.shape[0]
+    if T <= 1:
+        return seq.astype(np.float32)
 
-    attempts = 0
-    # Define augmentation candidates with base selection probabilities
-    aug_candidates = [
-        (simulate_new_person, 0.7),
-        (simulate_hand_proportions, 0.65),
-        (simulate_face_anchor_shift, 0.55),
-        (temporal_speed_variation, 0.5),
-        (frame_drop_and_interpolate, 0.45),
-        (spatial_noise_injection, 0.9),
-        (random_translation, 0.6),
-        (random_scaling, 0.6),
-        (horizontal_flip, 0.15),
-        (landmark_3d_rotation, 0.6),
-        (landmark_pixel_dropout, 0.35),
-        (landmark_coarse_dropout, 0.25),
-        (landmark_fog_noise, 0.5),
-        (landmark_brightness_contrast, 0.4),
+    max_shift = max(1, min(int(max_shift), T - 1))
+    shift = int(np.random.randint(-max_shift, max_shift + 1))
+    if shift == 0:
+        shift = 1
+
+    if mode is None:
+        mode = str(np.random.choice(["wrap", "pad"]))
+    mode = mode.lower()
+
+    if mode == "wrap":
+        pos_new = np.roll(pos, shift=shift, axis=0)
+    else:
+        pos_new = np.zeros_like(pos)
+        if shift > 0:
+            pos_new[shift:] = pos[:-shift]
+        else:
+            k = -shift
+            pos_new[:T - k] = pos[k:]
+
+    vel_new = _recompute_velocity(pos_new) if vel is not None else None
+    return _pack_seq(pos_new, vel_new)
+
+
+def piecewise_temporal_warp(seq: np.ndarray, n_segments: int = 3,
+                            speed_min: float = 0.72, speed_max: float = 1.35) -> np.ndarray:
+    """Apply piecewise speed changes over different temporal segments.
+
+    Each segment is stretched/compressed independently, then the result is
+    resampled back to NUM_FRAMES.
+    """
+    pos, vel = _split_pos_vel(seq)
+    T = pos.shape[0]
+    if T <= 3:
+        return seq.astype(np.float32)
+
+    n_segments = int(max(2, min(n_segments, max(2, T // 3))))
+    candidates = np.arange(1, T - 1)
+    if n_segments - 1 > candidates.size:
+        cut_points = np.array([], dtype=np.int32)
+    else:
+        cut_points = np.sort(np.random.choice(candidates, n_segments - 1, replace=False))
+    bounds = np.concatenate(([0], cut_points, [T - 1]))
+
+    warped_parts: List[np.ndarray] = []
+    for i in range(len(bounds) - 1):
+        start = int(bounds[i])
+        end = int(bounds[i + 1])
+        seg = pos[start:end + 1]
+        seg_len = seg.shape[0]
+        if seg_len <= 1:
+            continue
+
+        speed = float(np.random.uniform(speed_min, speed_max))
+        warped_len = max(2, int(round(seg_len / speed)))
+
+        t_seg = np.linspace(0.0, 1.0, seg_len)
+        t_warp = np.linspace(0.0, 1.0, warped_len)
+        interp_fn = interpolate.interp1d(
+            t_seg, seg, axis=0, kind="linear", bounds_error=False, fill_value="extrapolate"
+        )
+        seg_warped = interp_fn(t_warp)
+
+        if i > 0 and warped_parts:
+            seg_warped = seg_warped[1:]
+        warped_parts.append(seg_warped)
+
+    if not warped_parts:
+        pos_new = pos.copy()
+    else:
+        concat = np.concatenate(warped_parts, axis=0)
+        if concat.shape[0] < 2:
+            pos_new = pos.copy()
+        else:
+            t_concat = np.linspace(0.0, 1.0, concat.shape[0])
+            t_final = np.linspace(0.0, 1.0, T)
+            interp_final = interpolate.interp1d(t_concat, concat, axis=0, kind="linear")
+            pos_new = interp_final(t_final)
+
+    vel_new = _recompute_velocity(pos_new) if vel is not None else None
+    return _pack_seq(pos_new, vel_new)
+
+
+def _scale_finger_group(block: np.ndarray, finger_scales: dict) -> np.ndarray:
+    """Scale finger articulation per finger group in one hand block (T, 63)."""
+    arr = block.reshape(block.shape[0], 21, 3).copy()
+    for finger_name, idxs in _FINGER_GROUPS.items():
+        root_idx = idxs[0]
+        scale = float(finger_scales[finger_name])
+        root = arr[:, root_idx:root_idx + 1, :]
+        arr[:, idxs, :] = root + (arr[:, idxs, :] - root) * scale
+    return arr.reshape(block.shape[0], -1)
+
+
+def per_finger_articulation_scaling(seq: np.ndarray) -> np.ndarray:
+    """Scale articulation per finger (thumb/index/middle/ring/pinky) per hand.
+
+    Uses different factors for each finger instead of global hand scaling.
+    """
+    pos, vel = _split_pos_vel(seq)
+    pos_new = pos.copy()
+    total_dims = pos_new.shape[1]
+    l_raw, r_raw, l_rel, r_rel, _ = _get_block_slices(total_dims)
+
+    left_scales = {k: np.random.uniform(0.82, 1.22) for k in _FINGER_GROUPS}
+    right_scales = {k: np.random.uniform(0.82, 1.22) for k in _FINGER_GROUPS}
+
+    if l_raw.stop <= total_dims:
+        pos_new[:, l_raw] = _scale_finger_group(pos_new[:, l_raw], left_scales)
+    if r_raw.stop <= total_dims:
+        pos_new[:, r_raw] = _scale_finger_group(pos_new[:, r_raw], right_scales)
+    if l_rel.stop <= total_dims:
+        pos_new[:, l_rel] = _scale_finger_group(pos_new[:, l_rel], left_scales)
+    if r_rel.stop <= total_dims:
+        pos_new[:, r_rel] = _scale_finger_group(pos_new[:, r_rel], right_scales)
+
+    vel_new = _recompute_velocity(pos_new) if vel is not None else None
+    return _pack_seq(pos_new, vel_new)
+
+
+def wrist_trajectory_drift(seq: np.ndarray, max_drift_xy: float = 0.03, max_drift_z: float = 0.01) -> np.ndarray:
+    """Add smooth wrist-centered trajectory drift over time.
+
+    A small low-frequency drift is applied to all landmarks, approximating
+    subtle camera/subject movement.
+    """
+    pos, vel = _split_pos_vel(seq)
+    pos_new = pos.copy()
+    T = pos_new.shape[0]
+
+    steps = np.random.normal(loc=0.0, scale=0.004, size=(T, 3)).astype(np.float32)
+    steps[:, 2] *= 0.5
+    drift = np.cumsum(steps, axis=0)
+
+    kernel = np.array([1.0, 2.0, 3.0, 2.0, 1.0], dtype=np.float32)
+    kernel /= kernel.sum()
+    for d in range(3):
+        drift[:, d] = np.convolve(drift[:, d], kernel, mode="same")
+
+    drift[:, 0] = np.clip(drift[:, 0], -max_drift_xy, max_drift_xy)
+    drift[:, 1] = np.clip(drift[:, 1], -max_drift_xy, max_drift_xy)
+    drift[:, 2] = np.clip(drift[:, 2], -max_drift_z, max_drift_z)
+
+    triples = pos_new.shape[1] // 3
+    if triples > 0:
+        xyz = pos_new[:, :triples * 3].reshape(T, triples, 3)
+        xyz += drift[:, None, :]
+        pos_new[:, :triples * 3] = xyz.reshape(T, -1)
+
+    vel_new = _recompute_velocity(pos_new) if vel is not None else None
+    return _pack_seq(pos_new, vel_new)
+
+
+def _mask_landmarks_in_block(block: np.ndarray, landmark_indices: List[int], time_indices: np.ndarray) -> np.ndarray:
+    """Mask selected landmarks in a hand block (T, 63) at selected timesteps."""
+    arr = block.reshape(block.shape[0], 21, 3).copy()
+    arr[np.asarray(time_indices, dtype=np.int32)[:, None], np.asarray(landmark_indices, dtype=np.int32), :] = 0.0
+    return arr.reshape(block.shape[0], -1)
+
+
+def landmark_confidence_masking(seq: np.ndarray) -> np.ndarray:
+    """Apply structured missingness patterns to simulate confidence failures.
+
+    Patterns include finger-level temporal dropouts and hand-level temporal
+    masking with contiguous windows.
+    """
+    pos, vel = _split_pos_vel(seq)
+    pos_new = pos.copy()
+    total_dims = pos_new.shape[1]
+    T = pos_new.shape[0]
+    l_raw, r_raw, l_rel, r_rel, _ = _get_block_slices(total_dims)
+
+    if T <= 2:
+        vel_new = _recompute_velocity(pos_new) if vel is not None else None
+        return _pack_seq(pos_new, vel_new)
+
+    pattern = str(np.random.choice(["finger_window", "hand_window", "staggered_fingers"]))
+    win_len = int(np.random.randint(3, min(8, T) + 1))
+    start = int(np.random.randint(0, max(1, T - win_len + 1)))
+    time_window = np.arange(start, start + win_len, dtype=np.int32)
+
+    hand_blocks = []
+    if l_raw.stop <= total_dims:
+        hand_blocks.append(("left", l_raw, l_rel if l_rel.stop <= total_dims else None))
+    if r_raw.stop <= total_dims:
+        hand_blocks.append(("right", r_raw, r_rel if r_rel.stop <= total_dims else None))
+
+    if not hand_blocks:
+        vel_new = _recompute_velocity(pos_new) if vel is not None else None
+        return _pack_seq(pos_new, vel_new)
+
+    if pattern == "hand_window":
+        hand_name, raw_slice, rel_slice = hand_blocks[np.random.randint(0, len(hand_blocks))]
+        _ = hand_name
+        all_landmarks = list(range(21))
+        pos_new[:, raw_slice] = _mask_landmarks_in_block(pos_new[:, raw_slice], all_landmarks, time_window)
+        if rel_slice is not None:
+            pos_new[:, rel_slice] = _mask_landmarks_in_block(pos_new[:, rel_slice], all_landmarks, time_window)
+
+    elif pattern == "staggered_fingers":
+        selected_hands = hand_blocks if np.random.rand() < 0.4 else [hand_blocks[np.random.randint(0, len(hand_blocks))]]
+        finger_names = list(_FINGER_GROUPS.keys())
+        chosen = np.random.choice(finger_names, size=2, replace=False)
+        for _, raw_slice, rel_slice in selected_hands:
+            for j, fname in enumerate(chosen):
+                idxs = _FINGER_GROUPS[str(fname)]
+                stagger = time_window[j::2]
+                if stagger.size == 0:
+                    stagger = time_window
+                pos_new[:, raw_slice] = _mask_landmarks_in_block(pos_new[:, raw_slice], idxs, stagger)
+                if rel_slice is not None:
+                    pos_new[:, rel_slice] = _mask_landmarks_in_block(pos_new[:, rel_slice], idxs, stagger)
+
+    else:
+        _, raw_slice, rel_slice = hand_blocks[np.random.randint(0, len(hand_blocks))]
+        fname = str(np.random.choice(list(_FINGER_GROUPS.keys())))
+        idxs = _FINGER_GROUPS[fname]
+        pos_new[:, raw_slice] = _mask_landmarks_in_block(pos_new[:, raw_slice], idxs, time_window)
+        if rel_slice is not None:
+            pos_new[:, rel_slice] = _mask_landmarks_in_block(pos_new[:, rel_slice], idxs, time_window)
+
+    vel_new = _recompute_velocity(pos_new) if vel is not None else None
+    return _pack_seq(pos_new, vel_new)
+
+
+def augment_sequence(sequence: np.ndarray, variants: int = DEFAULT_AUGMENT_VARIANTS) -> List[np.ndarray]:
+    """Generate a fixed ordered set of landmark augmentations.
+
+    This is deterministic in variant selection: each output corresponds to one
+    predefined augmentation variant instead of a random weighted combination.
+    """
+    fixed_variants = [
+        ("aug1", simulate_new_person),
+        ("aug2", simulate_hand_proportions),
+        ("aug3", simulate_face_anchor_shift),
+        ("aug4", lambda s: temporal_speed_variation(s, speed_factor=0.88)),
+        ("aug5", lambda s: frame_drop_and_interpolate(s, n_drop=2)),
+        ("aug6", lambda s: spatial_noise_injection(s, sigma=0.01)),
+        ("aug7", lambda s: random_translation(s, tx=0.03, ty=-0.03)),
+        ("aug8", lambda s: random_scaling(s, scale=1.08, center_mode="mean")),
+        ("aug9", horizontal_flip),
+        ("aug10", lambda s: landmark_3d_rotation(s, axis="z", angle=12.0)),
+        ("aug11", lambda s: landmark_pixel_dropout(s, dropout_rate=0.10)),
+        ("aug12", lambda s: landmark_coarse_dropout(s, block_size=4)),
+        ("aug13", lambda s: landmark_fog_noise(s, intensity=0.05)),
+        ("aug14", lambda s: landmark_brightness_contrast(s, scale=1.10)),
+        ("aug15", lambda s: time_shift_with_wrap_or_pad(s, max_shift=3, mode="wrap")),
+        ("aug16", lambda s: time_shift_with_wrap_or_pad(s, max_shift=2, mode="pad")),
+        ("aug17", lambda s: piecewise_temporal_warp(s, n_segments=3, speed_min=0.75, speed_max=1.30)),
+        ("aug18", per_finger_articulation_scaling),
+        ("aug19", wrist_trajectory_drift),
+        ("aug20", landmark_confidence_masking),
     ]
 
-    while len(out) < variants and attempts < variants * 6:
-        attempts += 1
+    limit = len(fixed_variants) if variants is None or variants <= 0 else min(int(variants), len(fixed_variants))
+    out: List[np.ndarray] = []
+
+    for variant_name, fn in fixed_variants[:limit]:
         s = sequence.copy()
-
-        # choose 2 or 3 augmentations to apply
-        k = int(rng.choice([2, 3], p=[0.5, 0.5]))
-
-        funcs = [f for f, p in aug_candidates]
-        probs = np.array([p for f, p in aug_candidates], dtype=float)
-        probs = probs / probs.sum()
-
-        # sample without replacement using RNG
-        try:
-            idxs = rng.choice(len(funcs), size=k, replace=False, p=probs)
-        except Exception:
-            # fallback to uniform sample if weighted sampling fails
-            idxs = rng.choice(len(funcs), size=k, replace=False)
-
-        selected = list(idxs)
-        rng.shuffle(selected)
-
-        for idx in selected:
-            fn = funcs[idx]
-            if fn is temporal_speed_variation:
-                factor = float(rng.uniform(0.82, 1.22))
-                s = temporal_speed_variation(s, factor)
-            elif fn is frame_drop_and_interpolate:
-                # small chance to drop 1-3 frames
-                n_drop = int(rng.randint(1, min(4, max(2, NUM_FRAMES // 6)) + 1))
-                s = frame_drop_and_interpolate(s, n_drop=n_drop)
-            elif fn is spatial_noise_injection:
-                s = spatial_noise_injection(s, sigma=float(rng.uniform(0.004, 0.02)))
-            elif fn is random_translation:
-                s = random_translation(s)
-            elif fn is random_scaling:
-                s = random_scaling(s)
-            elif fn is horizontal_flip:
-                s = horizontal_flip(s)
-            elif fn is simulate_new_person:
-                s = simulate_new_person(s)
-            elif fn is simulate_hand_proportions:
-                s = simulate_hand_proportions(s)
-            elif fn is simulate_face_anchor_shift:
-                s = simulate_face_anchor_shift(s)
-            elif fn is landmark_3d_rotation:
-                axis = rng.choice(['x', 'y', 'z'])
-                s = landmark_3d_rotation(s, axis=axis)
-            elif fn is landmark_pixel_dropout:
-                s = landmark_pixel_dropout(s)
-            elif fn is landmark_coarse_dropout:
-                s = landmark_coarse_dropout(s)
-            elif fn is landmark_fog_noise:
-                s = landmark_fog_noise(s)
-            elif fn is landmark_brightness_contrast:
-                s = landmark_brightness_contrast(s)
-
-        # final dtype & shape check
+        with _temporary_numpy_seed(_variant_seed(sequence, variant_name)):
+            s = fn(s)
         s = np.asarray(s, dtype=np.float32)
         if s.shape == (NUM_FRAMES, INPUT_SIZE):
             out.append(s)
@@ -723,7 +939,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Augment processed landmark dataset')
     parser.add_argument('input_dir', nargs='?', default=cfg.paths.processed_dir)
     parser.add_argument('--output_dir', default=None)
-    parser.add_argument('--n', type=int, default=3, help='augmentations per sample')
+    parser.add_argument('--n', type=int, default=DEFAULT_AUGMENT_VARIANTS, help='augmentations per sample (fixed ordered variants)')
     parser.add_argument('--class', dest='class_only', default=None, help='only augment this specific class (supports partial name matching)')
     args = parser.parse_args()
 

@@ -24,7 +24,7 @@ import sys
 import os
 from config import get_config
 from preprocess import augment_video_dataset
-from pipeline_logger import PipelineLogger
+from pipeline_logger import setup_pipeline_logger
 
 cfg = get_config()
 
@@ -43,8 +43,8 @@ def main():
     parser.add_argument(
         "--augments",
         type=int,
-        default=33,
-        help="Augmentations per video (default: 33, range: 1-33). Covers: 3 spatial crops + 10 visual effects"
+        default=54,
+        help="Augmentations per video (default: 54). Covers: 3 spatial crops + multiple visual effects"
     )
     parser.add_argument(
         "--max-videos",
@@ -55,8 +55,8 @@ def main():
     parser.add_argument(
         "--clear-output",
         action="store_true",
-        default=True,
-        help="Clear output directory before augmentation (default: True)"
+        default=False,
+        help="Clear output directory before augmentation (default: False)"
     )
     parser.add_argument(
         "--no-clear-output",
@@ -67,9 +67,9 @@ def main():
     
     args = parser.parse_args()
     
-    # Validate augments
-    if args.augments < 1 or args.augments > 33:
-        print("Error: --augments must be between 1 and 33 ")
+    # Validate augments (only lower bound enforced; upper bound is clamped by pipeline)
+    if args.augments < 1:
+        print("Error: --augments must be >= 1")
         sys.exit(1)
     
     # Get class list
@@ -95,7 +95,7 @@ def main():
     print(f"Clear output: {args.clear_output}")
     print(f"{'*' * 70}\n")
     
-    pipeline_log = PipelineLogger()
+    pipeline_log = setup_pipeline_logger("Video Augmentation")
     
     failed_classes = []
     

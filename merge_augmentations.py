@@ -16,7 +16,14 @@ from typing import Optional
 
 import numpy as np
 
-from augmentations import _split_pos_vel, _recompute_velocity, _pack_seq, NUM_FRAMES, INPUT_SIZE
+from augmentations import (
+    _split_pos_vel,
+    _recompute_velocity,
+    _pack_seq,
+    NUM_FRAMES,
+    INPUT_SIZE,
+    spatial_noise_injection,
+)
 
 LANDMARK_DIM = 63
 
@@ -69,6 +76,139 @@ def frame_splice_merge(a: np.ndarray, b: np.ndarray, min_span: int = 3, max_span
     return _pack_seq(merged_pos, merged_vel)
 
 
+def crossfade_splice_merge(
+    a: np.ndarray,
+    b: np.ndarray,
+    min_span: int = 3,
+    max_span: int = 10,
+    ramp_frames: int = 2,
+) -> np.ndarray:
+    """Splice with soft boundary ramps to reduce hard transition artifacts."""
+    if a.shape != (NUM_FRAMES, INPUT_SIZE) or b.shape != (NUM_FRAMES, INPUT_SIZE):
+        raise ValueError("Input sequences must have shape (NUM_FRAMES, INPUT_SIZE)")
+
+    pos_a, vel_a = _split_pos_vel(a)
+    pos_b, vel_b = _split_pos_vel(b)
+
+    L = random.randint(min_span, min(max_span, NUM_FRAMES - 1))
+    start = random.randint(0, NUM_FRAMES - L)
+    end = start + L
+
+    merged_pos = pos_a.copy()
+    host_seg = pos_a[start:end]
+    peer_seg = pos_b[start:end]
+
+    ramp = max(1, min(ramp_frames, L // 2))
+    w = np.ones((L,), dtype=np.float32)
+    if 2 * ramp < L:
+        w[:ramp] = np.linspace(0.0, 1.0, ramp, endpoint=True, dtype=np.float32)
+        w[-ramp:] = np.linspace(1.0, 0.0, ramp, endpoint=True, dtype=np.float32)
+    else:
+        mid = L // 2
+        if mid > 0:
+            w[:mid] = np.linspace(0.0, 1.0, mid, endpoint=False, dtype=np.float32)
+            w[mid:] = np.linspace(1.0, 0.0, L - mid, endpoint=True, dtype=np.float32)
+
+    merged_pos[start:end] = (1.0 - w[:, None]) * host_seg + w[:, None] * peer_seg
+    merged_vel = _recompute_velocity(merged_pos) if vel_a is not None else None
+    return _pack_seq(merged_pos, merged_vel)
+
+
+def multi_splice_merge(
+    a: np.ndarray,
+    b: np.ndarray,
+    min_span: int = 3,
+    max_span: int = 8,
+    min_segments: int = 2,
+    max_segments: int = 3,
+) -> np.ndarray:
+    """Splice 2-3 non-overlapping peer segments into the host sequence."""
+    if a.shape != (NUM_FRAMES, INPUT_SIZE) or b.shape != (NUM_FRAMES, INPUT_SIZE):
+        raise ValueError("Input sequences must have shape (NUM_FRAMES, INPUT_SIZE)")
+
+    pos_a, vel_a = _split_pos_vel(a)
+    pos_b, vel_b = _split_pos_vel(b)
+
+    merged_pos = pos_a.copy()
+    used = np.zeros(NUM_FRAMES, dtype=bool)
+    n_segments = random.randint(min_segments, max_segments)
+    inserted = 0
+
+    for _ in range(n_segments):
+        placed = False
+        for _attempt in range(30):
+            L = random.randint(min_span, min(max_span, NUM_FRAMES - 1))
+            start = random.randint(0, NUM_FRAMES - L)
+            end = start + L
+            if used[start:end].any():
+                continue
+            merged_pos[start:end] = pos_b[start:end]
+            used[start:end] = True
+            inserted += 1
+            placed = True
+            break
+        if not placed:
+            continue
+
+    if inserted == 0:
+        return frame_splice_merge(a, b, min_span=min_span, max_span=max_span)
+
+    merged_vel = _recompute_velocity(merged_pos) if vel_a is not None else None
+    return _pack_seq(merged_pos, merged_vel)
+
+
+def _timewarp_segment_to_len(seg: np.ndarray, speed_factor: float, out_len: int) -> np.ndarray:
+    """Resample a segment to out_len after speed scaling on its internal time axis."""
+    if seg.shape[0] <= 1:
+        return np.repeat(seg, out_len, axis=0)
+
+    in_len = seg.shape[0]
+    src_t = np.linspace(0.0, 1.0, in_len)
+    warp_t = np.linspace(0.0, 1.0, out_len) * (1.0 / max(1e-6, speed_factor))
+    warp_t = np.clip(warp_t, 0.0, 1.0)
+
+    out = np.zeros((out_len, seg.shape[1]), dtype=np.float32)
+    for d in range(seg.shape[1]):
+        out[:, d] = np.interp(warp_t, src_t, seg[:, d])
+    return out
+
+
+def tempo_aligned_splice_merge(
+    a: np.ndarray,
+    b: np.ndarray,
+    min_span: int = 3,
+    max_span: int = 10,
+) -> np.ndarray:
+    """Time-warp peer segment before splicing to better match host motion speed."""
+    if a.shape != (NUM_FRAMES, INPUT_SIZE) or b.shape != (NUM_FRAMES, INPUT_SIZE):
+        raise ValueError("Input sequences must have shape (NUM_FRAMES, INPUT_SIZE)")
+
+    pos_a, vel_a = _split_pos_vel(a)
+    pos_b, vel_b = _split_pos_vel(b)
+
+    L = random.randint(min_span, min(max_span, NUM_FRAMES - 1))
+    start = random.randint(0, NUM_FRAMES - L)
+    end = start + L
+
+    host_seg = pos_a[start:end]
+    peer_seg = pos_b[start:end]
+
+    host_speed = float(np.linalg.norm(np.diff(host_seg, axis=0), axis=1).mean()) if L > 1 else 0.0
+    peer_speed = float(np.linalg.norm(np.diff(peer_seg, axis=0), axis=1).mean()) if L > 1 else 0.0
+    if peer_speed < 1e-6:
+        speed_factor = 1.0
+    else:
+        speed_factor = float(np.clip(host_speed / peer_speed, 0.7, 1.4))
+
+    warped_peer = _timewarp_segment_to_len(peer_seg, speed_factor=speed_factor, out_len=L)
+
+    merged_pos = pos_a.copy()
+    merged_pos[start:end] = warped_peer
+
+    merged_vel = _recompute_velocity(merged_pos) if vel_a is not None else None
+    return _pack_seq(merged_pos, merged_vel)
+
+
 def weighted_blend_merge(a: np.ndarray, b: np.ndarray, alpha: Optional[float] = None) -> np.ndarray:
     """Blend two sequences to simulate a new signer style identity."""
     if a.shape != (NUM_FRAMES, INPUT_SIZE) or b.shape != (NUM_FRAMES, INPUT_SIZE):
@@ -116,17 +256,80 @@ def hand_swap_merge(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return _pack_seq(merged_pos, merged_vel)
 
 
+def proximity_only_swap_merge(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """Swap face-relative and proximity-tail features while preserving raw hand tracks."""
+    if a.shape != (NUM_FRAMES, INPUT_SIZE) or b.shape != (NUM_FRAMES, INPUT_SIZE):
+        raise ValueError("Input sequences must have shape (NUM_FRAMES, INPUT_SIZE)")
+
+    pos_a, vel_a = _split_pos_vel(a)
+    pos_b, vel_b = _split_pos_vel(b)
+
+    merged_pos = pos_a.copy()
+    total_dims = merged_pos.shape[1]
+
+    swap_start = min(2 * LANDMARK_DIM, total_dims)
+    if swap_start < total_dims:
+        merged_pos[:, swap_start:total_dims] = pos_b[:, swap_start:total_dims]
+
+    merged_vel = _recompute_velocity(merged_pos) if vel_a is not None else None
+    return _pack_seq(merged_pos, merged_vel)
+
+
+def left_right_cross_swap_merge(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """Cross-combine streams: left hand from peer, right hand from host."""
+    if a.shape != (NUM_FRAMES, INPUT_SIZE) or b.shape != (NUM_FRAMES, INPUT_SIZE):
+        raise ValueError("Input sequences must have shape (NUM_FRAMES, INPUT_SIZE)")
+
+    pos_a, vel_a = _split_pos_vel(a)
+    pos_b, vel_b = _split_pos_vel(b)
+
+    merged_pos = pos_a.copy()
+    total_dims = merged_pos.shape[1]
+
+    l_raw = slice(0, LANDMARK_DIM)
+    l_rel = slice(2 * LANDMARK_DIM, 3 * LANDMARK_DIM)
+
+    merged_pos[:, l_raw] = pos_b[:, l_raw]
+    if l_rel.stop <= total_dims:
+        merged_pos[:, l_rel] = pos_b[:, l_rel]
+
+    merged_vel = _recompute_velocity(merged_pos) if vel_a is not None else None
+    return _pack_seq(merged_pos, merged_vel)
+
+
+def blend_then_noise_merge(a: np.ndarray, b: np.ndarray, alpha: Optional[float] = None) -> np.ndarray:
+    """Blend first, then inject controlled landmark noise to avoid oversmoothing."""
+    blended = weighted_blend_merge(a, b, alpha=alpha)
+    sigma = float(np.random.uniform(0.005, 0.012))
+    return spatial_noise_injection(blended, sigma=sigma)
+
+
 def hybrid_merge(a: np.ndarray, b: np.ndarray, min_span: int = 3, max_span: int = 10) -> np.ndarray:
     """Apply two merge operations to create stronger signer simulation."""
-    mode = random.choice(["splice_blend", "swap_splice", "swap_blend"])
+    mode = random.choice([
+        "splice_blend",
+        "swap_splice",
+        "swap_blend",
+        "crossfade_blend",
+        "tempo_splice",
+        "proximity_blend_noise",
+    ])
     if mode == "splice_blend":
         s = frame_splice_merge(a, b, min_span=min_span, max_span=max_span)
         return weighted_blend_merge(s, b)
     if mode == "swap_splice":
         s = hand_swap_merge(a, b)
         return frame_splice_merge(s, b, min_span=min_span, max_span=max_span)
-    s = hand_swap_merge(a, b)
-    return weighted_blend_merge(s, b)
+    if mode == "swap_blend":
+        s = hand_swap_merge(a, b)
+        return weighted_blend_merge(s, b)
+    if mode == "crossfade_blend":
+        s = crossfade_splice_merge(a, b, min_span=min_span, max_span=max_span)
+        return weighted_blend_merge(s, b)
+    if mode == "tempo_splice":
+        return tempo_aligned_splice_merge(a, b, min_span=min_span, max_span=max_span)
+    s = proximity_only_swap_merge(a, b)
+    return blend_then_noise_merge(s, b)
 
 
 def merge_dataset(
@@ -192,10 +395,22 @@ def merge_dataset(
 
                 if mode == "splice":
                     merged = frame_splice_merge(a, b, min_span=min_span, max_span=max_span)
+                elif mode == "crossfade_splice":
+                    merged = crossfade_splice_merge(a, b, min_span=min_span, max_span=max_span)
+                elif mode == "multi_splice":
+                    merged = multi_splice_merge(a, b, min_span=min_span, max_span=max_span)
+                elif mode == "tempo_aligned_splice":
+                    merged = tempo_aligned_splice_merge(a, b, min_span=min_span, max_span=max_span)
                 elif mode == "blend":
                     merged = weighted_blend_merge(a, b)
+                elif mode == "blend_then_noise":
+                    merged = blend_then_noise_merge(a, b)
                 elif mode == "hand_swap":
                     merged = hand_swap_merge(a, b)
+                elif mode == "proximity_only_swap":
+                    merged = proximity_only_swap_merge(a, b)
+                elif mode == "left_right_cross_swap":
+                    merged = left_right_cross_swap_merge(a, b)
                 elif mode == "hybrid":
                     merged = hybrid_merge(a, b, min_span=min_span, max_span=max_span)
                 else:
@@ -217,7 +432,22 @@ if __name__ == '__main__':
     parser.add_argument('--n', type=int, default=1, help='merged samples per original')
     parser.add_argument('--min_span', type=int, default=3)
     parser.add_argument('--max_span', type=int, default=8)
-    parser.add_argument('--mode', choices=['splice', 'blend', 'hand_swap', 'hybrid'], default='hybrid')
+    parser.add_argument(
+        '--mode',
+        choices=[
+            'splice',
+            'crossfade_splice',
+            'multi_splice',
+            'tempo_aligned_splice',
+            'blend',
+            'blend_then_noise',
+            'hand_swap',
+            'proximity_only_swap',
+            'left_right_cross_swap',
+            'hybrid',
+        ],
+        default='hybrid',
+    )
     parser.add_argument('--class', dest='class_only', default=None, help='Only process this specific class')
     args = parser.parse_args()
 

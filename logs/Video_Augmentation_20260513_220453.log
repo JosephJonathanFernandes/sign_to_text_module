@@ -1,0 +1,3 @@
+2026-05-13 22:04:53,647 | INFO | Logger initialized for Video Augmentation
+2026-05-13 22:04:53,648 | INFO | Log file: logs\Video_Augmentation_20260513_220453.log
+2026-05-13 22:04:53,648 | INFO | {"event": "augment_start", "timestamp": "2026-05-13T22:04:53", "input_dir": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\Dataset", "output_dir": "C:\\Users\\Joseph\\Desktop\\projects\\sign_to_text\\augmented_dataset", "max_videos_per_class": 900, "class_only": "1. loud"}

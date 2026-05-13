@@ -4,7 +4,7 @@ Augmentation pipeline orchestrator.
 
 Runs augmentation, merge, and cleanup in sequence:
 1. Augments landmarks N times
-2. Merges augmentations with 4 different modes (splice, blend, hand_swap, hybrid), N times each
+2. Merges augmentations with multiple merge modes, N times each
 3. Cleans up the dataset once
 
 Usage:
@@ -13,7 +13,7 @@ Usage:
     
 This will run:
     - Augmentation: 4 times
-    - Merge: 4 modes × 4 iterations = 16 times total
+    - Merge: 10 modes × 4 iterations = 40 times total
     - Cleanup: 1 time
 """
 
@@ -63,20 +63,20 @@ def main():
     parser.add_argument(
         "--augment-iterations",
         type=int,
-        default=10,
-        help="Number of times to run augmentation (default: 10)"
+        default=2,
+        help="Number of times to run augmentation (default: 4)"
     )
     parser.add_argument(
         "--merge-iterations",
         type=int,
-        default=10,
-        help="Number of times to run merge (default: 10)"
+        default=1,
+        help="Number of times to run merge (default: 7)"
     )
     parser.add_argument(
         "--augment-n",
         type=int,
-        default=10,
-        help="Number of augmentations per iteration (default: 10)"
+        default=6,
+        help="Number of augmentations per iteration (default: 2)"
     )
     parser.add_argument(
         "--skip-cleanup",
@@ -133,9 +133,23 @@ def main():
             if not run_command(cmd, f"[{class_name}] Augmentation", iteration=i):
                 failed_steps.append(f"{class_name}: Augmentation iteration {i}")
         
-        # Phase 2: Merge (all 4 types)
-        merge_modes = ["splice", "blend", "hand_swap", "hybrid"]
-        print(f"\n### Phase 2: Merge (4 modes × {args.merge_iterations} iterations = {4 * args.merge_iterations} total) ###")
+        # Phase 2: Merge (all configured types)
+        merge_modes = [
+            "splice",
+            "crossfade_splice",
+            "multi_splice",
+            "tempo_aligned_splice",
+            "blend",
+            "blend_then_noise",
+            "hand_swap",
+            "proximity_only_swap",
+            "left_right_cross_swap",
+            "hybrid",
+        ]
+        mode_count = len(merge_modes)
+        print(
+            f"\n### Phase 2: Merge ({mode_count} modes × {args.merge_iterations} iterations = {mode_count * args.merge_iterations} total) ###"
+        )
         for mode in merge_modes:
             for i in range(1, args.merge_iterations + 1):
                 cmd = [

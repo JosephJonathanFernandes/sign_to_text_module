@@ -61,7 +61,10 @@ AUGMENTED_DATASET_DIR = os.path.join(
 AUGMENTABLE_VIDEO_EXTENSIONS = (".mp4", ".mov")
 VIDEO_AUGMENT_WIDTH = 224
 VIDEO_AUGMENT_HEIGHT = 224
-VIDEO_AUGMENT_MAX_PER_VIDEO = 33  # 3 crops × 10 effects + 3 spatial-only = 33
+# Updated maximum per-video variants: 3 spatial-only + 3 * (number of effects)
+# Effects expanded to include motion/defocus blur, JPEG artifacts, gamma, white-balance,
+# perspective warp and temporal_jitter. Current computed max = 3 + 3*17 = 54
+VIDEO_AUGMENT_MAX_PER_VIDEO = 54
 VIDEO_AUGMENT_MAX_PER_CLASS = 900
 
 try:
@@ -188,8 +191,9 @@ def _apply_visual_effect(
         dropout_rate = rng.uniform(0.02, 0.08)  # 2-8% of pixels
         num_pixels = int(h * w * dropout_rate)
         for _ in range(num_pixels):
-            y, x = rng.randint(0, h), rng.randint(0, w)
-            frame_out[y, x] = [rng.randint(0, 256) for _ in range(3)]
+            y = rng.randint(0, h - 1)
+            x = rng.randint(0, w - 1)
+            frame_out[y, x] = [rng.randint(0, 255) for _ in range(3)]
         return frame_out
 
     if effect_name == "coarse_dropout":
@@ -205,6 +209,73 @@ def _apply_visual_effect(
             x_end = min(x + block_size, w)
             frame_out[y:y_end, x:x_end] = rng.randint(100, 200)
         return np.clip(frame_out, 0, 255).astype(np.uint8)
+
+    # --- New effects added ---
+    if effect_name == "motion_blur":
+        # Linear motion blur kernel with random length and angle
+        ksize = rng.randint(3, 15)
+        if ksize % 2 == 0:
+            ksize += 1
+        # create a vertical kernel and rotate it
+        kernel = np.zeros((ksize, ksize), dtype=np.float32)
+        kernel[:, ksize // 2] = 1.0 / ksize
+        angle = rng.uniform(0, 360)
+        # rotate kernel via warpAffine
+        M = cv2.getRotationMatrix2D((ksize / 2, ksize / 2), angle, 1.0)
+        kernel_rot = cv2.warpAffine(kernel, M, (ksize, ksize))
+        frame_blur = cv2.filter2D(frame, -1, kernel_rot)
+        return np.clip(frame_blur, 0, 255).astype(np.uint8)
+
+    if effect_name == "defocus_blur":
+        # Simulate defocus by applying a larger Gaussian blur
+        k = rng.randint(3, 11)
+        if k % 2 == 0:
+            k += 1
+        sigma = rng.uniform(0.8, 2.5)
+        return cv2.GaussianBlur(frame, (k, k), sigma)
+
+    if effect_name == "jpeg_artifact":
+        # Encode/decode with low JPEG quality to introduce blocky artifacts
+        quality = rng.randint(25, 65)
+        encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
+        ret, encimg = cv2.imencode('.jpg', frame, encode_param)
+        if not ret:
+            return frame
+        decimg = cv2.imdecode(encimg, cv2.IMREAD_COLOR)
+        return decimg
+
+    if effect_name == "gamma":
+        # Gamma correction (gamma <1 brighter, >1 darker)
+        g = rng.uniform(0.7, 1.4)
+        inv = 1.0 / g
+        table = np.array([((i / 255.0) ** inv) * 255 for i in np.arange(256)]).astype('uint8')
+        return cv2.LUT(frame, table)
+
+    if effect_name == "white_balance":
+        # Approximate white-balance by scaling individual channels
+        b_mul = rng.uniform(0.92, 1.12)
+        g_mul = rng.uniform(0.92, 1.12)
+        r_mul = rng.uniform(0.92, 1.12)
+        b, g, r = cv2.split(frame.astype(np.float32))
+        b = np.clip(b * b_mul, 0, 255).astype(np.uint8)
+        g = np.clip(g * g_mul, 0, 255).astype(np.uint8)
+        r = np.clip(r * r_mul, 0, 255).astype(np.uint8)
+        return cv2.merge([b, g, r])
+
+    if effect_name == "perspective_warp":
+        # Mild perspective warp by perturbing corner points slightly
+        h, w = frame.shape[:2]
+        max_shift_x = int(w * 0.06)
+        max_shift_y = int(h * 0.06)
+        src_pts = np.float32([[0, 0], [w - 1, 0], [w - 1, h - 1], [0, h - 1]])
+        dst_pts = src_pts.copy()
+        dst_pts[0] += [rng.randint(-max_shift_x, max_shift_x), rng.randint(-max_shift_y, max_shift_y)]
+        dst_pts[1] += [rng.randint(-max_shift_x, max_shift_x), rng.randint(-max_shift_y, max_shift_y)]
+        dst_pts[2] += [rng.randint(-max_shift_x, max_shift_x), rng.randint(-max_shift_y, max_shift_y)]
+        dst_pts[3] += [rng.randint(-max_shift_x, max_shift_x), rng.randint(-max_shift_y, max_shift_y)]
+        M = cv2.getPerspectiveTransform(src_pts, dst_pts)
+        warped = cv2.warpPerspective(frame, M, (w, h), borderMode=cv2.BORDER_REFLECT)
+        return warped
 
     raise ValueError(f"Unknown effect: {effect_name}")
 
@@ -235,8 +306,10 @@ def _make_augmented_variants(
     
     # All effects in deterministic order
     all_effects = (
-        "brightness", "contrast", "hue", "fog", "rotation", 
-        "scale", "color_jitter", "noise", "pixel_dropout", "coarse_dropout"
+        "brightness", "contrast", "hue", "fog", "rotation",
+        "scale", "color_jitter", "noise", "pixel_dropout", "coarse_dropout",
+        # Added effects
+        "motion_blur", "defocus_blur", "jpeg_artifact", "gamma", "white_balance", "perspective_warp", "temporal_jitter",
     )
     
     # All crop positions
@@ -258,18 +331,44 @@ def _make_augmented_variants(
         for effect_name in all_effects:
             if variant_idx > augment_count:
                 break
-            
-            # Create closure with current crop_pos and effect_name
-            def _aug_crop_effect(
-                frame: np.ndarray,
-                crop: str = crop_pos,
-                effect: str = effect_name,
-                local_rng: random.Random = rng
-            ) -> np.ndarray:
-                base = _build_square_crop(frame, crop, target_width, target_height)
-                return _apply_visual_effect(base, effect, local_rng)
-            
-            variants.append((f"aug{variant_idx}", _aug_crop_effect))
+            # For temporal_jitter we need a stateful per-transform closure
+            if effect_name == "temporal_jitter":
+                # Create a stateful jitter transform that may duplicate or blur adjacent frames
+                def make_jitter(local_rng: random.Random, crop: str):
+                    state = {"prev": None}
+
+                    def _jitter(frame: np.ndarray) -> np.ndarray:
+                        base = _build_square_crop(frame, crop, target_width, target_height)
+                        p = local_rng.random()
+                        if state["prev"] is None:
+                            out = base
+                        else:
+                            if p < 0.06:
+                                # duplicate previous (temporal duplicate)
+                                out = state["prev"].copy()
+                            elif p < 0.10:
+                                # simulate drop by heavy blur
+                                out = cv2.GaussianBlur(base, (5, 5), 0)
+                            else:
+                                out = base
+                        state["prev"] = out.copy()
+                        return out
+
+                    return _jitter
+
+                variants.append((f"aug{variant_idx}", make_jitter(rng, crop_pos)))
+            else:
+                # Create closure with current crop_pos and effect_name
+                def _aug_crop_effect(
+                    frame: np.ndarray,
+                    crop: str = crop_pos,
+                    effect: str = effect_name,
+                    local_rng: random.Random = rng
+                ) -> np.ndarray:
+                    base = _build_square_crop(frame, crop, target_width, target_height)
+                    return _apply_visual_effect(base, effect, local_rng)
+
+                variants.append((f"aug{variant_idx}", _aug_crop_effect))
             variant_idx += 1
         
         if variant_idx > augment_count:
@@ -329,7 +428,7 @@ def augment_video_dataset(
     max_augments_per_video: int = VIDEO_AUGMENT_MAX_PER_VIDEO,
     target_width: int = VIDEO_AUGMENT_WIDTH,
     target_height: int = VIDEO_AUGMENT_HEIGHT,
-    clear_output: bool = True,
+    clear_output: bool = False,
     pipeline_log: PipelineLogger | None = None,
     class_only: str | None = None,
 ) -> dict:

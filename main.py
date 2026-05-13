@@ -329,7 +329,7 @@ def main():
     )
     parser.add_argument(
         "--augment-landmarks-n", type=int, default=3,
-        help="Number of augmentations per landmark sample",
+        help="Number of augmentations per landmark sample (fixed ordered variants; default: 14)",
     )
     parser.add_argument(
         "--augment-landmarks-cls", type=str, default=None,
@@ -348,7 +348,20 @@ def main():
         help="Number of merged samples per original",
     )
     parser.add_argument(
-        "--merge-mode", choices=["splice", "blend", "hand_swap", "hybrid"], default="hybrid",
+        "--merge-mode",
+        choices=[
+            "splice",
+            "crossfade_splice",
+            "multi_splice",
+            "tempo_aligned_splice",
+            "blend",
+            "blend_then_noise",
+            "hand_swap",
+            "proximity_only_swap",
+            "left_right_cross_swap",
+            "hybrid",
+        ],
+        default="hybrid",
         help="Merge mode to use",
     )
     parser.add_argument(
