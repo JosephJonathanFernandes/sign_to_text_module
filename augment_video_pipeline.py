@@ -68,8 +68,8 @@ def main():
     args = parser.parse_args()
     
     # Validate augments
-    if args.augments < 1 or args.augments > 13:
-        print("Error: --augments must be between 1 and 13 (3 spatial + 10 effects)")
+    if args.augments < 1 or args.augments > 33:
+        print("Error: --augments must be between 1 and 33 ")
         sys.exit(1)
     
     # Get class list
