@@ -17035,3 +17035,128 @@
 2026-05-13 23:24:29,355 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:29", "class_name": "they", "video_file": "MVI_0034_aug8.mp4", "npy_file": "MVI_0034_aug8.npy", "sequence_shape": "(20, 253)"}
 2026-05-13 23:24:29,459 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0034_aug9.mp4
 2026-05-13 23:24:29,463 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:29", "class_name": "they", "video_file": "MVI_0034_aug9.mp4", "npy_file": "MVI_0034_aug9.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:30,460 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:30", "class_name": "they", "video_file": "MVI_0035.MOV", "npy_file": "MVI_0035.npy", "sequence_shape": "(20, 506)"}
+2026-05-13 23:24:32,296 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:32", "class_name": "they", "video_file": "MVI_0035_aug1.mp4", "npy_file": "MVI_0035_aug1.npy", "sequence_shape": "(20, 506)"}
+2026-05-13 23:24:33,637 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:33", "class_name": "they", "video_file": "MVI_0035_aug10.mp4", "npy_file": "MVI_0035_aug10.npy", "sequence_shape": "(20, 506)"}
+2026-05-13 23:24:35,050 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:35", "class_name": "they", "video_file": "MVI_0035_aug11.mp4", "npy_file": "MVI_0035_aug11.npy", "sequence_shape": "(20, 506)"}
+2026-05-13 23:24:36,696 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:36", "class_name": "they", "video_file": "MVI_0035_aug12.mp4", "npy_file": "MVI_0035_aug12.npy", "sequence_shape": "(20, 506)"}
+2026-05-13 23:24:38,194 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:38", "class_name": "they", "video_file": "MVI_0035_aug13.mp4", "npy_file": "MVI_0035_aug13.npy", "sequence_shape": "(20, 506)"}
+2026-05-13 23:24:39,686 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:39", "class_name": "they", "video_file": "MVI_0035_aug14.mp4", "npy_file": "MVI_0035_aug14.npy", "sequence_shape": "(20, 506)"}
+2026-05-13 23:24:39,826 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0035_aug15.mp4
+2026-05-13 23:24:39,829 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:39", "class_name": "they", "video_file": "MVI_0035_aug15.mp4", "npy_file": "MVI_0035_aug15.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:40,000 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0035_aug16.mp4
+2026-05-13 23:24:40,002 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:40", "class_name": "they", "video_file": "MVI_0035_aug16.mp4", "npy_file": "MVI_0035_aug16.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:40,166 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0035_aug17.mp4
+2026-05-13 23:24:40,168 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:40", "class_name": "they", "video_file": "MVI_0035_aug17.mp4", "npy_file": "MVI_0035_aug17.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:40,325 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0035_aug18.mp4
+2026-05-13 23:24:40,327 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:40", "class_name": "they", "video_file": "MVI_0035_aug18.mp4", "npy_file": "MVI_0035_aug18.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:40,462 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0035_aug19.mp4
+2026-05-13 23:24:40,465 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:40", "class_name": "they", "video_file": "MVI_0035_aug19.mp4", "npy_file": "MVI_0035_aug19.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:40,576 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0035_aug2.mp4
+2026-05-13 23:24:40,578 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:40", "class_name": "they", "video_file": "MVI_0035_aug2.mp4", "npy_file": "MVI_0035_aug2.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:40,711 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0035_aug20.mp4
+2026-05-13 23:24:40,713 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:40", "class_name": "they", "video_file": "MVI_0035_aug20.mp4", "npy_file": "MVI_0035_aug20.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:40,865 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0035_aug21.mp4
+2026-05-13 23:24:40,868 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:40", "class_name": "they", "video_file": "MVI_0035_aug21.mp4", "npy_file": "MVI_0035_aug21.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:40,999 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0035_aug22.mp4
+2026-05-13 23:24:41,001 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:41", "class_name": "they", "video_file": "MVI_0035_aug22.mp4", "npy_file": "MVI_0035_aug22.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:41,144 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0035_aug23.mp4
+2026-05-13 23:24:41,148 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:41", "class_name": "they", "video_file": "MVI_0035_aug23.mp4", "npy_file": "MVI_0035_aug23.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:41,296 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0035_aug24.mp4
+2026-05-13 23:24:41,299 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:41", "class_name": "they", "video_file": "MVI_0035_aug24.mp4", "npy_file": "MVI_0035_aug24.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:41,457 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0035_aug25.mp4
+2026-05-13 23:24:41,459 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:41", "class_name": "they", "video_file": "MVI_0035_aug25.mp4", "npy_file": "MVI_0035_aug25.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:41,575 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0035_aug26.mp4
+2026-05-13 23:24:41,577 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:41", "class_name": "they", "video_file": "MVI_0035_aug26.mp4", "npy_file": "MVI_0035_aug26.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:41,688 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0035_aug27.mp4
+2026-05-13 23:24:41,691 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:41", "class_name": "they", "video_file": "MVI_0035_aug27.mp4", "npy_file": "MVI_0035_aug27.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:41,802 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0035_aug28.mp4
+2026-05-13 23:24:41,804 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:41", "class_name": "they", "video_file": "MVI_0035_aug28.mp4", "npy_file": "MVI_0035_aug28.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:41,941 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0035_aug29.mp4
+2026-05-13 23:24:41,944 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:41", "class_name": "they", "video_file": "MVI_0035_aug29.mp4", "npy_file": "MVI_0035_aug29.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:42,067 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0035_aug3.mp4
+2026-05-13 23:24:42,069 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:42", "class_name": "they", "video_file": "MVI_0035_aug3.mp4", "npy_file": "MVI_0035_aug3.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:42,218 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0035_aug30.mp4
+2026-05-13 23:24:42,220 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:42", "class_name": "they", "video_file": "MVI_0035_aug30.mp4", "npy_file": "MVI_0035_aug30.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:42,345 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0035_aug31.mp4
+2026-05-13 23:24:42,348 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:42", "class_name": "they", "video_file": "MVI_0035_aug31.mp4", "npy_file": "MVI_0035_aug31.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:42,462 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0035_aug32.mp4
+2026-05-13 23:24:42,466 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:42", "class_name": "they", "video_file": "MVI_0035_aug32.mp4", "npy_file": "MVI_0035_aug32.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:42,585 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0035_aug33.mp4
+2026-05-13 23:24:42,587 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:42", "class_name": "they", "video_file": "MVI_0035_aug33.mp4", "npy_file": "MVI_0035_aug33.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:42,707 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0035_aug4.mp4
+2026-05-13 23:24:42,710 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:42", "class_name": "they", "video_file": "MVI_0035_aug4.mp4", "npy_file": "MVI_0035_aug4.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:42,835 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0035_aug5.mp4
+2026-05-13 23:24:42,837 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:42", "class_name": "they", "video_file": "MVI_0035_aug5.mp4", "npy_file": "MVI_0035_aug5.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:42,942 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0035_aug6.mp4
+2026-05-13 23:24:42,945 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:42", "class_name": "they", "video_file": "MVI_0035_aug6.mp4", "npy_file": "MVI_0035_aug6.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:43,041 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0035_aug7.mp4
+2026-05-13 23:24:43,044 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:43", "class_name": "they", "video_file": "MVI_0035_aug7.mp4", "npy_file": "MVI_0035_aug7.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:43,139 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0035_aug8.mp4
+2026-05-13 23:24:43,141 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:43", "class_name": "they", "video_file": "MVI_0035_aug8.mp4", "npy_file": "MVI_0035_aug8.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:43,232 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0035_aug9.mp4
+2026-05-13 23:24:43,236 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:43", "class_name": "they", "video_file": "MVI_0035_aug9.mp4", "npy_file": "MVI_0035_aug9.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:45,003 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:45", "class_name": "they", "video_file": "MVI_0085.MOV", "npy_file": "MVI_0085.npy", "sequence_shape": "(20, 506)"}
+2026-05-13 23:24:46,229 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:46", "class_name": "they", "video_file": "MVI_0085_aug1.mp4", "npy_file": "MVI_0085_aug1.npy", "sequence_shape": "(20, 506)"}
+2026-05-13 23:24:47,634 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:47", "class_name": "they", "video_file": "MVI_0085_aug10.mp4", "npy_file": "MVI_0085_aug10.npy", "sequence_shape": "(20, 506)"}
+2026-05-13 23:24:49,072 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:49", "class_name": "they", "video_file": "MVI_0085_aug11.mp4", "npy_file": "MVI_0085_aug11.npy", "sequence_shape": "(20, 506)"}
+2026-05-13 23:24:50,476 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:50", "class_name": "they", "video_file": "MVI_0085_aug12.mp4", "npy_file": "MVI_0085_aug12.npy", "sequence_shape": "(20, 506)"}
+2026-05-13 23:24:52,103 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:52", "class_name": "they", "video_file": "MVI_0085_aug13.mp4", "npy_file": "MVI_0085_aug13.npy", "sequence_shape": "(20, 506)"}
+2026-05-13 23:24:53,513 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:53", "class_name": "they", "video_file": "MVI_0085_aug14.mp4", "npy_file": "MVI_0085_aug14.npy", "sequence_shape": "(20, 506)"}
+2026-05-13 23:24:53,611 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0085_aug15.mp4
+2026-05-13 23:24:53,613 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:53", "class_name": "they", "video_file": "MVI_0085_aug15.mp4", "npy_file": "MVI_0085_aug15.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:53,718 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0085_aug16.mp4
+2026-05-13 23:24:53,721 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:53", "class_name": "they", "video_file": "MVI_0085_aug16.mp4", "npy_file": "MVI_0085_aug16.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:53,808 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0085_aug17.mp4
+2026-05-13 23:24:53,811 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:53", "class_name": "they", "video_file": "MVI_0085_aug17.mp4", "npy_file": "MVI_0085_aug17.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:53,910 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0085_aug18.mp4
+2026-05-13 23:24:53,913 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:53", "class_name": "they", "video_file": "MVI_0085_aug18.mp4", "npy_file": "MVI_0085_aug18.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:54,017 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0085_aug19.mp4
+2026-05-13 23:24:54,019 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:54", "class_name": "they", "video_file": "MVI_0085_aug19.mp4", "npy_file": "MVI_0085_aug19.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:54,116 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0085_aug2.mp4
+2026-05-13 23:24:54,119 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:54", "class_name": "they", "video_file": "MVI_0085_aug2.mp4", "npy_file": "MVI_0085_aug2.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:54,212 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0085_aug20.mp4
+2026-05-13 23:24:54,213 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:54", "class_name": "they", "video_file": "MVI_0085_aug20.mp4", "npy_file": "MVI_0085_aug20.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:54,307 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0085_aug21.mp4
+2026-05-13 23:24:54,311 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:54", "class_name": "they", "video_file": "MVI_0085_aug21.mp4", "npy_file": "MVI_0085_aug21.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:54,428 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0085_aug22.mp4
+2026-05-13 23:24:54,430 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:54", "class_name": "they", "video_file": "MVI_0085_aug22.mp4", "npy_file": "MVI_0085_aug22.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:54,519 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0085_aug23.mp4
+2026-05-13 23:24:54,521 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:54", "class_name": "they", "video_file": "MVI_0085_aug23.mp4", "npy_file": "MVI_0085_aug23.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:54,607 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0085_aug24.mp4
+2026-05-13 23:24:54,609 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:54", "class_name": "they", "video_file": "MVI_0085_aug24.mp4", "npy_file": "MVI_0085_aug24.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:54,696 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0085_aug25.mp4
+2026-05-13 23:24:54,699 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:54", "class_name": "they", "video_file": "MVI_0085_aug25.mp4", "npy_file": "MVI_0085_aug25.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:54,778 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0085_aug26.mp4
+2026-05-13 23:24:54,781 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:54", "class_name": "they", "video_file": "MVI_0085_aug26.mp4", "npy_file": "MVI_0085_aug26.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:54,860 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0085_aug27.mp4
+2026-05-13 23:24:54,863 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:54", "class_name": "they", "video_file": "MVI_0085_aug27.mp4", "npy_file": "MVI_0085_aug27.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:54,955 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0085_aug28.mp4
+2026-05-13 23:24:54,957 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:54", "class_name": "they", "video_file": "MVI_0085_aug28.mp4", "npy_file": "MVI_0085_aug28.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:55,047 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0085_aug29.mp4
+2026-05-13 23:24:55,050 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:55", "class_name": "they", "video_file": "MVI_0085_aug29.mp4", "npy_file": "MVI_0085_aug29.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:55,149 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0085_aug3.mp4
+2026-05-13 23:24:55,152 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:55", "class_name": "they", "video_file": "MVI_0085_aug3.mp4", "npy_file": "MVI_0085_aug3.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:55,249 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0085_aug30.mp4
+2026-05-13 23:24:55,252 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:55", "class_name": "they", "video_file": "MVI_0085_aug30.mp4", "npy_file": "MVI_0085_aug30.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:55,353 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0085_aug31.mp4
+2026-05-13 23:24:55,355 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:55", "class_name": "they", "video_file": "MVI_0085_aug31.mp4", "npy_file": "MVI_0085_aug31.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:55,461 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0085_aug32.mp4
+2026-05-13 23:24:55,463 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:55", "class_name": "they", "video_file": "MVI_0085_aug32.mp4", "npy_file": "MVI_0085_aug32.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:55,560 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0085_aug33.mp4
+2026-05-13 23:24:55,563 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:55", "class_name": "they", "video_file": "MVI_0085_aug33.mp4", "npy_file": "MVI_0085_aug33.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:55,661 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0085_aug4.mp4
+2026-05-13 23:24:55,663 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:55", "class_name": "they", "video_file": "MVI_0085_aug4.mp4", "npy_file": "MVI_0085_aug4.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:55,788 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0085_aug5.mp4
+2026-05-13 23:24:55,790 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:55", "class_name": "they", "video_file": "MVI_0085_aug5.mp4", "npy_file": "MVI_0085_aug5.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:55,896 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0085_aug6.mp4
+2026-05-13 23:24:55,899 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:55", "class_name": "they", "video_file": "MVI_0085_aug6.mp4", "npy_file": "MVI_0085_aug6.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:56,059 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0085_aug7.mp4
+2026-05-13 23:24:56,061 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:56", "class_name": "they", "video_file": "MVI_0085_aug7.mp4", "npy_file": "MVI_0085_aug7.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:56,189 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0085_aug8.mp4
+2026-05-13 23:24:56,191 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:56", "class_name": "they", "video_file": "MVI_0085_aug8.mp4", "npy_file": "MVI_0085_aug8.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:56,309 | INFO |   [WARN] Cannot open: C:\Users\Joseph\Desktop\projects\sign_to_text\augmented_dataset\47. they\MVI_0085_aug9.mp4
+2026-05-13 23:24:56,311 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:56", "class_name": "they", "video_file": "MVI_0085_aug9.mp4", "npy_file": "MVI_0085_aug9.npy", "sequence_shape": "(20, 253)"}
+2026-05-13 23:24:58,212 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:58", "class_name": "they", "video_file": "MVI_0087.MOV", "npy_file": "MVI_0087.npy", "sequence_shape": "(20, 506)"}
+2026-05-13 23:24:59,768 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:24:59", "class_name": "they", "video_file": "MVI_0087_aug1.mp4", "npy_file": "MVI_0087_aug1.npy", "sequence_shape": "(20, 506)"}
+2026-05-13 23:25:01,112 | INFO | {"event": "preprocess_file_saved", "timestamp": "2026-05-13T23:25:01", "class_name": "they", "video_file": "MVI_0087_aug10.mp4", "npy_file": "MVI_0087_aug10.npy", "sequence_shape": "(20, 506)"}
