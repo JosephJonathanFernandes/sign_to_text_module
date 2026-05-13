@@ -24,6 +24,8 @@ import torch
 import os
 import time
 
+from profiling import get_profiler, profile_section, start_frame, end_frame, record_inference
+
 from config import get_config
 from pseudo_buffer import PseudoLabelBuffer
 from adapter_model import AdapterModel, AdapterTrainer
@@ -831,11 +833,16 @@ def run_webcam(pipeline_log=None):
             )
         return True
 
+    # ── Initialize session timing and profiler ──
+    session_start_time = time.time()
+    profiler = get_profiler()
+    
     print("\n=== ISL Sign Language Recognition (Continuous, Automatic Translation) ===")
     print(f"  Sliding window: {NUM_FRAMES} frames")
     print(f"  Base confidence threshold: {CONFIDENCE_THRESHOLD:.0%}")
     print(f"  Word stability: {sentence_builder.stability_frames} frames")
     print(f"  Auto-sentence timeout: {sentence_builder.auto_sentence_timeout} frames (~{sentence_builder.auto_sentence_timeout/30:.1f}s)")
+    print(f"  ✓ Real-time profiling ENABLED (time.perf_counter, report every 100 frames)")
     if temporal_postprocessor_enabled:
         print(f"  ✓ Temporal Smoothing ENABLED (window: 3 frames, decay: 0.3, anti-flicker: delta=5%)")
     if MOTION_GATING_ENABLED:
@@ -876,23 +883,38 @@ def run_webcam(pipeline_log=None):
 
 
     while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
+        # ═══════════════════════════════════════════════════════════════════════════
+        # MARK FRAME START (for total frame time measurement)
+        # ═══════════════════════════════════════════════════════════════════════════
+        start_frame()
+        
+        # ─────────────────────────────────────────────────────────────────────────
+        # [SECTION 1] Frame Capture
+        # ─────────────────────────────────────────────────────────────────────────
+        with profile_section("frame_capture"):
+            ret, frame = cap.read()
+            if not ret:
+                break
 
-        frame = cv2.flip(frame, 1)
+            frame = cv2.flip(frame, 1)
+        
         h, w = frame.shape[:2]
 
-        # Detect people + hands
-        people = _detect_person_boxes(frame, hog_detector)
-        landmarks_vec, hand_infos, face_center, face_landmarks = _extract_frame_landmarks(
-            landmarker,
-            holistic,
-            frame,
-            face_cache,
-            frame_idx,
-            face_detect_interval=3,
-        )
+        # ─────────────────────────────────────────────────────────────────────────
+        # [SECTION 2] Landmark Extraction (Hand + Face)
+        # ─────────────────────────────────────────────────────────────────────────
+        with profile_section("hand_detection"):
+            people = _detect_person_boxes(frame, hog_detector)
+        
+        with profile_section("landmark_extraction"):
+            landmarks_vec, hand_infos, face_center, face_landmarks = _extract_frame_landmarks(
+                landmarker,
+                holistic,
+                frame,
+                face_cache,
+                frame_idx,
+                face_detect_interval=3,
+            )
 
         if DEBUG_DRAW_FACE_CENTER and face_center is not None:
             cv2.circle(frame, face_center, 6, (255, 0, 255), -1)
@@ -910,26 +932,29 @@ def run_webcam(pipeline_log=None):
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, BLUE, 2,
             )
 
-        # ── Hand Selection via HandSelector (face-based single-person filtering) ──
-        filtered_hand_infos = []
-        if face_landmarks is not None and hand_infos:
-            # Convert MediaPipe landmarks to numpy arrays for hand_selector
-            face_lms_np = _landmarks_to_numpy(face_landmarks)  # (468, 3)
-            hand_lms_list = [_landmarks_to_numpy(info["landmarks"]) for info in hand_infos]  # List of (21, 3)
-            
-            # Call hand_selector with correct format
-            hand_selector_result = hand_selector.process_hands(
-                face_lms_np, hand_lms_list, (h, w)
-            )
-            
-            # Reconstruct filtered_hand_infos from selected hand indices
-            selected_indices = hand_selector_result.get('selected_hand_indices', [])
-            for idx in selected_indices:
-                if idx < len(hand_infos):
-                    filtered_hand_infos.append(hand_infos[idx])
-        else:
-            # Fallback: if no face detected or no hands, use all hands (backwards compat)
-            filtered_hand_infos = hand_infos
+        # ─────────────────────────────────────────────────────────────────────────
+        # [SECTION 3] Hand Selection (Face-Based Filtering)
+        # ─────────────────────────────────────────────────────────────────────────
+        with profile_section("hand_selection"):
+            filtered_hand_infos = []
+            if face_landmarks is not None and hand_infos:
+                # Convert MediaPipe landmarks to numpy arrays for hand_selector
+                face_lms_np = _landmarks_to_numpy(face_landmarks)  # (468, 3)
+                hand_lms_list = [_landmarks_to_numpy(info["landmarks"]) for info in hand_infos]  # List of (21, 3)
+                
+                # Call hand_selector with correct format
+                hand_selector_result = hand_selector.process_hands(
+                    face_lms_np, hand_lms_list, (h, w)
+                )
+                
+                # Reconstruct filtered_hand_infos from selected hand indices
+                selected_indices = hand_selector_result.get('selected_hand_indices', [])
+                for idx in selected_indices:
+                    if idx < len(hand_infos):
+                        filtered_hand_infos.append(hand_infos[idx])
+            else:
+                # Fallback: if no face detected or no hands, use all hands (backwards compat)
+                filtered_hand_infos = hand_infos
 
         left_owner_ids = []
         right_owner_ids = []
@@ -1035,129 +1060,154 @@ def run_webcam(pipeline_log=None):
                 confidence_text = ""
                 prob_lines = []
 
+        # ─────────────────────────────────────────────────────────────────────────
+        # [SECTION 4] Model Inference (triggered when buffer is full)
+        # ─────────────────────────────────────────────────────────────────────────
         if valid_for_prediction and len(sequence_buffer) == NUM_FRAMES:
-            seq = np.array(sequence_buffer, dtype=np.float32)
-            seq = _normalize_landmarks(seq)
-            if USE_VELOCITY:
-                seq = _add_velocity(seq)
+            record_inference()  # Record that an inference occurred
+            
+            with profile_section("preprocessing"):
+                seq = np.array(sequence_buffer, dtype=np.float32)
+                with profile_section("normalization"):
+                    seq = _normalize_landmarks(seq)
+                
+                with profile_section("velocity_features"):
+                    if USE_VELOCITY:
+                        seq = _add_velocity(seq)
 
-            try:
-                from ensemble import merged_ensemble_predict
-                main_models, fallback_models, classes = ensure_word_models()
-                # PHASE 3: Use config-driven TTA setting (disabled by default for live inference)
-                result = merged_ensemble_predict(
-                    main_models, fallback_models, seq, use_tta=LIVE_USE_TTA,
-                )
-                idx = result['pred_idx']
-                conf = result['confidence']
-                probs = result['probs']
-                predicted = classes[idx] if idx < len(classes) else "?"
-                
-                # ── TemporalPostProcessor (confidence-weighted smoothing + anti-flicker) ──
-                # Convert probabilities to numpy array if not already
-                probs_array = np.array(probs) if not isinstance(probs, np.ndarray) else probs
-                
+            with profile_section("model_inference"):
+                try:
+                    from ensemble import merged_ensemble_predict
+                    main_models, fallback_models, classes = ensure_word_models()
+                    # PHASE 3: Use config-driven TTA setting (disabled by default for live inference)
+                    result = merged_ensemble_predict(
+                        main_models, fallback_models, seq, use_tta=LIVE_USE_TTA,
+                    )
+                    idx = result['pred_idx']
+                    conf = result['confidence']
+                    probs = result['probs']
+                    predicted = classes[idx] if idx < len(classes) else "?"
+                    
+                except Exception as e:
+                    print(f"[ERROR] Inference failed: {e}")
+                    idx = -1
+                    conf = 0.0
+                    probs = np.zeros(len(classes)) if classes else []
+                    predicted = "ERROR"
+            
+            # ─────────────────────────────────────────────────────────────────────────
+            # [SECTION 5] Post-Processing (Temporal Smoothing + Momentum)
+            # ─────────────────────────────────────────────────────────────────────────
+            
+            # Convert probabilities to numpy array if not already
+            probs_array = np.array(probs) if not isinstance(probs, np.ndarray) else probs
+            
+            with profile_section("temporal_smoothing"):
                 if temporal_postprocessor_enabled:
                     # Use smooth_raw_prediction for confidence smoothing ONLY (no class lock)
                     # This allows the existing prediction_history smoothing to work properly
                     idx, conf = temporal_postprocessor.smooth_raw_prediction(probs_array)
                     predicted = classes[idx] if idx < len(classes) else "?"
-                
-                # ── PART B: Adapter Model Application ──
-                # DISABLED: Adapter model is producing near-uniform distributions
-                # (converting 0.94 confidence to 0.02). Model needs retraining or investigation.
-                # Temporarily disabled to verify ensemble baseline works correctly.
-                original_probs = probs_array.copy()
-                # if adapter_model is not None:
-                #     try:
-                #         with torch.no_grad():
-                #             probs_tensor = torch.from_numpy(
-                #                 probs_array.astype(np.float32)
-                #             ).unsqueeze(0).to(DEVICE)
-                #             adapted_probs_tensor = adapter_model(probs_tensor)
-                #             adapted_probs = adapted_probs_tensor.squeeze(0).cpu().numpy()
-                #             probs_array = adapted_probs
-                #             probs = probs_array
-                #             idx = int(np.argmax(probs_array))
-                #             conf = float(probs_array[idx])
-                #             predicted = classes[idx] if idx < len(classes) else "?"
-                #     except Exception as e:
-                #         print(f"[Adapter] Error: {e}")
-                
-                # ── Dynamic Threshold Calculation ──
-                is_transition = (last_output_prediction is not None and 
-                                predicted != last_output_prediction)
-                effective_threshold = _calculate_dynamic_threshold(
-                    motion_magnitude, prediction_stability_counter, is_transition
-                )
-                
-                # Debug: Log confidence details for low-confidence predictions
-                if conf < 0.15:
-                    print(f"[DEBUG] Low confidence: word={predicted}, conf={conf:.4f} ({conf:.1%}), "
-                          f"ensemble_conf={result['confidence']:.4f}, "
-                          f"top_prob={np.max(probs):.4f}, threshold={effective_threshold:.4f}")
-                
-                # ── Motion Gating ──
-                motion_gated = _is_motion_gating_active(motion_magnitude, frames_in_motion)
-                
-                # ── Transition Hysteresis ──
-                meets_threshold = conf >= effective_threshold
-                if last_output_prediction is not None and is_transition:
-                    # Require extra confidence to switch predictions
-                    meets_threshold = conf >= (effective_threshold + TRANSITION_HYSTERESIS)
+            
+            # ── PART B: Adapter Model Application ──
+            # DISABLED: Adapter model is producing near-uniform distributions
+            # (converting 0.94 confidence to 0.02). Model needs retraining or investigation.
+            # Temporarily disabled to verify ensemble baseline works correctly.
+            original_probs = probs_array.copy()
+            # if adapter_model is not None:
+            #     try:
+            #         with torch.no_grad():
+            #             probs_tensor = torch.from_numpy(
+            #                 probs_array.astype(np.float32)
+            #             ).unsqueeze(0).to(DEVICE)
+            #             adapted_probs_tensor = adapter_model(probs_tensor)
+            #             adapted_probs = adapted_probs_tensor.squeeze(0).cpu().numpy()
+            #             probs_array = adapted_probs
+            #             probs = probs_array
+            #             idx = int(np.argmax(probs_array))
+            #             conf = float(probs_array[idx])
+            #             predicted = classes[idx] if idx < len(classes) else "?"
+            #     except Exception as e:
+            #         print(f"[Adapter] Error: {e}")
+            
+            # ── Dynamic Threshold Calculation ──
+            is_transition = (last_output_prediction is not None and 
+                            predicted != last_output_prediction)
+            effective_threshold = _calculate_dynamic_threshold(
+                motion_magnitude, prediction_stability_counter, is_transition
+            )
+            
+            # Debug: Log confidence details for low-confidence predictions
+            if conf < 0.15:
+                print(f"[DEBUG] Low confidence: word={predicted}, conf={conf:.4f} ({conf:.1%}), "
+                      f"ensemble_conf={result['confidence']:.4f}, "
+                      f"top_prob={np.max(probs):.4f}, threshold={effective_threshold:.4f}")
+            
+            # ── Motion Gating ──
+            motion_gated = _is_motion_gating_active(motion_magnitude, frames_in_motion)
+            
+            # ── Transition Hysteresis ──
+            meets_threshold = conf >= effective_threshold
+            if last_output_prediction is not None and is_transition:
+                # Require extra confidence to switch predictions
+                meets_threshold = conf >= (effective_threshold + TRANSITION_HYSTERESIS)
 
-                if meets_threshold and not motion_gated:
-                    # Push into momentum buffer and only commit when majority+confidence met
+            if meets_threshold and not motion_gated:
+                # ─────────────────────────────────────────────────────────────
+                # [SECTION 6] Prediction Momentum (Majority Voting)
+                # ─────────────────────────────────────────────────────────────
+                with profile_section("prediction_momentum"):
                     prediction_momentum.push(idx, conf)
                     commit = prediction_momentum.get_commit()
-                    if commit is None:
-                        # Tentative prediction; don't accept yet
-                        prediction_text = f"... {predicted}?"
-                        confidence_text = f"Tentative: {conf:.1%} | Motion: {motion_magnitude:.1f}"
-                        # Log tentative event for analysis
-                        if pipeline_log is not None:
-                            pipeline_log.event(
-                                "prediction_tentative",
-                                predicted=predicted,
-                                pred_idx=int(idx),
-                                confidence=round(float(conf), 4),
-                                motion=round(float(motion_magnitude), 2),
-                                momentum_window=prediction_momentum.window,
-                                momentum_count=prediction_momentum.commit_count,
-                            )
-                    else:
-                        committed_idx, avg_conf = commit
-                        committed_predicted = classes[committed_idx] if committed_idx < len(classes) else "?"
-
-                        if committed_predicted == last_output_prediction:
-                            prediction_stability_counter += 1
-                        else:
-                            # Word changed: clear history for instant switching
-                            prediction_stability_counter = 1
-                            prediction_history.clear()
-                            last_output_prediction = committed_predicted
-
-                        prediction_history.append(committed_predicted.upper())
-                        prediction_text = Counter(prediction_history).most_common(1)[0][0]
-                        confidence_text = (
-                            f"Conf: {avg_conf:.1%} | Motion: {motion_magnitude:.1f} | Stable: {prediction_stability_counter}"
-                        )
-                        # Log committed prediction
-                        if pipeline_log is not None:
-                            pipeline_log.event(
-                                "prediction_committed",
-                                predicted=committed_predicted,
-                                committed_idx=int(committed_idx),
-                                avg_conf=round(float(avg_conf), 4),
-                                motion=round(float(motion_magnitude), 2),
-                                stable_frames=int(prediction_stability_counter),
-                            )
-
+                
+                if commit is None:
+                    # Tentative prediction; don't accept yet
+                    prediction_text = f"... {predicted}?"
+                    confidence_text = f"Tentative: {conf:.1%} | Motion: {motion_magnitude:.1f}"
+                    # Log tentative event for analysis
                     if pipeline_log is not None:
                         pipeline_log.event(
-                            "prediction_accepted",
+                            "prediction_tentative",
                             predicted=predicted,
+                            pred_idx=int(idx),
                             confidence=round(float(conf), 4),
+                            motion=round(float(motion_magnitude), 2),
+                            momentum_window=prediction_momentum.window,
+                            momentum_count=prediction_momentum.commit_count,
+                        )
+                else:
+                    committed_idx, avg_conf = commit
+                    committed_predicted = classes[committed_idx] if committed_idx < len(classes) else "?"
+
+                    if committed_predicted == last_output_prediction:
+                        prediction_stability_counter += 1
+                    else:
+                        # Word changed: clear history for instant switching
+                        prediction_stability_counter = 1
+                        prediction_history.clear()
+                        last_output_prediction = committed_predicted
+
+                    prediction_history.append(committed_predicted.upper())
+                    prediction_text = Counter(prediction_history).most_common(1)[0][0]
+                    confidence_text = (
+                        f"Conf: {avg_conf:.1%} | Motion: {motion_magnitude:.1f} | Stable: {prediction_stability_counter}"
+                    )
+                    # Log committed prediction
+                    if pipeline_log is not None:
+                        pipeline_log.event(
+                            "prediction_committed",
+                            predicted=committed_predicted,
+                            committed_idx=int(committed_idx),
+                            avg_conf=round(float(avg_conf), 4),
+                            motion=round(float(motion_magnitude), 2),
+                            stable_frames=int(prediction_stability_counter),
+                        )
+
+                if pipeline_log is not None:
+                    pipeline_log.event(
+                        "prediction_accepted",
+                        predicted=predicted,
+                        confidence=round(float(conf), 4),
                             effective_threshold=round(float(effective_threshold), 4),
                             motion=round(float(motion_magnitude), 2),
                             stable_frames=prediction_stability_counter,
@@ -1243,8 +1293,12 @@ def run_webcam(pipeline_log=None):
                             reason=reason,
                         )
 
-                # Update sentence builder (continuous translation)
-                result = sentence_builder.update(prediction_text, conf)
+                # ─────────────────────────────────────────────────────────────
+                # [SECTION 7] Sentence Builder (Continuous Translation)
+                # ─────────────────────────────────────────────────────────────
+                with profile_section("sentence_builder"):
+                    result = sentence_builder.update(prediction_text, conf)
+                
                 added_word = result.get('added_word')
                 completed_sentence = result.get('completed_sentence')
                 
@@ -1268,130 +1322,144 @@ def run_webcam(pipeline_log=None):
                     f"{classes[i]}: {probs[i]:.1%}"
                     for i, _ in top5
                 ]
-            except FileNotFoundError:
-                prediction_text = "No word model"
-                confidence_text = ""
-                prob_lines = []
 
-        # ── Prediction panel ──
-        overlay = frame.copy()
-        panel_h = 140
-        cv2.rectangle(overlay, (0, h - panel_h), (280, h), BLACK, -1)
-        cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
+        # ─────────────────────────────────────────────────────────────────────────
+        # [SECTION 8] Rendering (All cv2 drawing operations)
+        # ─────────────────────────────────────────────────────────────────────────
+        with profile_section("rendering"):
+            # ── Prediction panel ──
+            overlay = frame.copy()
+            panel_h = 140
+            cv2.rectangle(overlay, (0, h - panel_h), (280, h), BLACK, -1)
+            cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
 
-        cv2.putText(
-            frame, prediction_text,
-            (10, h - panel_h + 30),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.9, YELLOW, 2,
-        )
-        if confidence_text:
             cv2.putText(
-                frame, confidence_text,
-                (10, h - panel_h + 50),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, WHITE, 1,
+                frame, prediction_text,
+                (10, h - panel_h + 30),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.9, YELLOW, 2,
             )
-        for idx, line in enumerate(prob_lines[:6]):
+            if confidence_text:
+                cv2.putText(
+                    frame, confidence_text,
+                    (10, h - panel_h + 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, WHITE, 1,
+                )
+            for idx, line in enumerate(prob_lines[:6]):
+                cv2.putText(
+                    frame, line,
+                    (10, h - panel_h + 67 + idx * 15),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.35, WHITE, 1,
+                )
+
+            # ── Full translation display (top of screen) ──
+            display_info = sentence_builder.get_display_text()
+            current_sentence = display_info['sentence'] if display_info['sentence'] else "(signing...)"
+            completed_sentences = sentence_builder.completed_sentences
+            
+            # Build full translation text: completed sentences + current
+            full_translation_parts = completed_sentences + [current_sentence]
+            full_translation = " ".join(full_translation_parts).strip()
+            if not full_translation or full_translation == "(signing...)":
+                full_translation = "👂 Listening to your signs..."
+            
+            # Main translation display (top of screen - prominent)
+            overlay_top = frame.copy()
+            top_panel_h = 80
+            cv2.rectangle(overlay_top, (10, 10), (w - 10, 10 + top_panel_h), BLACK, -1)
+            cv2.addWeighted(overlay_top, 0.7, frame, 0.3, 0, frame)
+            
             cv2.putText(
-                frame, line,
-                (10, h - panel_h + 67 + idx * 15),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.35, WHITE, 1,
+                frame, "Real-time Translation:",
+                (20, 30),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, CYAN, 1,
+            )
+            
+            # Wrap and display full translation
+            max_chars_per_line = 90
+            lines = []
+            remaining = full_translation
+            while len(remaining) > max_chars_per_line:
+                lines.append(remaining[:max_chars_per_line])
+                remaining = remaining[max_chars_per_line:]
+            if remaining:
+                lines.append(remaining)
+            
+            for idx, line in enumerate(lines[:2]):  # Show up to 2 lines
+                y_offset = 50 + idx * 18
+                cv2.putText(
+                    frame, line,
+                    (20, y_offset),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, YELLOW, 1,
+                )
+            
+            if len(lines) > 2:
+                cv2.putText(
+                    frame, f"... (+{len(lines)-2} more lines)",
+                    (20, 50 + 2*18),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.35, YELLOW, 1,
+                )
+
+            cv2.putText(
+                frame,
+                f"Sens: {sentence_builder.frames_since_last_word}/{sentence_builder.auto_sentence_timeout}  Sentences: {len(completed_sentences)}",
+                (10, h - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.35, GREEN, 1,
             )
 
-        # ── Full translation display (top of screen) ──
-        display_info = sentence_builder.get_display_text()
-        current_sentence = display_info['sentence'] if display_info['sentence'] else "(signing...)"
-        completed_sentences = sentence_builder.completed_sentences
-        
-        # Build full translation text: completed sentences + current
-        full_translation_parts = completed_sentences + [current_sentence]
-        full_translation = " ".join(full_translation_parts).strip()
-        if not full_translation or full_translation == "(signing...)":
-            full_translation = "👂 Listening to your signs..."
-        
-        # Main translation display (top of screen - prominent)
-        overlay_top = frame.copy()
-        top_panel_h = 80
-        cv2.rectangle(overlay_top, (10, 10), (w - 10, 10 + top_panel_h), BLACK, -1)
-        cv2.addWeighted(overlay_top, 0.7, frame, 0.3, 0, frame)
-        
-        cv2.putText(
-            frame, "Real-time Translation:",
-            (20, 30),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.5, CYAN, 1,
-        )
-        
-        # Wrap and display full translation
-        max_chars_per_line = 90
-        lines = []
-        remaining = full_translation
-        while len(remaining) > max_chars_per_line:
-            lines.append(remaining[:max_chars_per_line])
-            remaining = remaining[max_chars_per_line:]
-        if remaining:
-            lines.append(remaining)
-        
-        for idx, line in enumerate(lines[:2]):  # Show up to 2 lines
-            y_offset = 50 + idx * 18
-            cv2.putText(
-                frame, line,
-                (20, y_offset),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.45, YELLOW, 1,
-            )
-        
-        if len(lines) > 2:
-            cv2.putText(
-                frame, f"... (+{len(lines)-2} more lines)",
-                (20, 50 + 2*18),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.35, YELLOW, 1,
-            )
-
-        cv2.putText(
-            frame,
-            f"Sens: {sentence_builder.frames_since_last_word}/{sentence_builder.auto_sentence_timeout}  Sentences: {len(completed_sentences)}",
-            (10, h - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.35, GREEN, 1,
-        )
-
-        if not hands_visible:
-            pair_status = "Same person: waiting"
-            pair_color = WHITE
-        elif not two_hand_mode:
-            pair_status = "Single-hand sign mode"
-            pair_color = GREEN
-        elif same_person_pair:
-            if matched_person_id is None:
-                pair_status = "Same person: YES"
+            if not hands_visible:
+                pair_status = "Same person: waiting"
+                pair_color = WHITE
+            elif not two_hand_mode:
+                pair_status = "Single-hand sign mode"
+                pair_color = GREEN
+            elif same_person_pair:
+                if matched_person_id is None:
+                    pair_status = "Same person: YES"
+                else:
+                    pair_status = f"Same person: YES (P{matched_person_id})"
+                pair_color = GREEN
             else:
-                pair_status = f"Same person: YES (P{matched_person_id})"
-            pair_color = GREEN
-        else:
-            pair_status = "Same person: NO"
-            pair_color = RED
+                pair_status = "Same person: NO"
+                pair_color = RED
 
-        cv2.putText(
-            frame, pair_status,
-            (w - 250, 24),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.5, pair_color, 2,
-        )
+            cv2.putText(
+                frame, pair_status,
+                (w - 250, 24),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, pair_color, 2,
+            )
 
-        n_hands = len(hand_infos)
-        status = (
-            f"{n_hands} hand{'s' if n_hands != 1 else ''} OK"
-            if n_hands else "Show hand"
-        )
-        color = GREEN if valid_for_prediction else RED
-        cv2.putText(
-            frame, status,
-            (w - 120, h - 8),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 1,
-        )
+            n_hands = len(hand_infos)
+            status = (
+                f"{n_hands} hand{'s' if n_hands != 1 else ''} OK"
+                if n_hands else "Show hand"
+            )
+            color = GREEN if valid_for_prediction else RED
+            cv2.putText(
+                frame, status,
+                (w - 120, h - 8),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 1,
+            )
 
-        cv2.imshow("ISL Sign Recognition", frame)
+        # ─────────────────────────────────────────────────────────────────────────
+        # [SECTION 9] Display (cv2.imshow + cv2.waitKey)
+        # ─────────────────────────────────────────────────────────────────────────
+        with profile_section("display"):
+            cv2.imshow("ISL Sign Recognition", frame)
 
-        key = cv2.waitKey(1) & 0xFF
+            key = cv2.waitKey(1) & 0xFF
         
         # ── Keyboard controls (minimal) ──
         if key == ord("q") or key == 27:  # Q/ESC - Quit
             break
+
+        # ─────────────────────────────────────────────────────────────────────────
+        # MARK FRAME END (complete frame timing)
+        # ─────────────────────────────────────────────────────────────────────────
+        end_frame()
+        
+        # Print profiling report every 100 frames
+        if frame_idx % 100 == 0:
+            profiler = get_profiler()
+            profiler.print_report()
 
         frame_idx += 1
 
@@ -1400,6 +1468,20 @@ def run_webcam(pipeline_log=None):
     if holistic is not None:
         holistic.close()
     cv2.destroyAllWindows()
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # FINAL PROFILING REPORT (printed on exit)
+    # ═══════════════════════════════════════════════════════════════════════════
+    print("\n" + "="*80)
+    print("PROFILING SESSION COMPLETE - FINAL REPORT")
+    print("="*80)
+    profiler = get_profiler()
+    profiler.print_report(title="FINAL SESSION STATISTICS")
+    print("\n" + "─"*80)
+    print("Detailed Section Breakdown:")
+    print("─"*80)
+    profiler.print_section_details()
+    print("\n" + "="*80)
     
     # ── Cleanup: Save pseudo-buffer and shutdown adapter ──
     if pseudo_buffer is not None and pseudo_buffer.get_total_samples() > 0:
