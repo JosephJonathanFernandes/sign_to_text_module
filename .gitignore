@@ -13,6 +13,8 @@ venv/
 model_image.pth
 hand_landmarker.task
 face_landmarker.task
+*.pth
+*.pt
 
 # Dataset videos (too large for git)
 Dataset/
@@ -20,6 +22,19 @@ augmented_dataset/
 processed/
 pseudo_data/
 
+# Model weights & checkpoints
+adapter_weights/
+ensemble/
+
+# Logs
+logs/
+*.log
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Testing
+.pytest_cache/
 
 # OS
 Thumbs.db
