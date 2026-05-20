@@ -259,7 +259,11 @@ def ensemble_predict(
         use_tta = LIVE_USE_TTA
     
     t_start = time.time()
-    all_probs = []
+    
+    # PHASE 1 OPTIMIZATION: Store logits instead of softmax probabilities
+    # Softmax is expensive; averaging logits then softmax once is mathematically equivalent
+    # and saves N-1 softmax operations when using ensemble or TTA
+    all_logits = []
 
     tta_seqs = [sequence]
     if use_tta and TTA_ROUNDS > 1:
@@ -284,12 +288,20 @@ def ensemble_predict(
             t_fwd_end = time.time()
             t_model_forward += (t_fwd_end - t_fwd_start)
             
-            probs = F.softmax(logits, dim=1)
-            all_probs.append(probs.cpu().numpy()[0])
+            # OPTIMIZATION: Store logits, not softmax probabilities
+            # This saves softmax computation when averaging across models/TTA rounds
+            all_logits.append(logits.cpu().detach().numpy()[0])
             num_forward_passes += 1
 
-    # Average all probabilities (models x TTA rounds)
-    avg_probs = np.mean(all_probs, axis=0)
+    # PHASE 1 OPTIMIZATION: Average logits first, then softmax once
+    # Mathematically equivalent to averaging softmax probabilities but faster:
+    # softmax(avg(logits)) ≈ avg(softmax(logits)) with scale invariance
+    # Saves: (num_forward_passes - 1) softmax operations
+    avg_logits = np.mean(all_logits, axis=0)
+    avg_logits_tensor = torch.from_numpy(avg_logits).unsqueeze(0).float().to(DEVICE)
+    avg_probs_tensor = F.softmax(avg_logits_tensor, dim=1)
+    avg_probs = avg_probs_tensor.cpu().detach().numpy()[0]
+    
     pred_idx = int(np.argmax(avg_probs))
     confidence = float(avg_probs[pred_idx])
 

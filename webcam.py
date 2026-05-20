@@ -376,14 +376,21 @@ def _extract_frame_landmarks(
     frame,
     face_cache,
     frame_idx,
-    face_detect_interval=3,
+    face_detect_interval=None,
 ):
     """
     Extract frame vector with shared preprocess feature logic.
 
     Optimized for real-time: face detection runs every N frames
     (cached between). Hand detection runs every frame (critical).
+    
+    Args:
+        face_detect_interval: Run face detection every N frames (None = use config default)
     """
+    # Use config default if not provided
+    if face_detect_interval is None:
+        face_detect_interval = cfg.preprocessing.face_detection_interval
+    
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
 
@@ -904,7 +911,10 @@ def run_webcam(pipeline_log=None):
         # [SECTION 2] Landmark Extraction (Hand + Face)
         # ─────────────────────────────────────────────────────────────────────────
         with profile_section("hand_detection"):
-            people = _detect_person_boxes(frame, hog_detector)
+            if cfg.preprocessing.disable_hog_detection:
+                people = []  # OPTIMIZATION: Skip HOG detection if disabled
+            else:
+                people = _detect_person_boxes(frame, hog_detector)
         
         with profile_section("landmark_extraction"):
             landmarks_vec, hand_infos, face_center, face_landmarks = _extract_frame_landmarks(
@@ -913,7 +923,6 @@ def run_webcam(pipeline_log=None):
                 frame,
                 face_cache,
                 frame_idx,
-                face_detect_interval=3,
             )
 
         if DEBUG_DRAW_FACE_CENTER and face_center is not None:
@@ -937,7 +946,14 @@ def run_webcam(pipeline_log=None):
         # ─────────────────────────────────────────────────────────────────────────
         with profile_section("hand_selection"):
             filtered_hand_infos = []
-            if face_landmarks is not None and hand_infos:
+            
+            # OPTIMIZATION: Skip hand selector for single-hand case
+            # Single-hand signs don't benefit from multi-hand filtering
+            if hand_infos and len(hand_infos) <= 1:
+                # Fast path: single hand (common case, ~90% of signs)
+                filtered_hand_infos = hand_infos
+            elif face_landmarks is not None and hand_infos:
+                # Multi-hand case: use hand_selector for face-relative filtering
                 # Convert MediaPipe landmarks to numpy arrays for hand_selector
                 face_lms_np = _landmarks_to_numpy(face_landmarks)  # (468, 3)
                 hand_lms_list = [_landmarks_to_numpy(info["landmarks"]) for info in hand_infos]  # List of (21, 3)

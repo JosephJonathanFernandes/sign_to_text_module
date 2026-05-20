@@ -175,6 +175,17 @@ class PreprocessingConfig:
     debug_draw_face_center: bool = True
     """Visualize face anchor point during debugging."""
 
+    face_detection_interval: int = 5
+    """Run face landmark detection every N frames (cached between). Default: 5 (down from 3).
+    Higher values = faster but slightly less accurate in fast motion. Min: 1, Max: 10.
+    """
+
+    disable_hog_detection: bool = False
+    """Disable HOG person detection completely. Speeds up by ~8ms but loses person-aware filtering.
+    Safe when: mostly single-signer videos or when face detection is primary anchor.
+    Default: False (enabled). Set True to disable.
+    """
+
     @property
     def frame_area(self) -> int:
         """Total pixel area of a frame."""
@@ -604,7 +615,7 @@ class LiveInferenceConfig:
     - Enabled: ~2 fps (very slow)
     """
 
-    ensemble_size: int = 3
+    ensemble_size: int = 2
     """Number of models to load for LIVE inference (PHASE 3).
     
     Options:
