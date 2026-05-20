@@ -194,16 +194,16 @@ class PreprocessingConfig:
 class ModelConfig:
     """Neural network architecture hyperparameters."""
 
-    hidden_size: int = 128
+    hidden_size: int = 96
     """Hidden dimension of LSTM/GRU layers."""
 
-    num_layers: int = 3
+    num_layers: int = 2
     """Number of recurrent layers (depth of the network)."""
 
     bidirectional: bool = True
     """Use bidirectional recurrent network."""
 
-    dropout: float = 0.35
+    dropout: float = 0.30
     """Dropout rate for regularization (0-1)."""
 
     use_face_proximity_attention: bool = True
@@ -232,7 +232,7 @@ class TrainingConfig:
     """Training loop and optimization hyperparameters."""
 
     # Optimization
-    batch_size: int = 16
+    batch_size: int = 8
     learning_rate: float = 3e-4
     """Reduced from 5e-4 for improved stability with small datasets."""
 
@@ -243,7 +243,7 @@ class TrainingConfig:
     """Gradient clipping max norm to prevent explosion."""
 
     # Epochs and early stopping
-    num_epochs: int = 60
+    num_epochs: int = 50
     """Increased from 40 for more stable convergence with limited data."""
 
     patience: int = 10
@@ -253,7 +253,7 @@ class TrainingConfig:
     """Learning rate scheduler patience (more aggressive LR reduction)."""
 
     # Data splits
-    val_split: float = 0.25
+    val_split: float = 0.30
     """Train/validation split ratio (80/20)."""
 
     random_seed: int = 42
@@ -512,7 +512,7 @@ class ArchitectureImprovementsConfig:
     """
 
     # Conv frontend parameters
-    conv_frontend_out_channels: int = 256
+    conv_frontend_out_channels: int = 128
     """Output channels of the conv frontend pointwise projection."""
 
     conv_frontend_pointwise_kernel: int = 1
