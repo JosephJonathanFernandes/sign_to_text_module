@@ -18,6 +18,7 @@ import torch.nn.functional as F
 import time
 
 from config import get_config
+from quantization_utils import load_model_artifact
 
 cfg = get_config()
 
@@ -71,7 +72,7 @@ def _align_sequence_dim(seq: np.ndarray) -> np.ndarray:
     return np.concatenate([seq, pad], axis=1)
 
 
-def load_ensemble():
+def load_ensemble(model_artifact_path: str | None = None):
     """
     Load fold models from ENSEMBLE_DIR with support for dynamic ensemble sizing (PHASE 3).
     
@@ -88,12 +89,24 @@ def load_ensemble():
     
     Loads first N fold models from sorted list.
     """
-    models = []
-    classes = None
     current_classes = sorted([
         d for d in os.listdir(PROCESSED_DIR)
         if os.path.isdir(os.path.join(PROCESSED_DIR, d))
     ])
+
+    if model_artifact_path:
+        model, classes, num_classes, _, _ = load_model_artifact(model_artifact_path, map_location="cpu")
+        model.eval()
+        if classes is None:
+            classes = current_classes
+        print(
+            f"[Ensemble] Loaded model artifact: {os.path.basename(model_artifact_path)}, "
+            f"{len(classes)} classes"
+        )
+        return [model], classes, num_classes
+
+    models = []
+    classes = None
 
     # Try loading ensemble fold models (limited by LIVE_ENSEMBLE_SIZE)
     if os.path.isdir(ENSEMBLE_DIR):
@@ -106,8 +119,7 @@ def load_ensemble():
         
         for fname in fold_files:
             fpath = os.path.join(ENSEMBLE_DIR, fname)
-            ckpt = torch.load(fpath, map_location=DEVICE, weights_only=False)
-            ckpt_classes = ckpt.get("classes")
+            model, ckpt_classes, num_classes, _, ckpt = load_model_artifact(fpath, map_location="cpu")
 
             # Skip stale folds that don't match current processed classes
             if ckpt_classes is not None:
@@ -118,13 +130,10 @@ def load_ensemble():
                     )
                     continue
 
-            num_classes = ckpt["num_classes"]
-            model = SignLanguageGRU(num_classes=num_classes).to(DEVICE)
-            model.load_state_dict(ckpt["model_state_dict"])
             model.eval()
             models.append(model)
-            if classes is None and "classes" in ckpt:
-                classes = ckpt["classes"]
+            if classes is None and ckpt_classes is not None:
+                classes = ckpt_classes
 
     if models:
         if classes is None:
@@ -138,16 +147,8 @@ def load_ensemble():
 
     # Fallback: single model
     if os.path.exists(MODEL_SAVE_PATH):
-        ckpt = torch.load(
-            MODEL_SAVE_PATH,
-            map_location=DEVICE,
-            weights_only=False,
-        )
-        num_classes = ckpt["num_classes"]
-        model = SignLanguageGRU(num_classes=num_classes).to(DEVICE)
-        model.load_state_dict(ckpt["model_state_dict"])
+        model, classes, num_classes, _, ckpt = load_model_artifact(MODEL_SAVE_PATH, map_location="cpu")
         model.eval()
-        classes = ckpt.get("classes")
         if classes is None or sorted(classes) != current_classes:
             classes = current_classes
         print(
@@ -184,14 +185,10 @@ def load_merged_ensemble_10_2():
         for fname in new_fold_files[:5]:  # Limit to 5
             fpath = os.path.join(ENSEMBLE_DIR, fname)
             try:
-                ckpt = torch.load(fpath, map_location=DEVICE, weights_only=False)
-                num_classes = ckpt["num_classes"]
-                model = SignLanguageGRU(num_classes=num_classes).to(DEVICE)
-                model.load_state_dict(ckpt["model_state_dict"])
-                model.eval()
+                model, classes_in_ckpt, num_classes, _, ckpt = load_model_artifact(fpath, map_location="cpu")
                 main_models.append(model)
-                if classes is None and "classes" in ckpt:
-                    classes = ckpt["classes"]
+                if classes is None and classes_in_ckpt is not None:
+                    classes = classes_in_ckpt
                 print(f"    ✓ {fname}")
             except Exception as e:
                 print(f"    ✗ {fname} - {e}")
@@ -200,14 +197,11 @@ def load_merged_ensemble_10_2():
     if os.path.exists(MODEL_SAVE_PATH):
         print(f"  Loading fallback model from {MODEL_SAVE_PATH}...")
         try:
-            ckpt = torch.load(MODEL_SAVE_PATH, map_location=DEVICE, weights_only=False)
-            num_classes = ckpt["num_classes"]
-            model = SignLanguageGRU(num_classes=num_classes).to(DEVICE)
-            model.load_state_dict(ckpt["model_state_dict"])
+            model, classes_in_ckpt, num_classes, _, ckpt = load_model_artifact(MODEL_SAVE_PATH, map_location="cpu")
             model.eval()
             fallback_models.append(model)
-            if classes is None and "classes" in ckpt:
-                classes = ckpt["classes"]
+            if classes is None and classes_in_ckpt is not None:
+                classes = classes_in_ckpt
             print(f"    ✓ model.pth")
         except Exception as e:
             print(f"    ✗ model.pth - {e}")

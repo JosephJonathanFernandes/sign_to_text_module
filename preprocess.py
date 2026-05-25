@@ -564,6 +564,7 @@ def augment_video_dataset(
 def create_landmarker(
     num_hands: int = NUM_HANDS,
     for_webcam: bool = False,
+    force_image_mode: bool = False,
 ) -> HandLandmarker:
     """
     Create a HandLandmarker instance — single source of truth for all
@@ -573,18 +574,25 @@ def create_landmarker(
     Args:
         num_hands: Maximum number of hands to detect
         for_webcam: If True, use higher confidence thresholds for speed
+        force_image_mode: If True, always create an IMAGE-mode landmarker.
     """
-    # For webcam: raise confidence to filter false positives and speed up
+    # For webcam: raise confidence to filter false positives and reduce stale tracks
     min_conf = 0.5 if for_webcam else 0.3
+    tracking_conf = 0.7 if for_webcam else min_conf
     
+    running_mode = RunningMode.IMAGE if force_image_mode else (
+        RunningMode.VIDEO if for_webcam else RunningMode.IMAGE
+    )
+
     options = HandLandmarkerOptions(
         base_options=BaseOptions(
             model_asset_path=HAND_LANDMARKER_MODEL
         ),
-        running_mode=RunningMode.IMAGE,
+        running_mode=running_mode,
         num_hands=num_hands,
         min_hand_detection_confidence=min_conf,
         min_hand_presence_confidence=min_conf,
+        min_tracking_confidence=tracking_conf,
     )
     return HandLandmarker.create_from_options(options)
 
@@ -601,14 +609,17 @@ def create_face_landmarker(for_webcam: bool = False) -> FaceLandmarker | None:
         # For webcam: raise confidence to speed up, reduce false positives
         min_conf = 0.6 if for_webcam else 0.3
         
+        running_mode = RunningMode.VIDEO if for_webcam else RunningMode.IMAGE
+
         options = FaceLandmarkerOptions(
             base_options=BaseOptions(
                 model_asset_path=FACE_LANDMARKER_MODEL
             ),
-            running_mode=RunningMode.IMAGE,
+            running_mode=running_mode,
             num_faces=1,
             min_face_detection_confidence=min_conf,
             min_face_presence_confidence=min_conf,
+            min_tracking_confidence=min_conf,
         )
         return FaceLandmarker.create_from_options(options)
     except Exception:

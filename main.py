@@ -15,6 +15,7 @@ Usage:
 import argparse
 import os
 import sys
+from pathlib import Path
 
 from pipeline_logger import setup_pipeline_logger
 
@@ -227,7 +228,7 @@ def run_kfold_word():
     print("\nK-fold word training complete!\n")
 
 
-def run_predict_word(video_path: str):
+def run_predict_word(video_path: str, model_artifact_path: str | None = None):
     """Predict word from a video file."""
     from preprocess import extract_hand_landmarks
     from ensemble import load_ensemble, ensemble_predict
@@ -240,7 +241,7 @@ def run_predict_word(video_path: str):
     pipeline_log = setup_pipeline_logger("predict")
     with pipeline_log.capture_stdio():
         pipeline_log.event("predict_start", video_path=video_path)
-        models, classes, _ = load_ensemble()
+        models, classes, _ = load_ensemble(model_artifact_path=model_artifact_path)
         print(f"Processing: {video_path}")
         sequence = extract_hand_landmarks(video_path)
         pred_idx, conf, probs = ensemble_predict(
@@ -262,6 +263,17 @@ def run_predict_word(video_path: str):
             confidence=round(float(conf), 4),
             classes=len(classes),
         )
+
+
+def _default_quantized_model_path() -> str:
+    from config import MODEL_SAVE_PATH
+
+    model_path = Path(MODEL_SAVE_PATH)
+    return str(model_path.with_name(f"{model_path.stem}_quantized.pt"))
+
+
+def _resolve_quantized_model_path(quantized_model: str | None) -> str:
+    return quantized_model or _default_quantized_model_path()
 
 
 # ── Main ─────────────────────────────────────────────────────────
@@ -405,6 +417,14 @@ def main():
         help="Live webcam recognition",
     )
     parser.add_argument(
+        "--quantized", action="store_true",
+        help="Use a quantized checkpoint bundle for --predict or --webcam",
+    )
+    parser.add_argument(
+        "--quantized-model", type=str, default=None,
+        help="Path to a quantized bundle to use with --quantized",
+    )
+    parser.add_argument(
         "--collect", action="store_true",
         help="Record new training samples via webcam",
     )
@@ -480,12 +500,31 @@ def main():
         with pipeline_log.capture_stdio():
             from webcam import run_webcam
 
-            run_webcam(pipeline_log=pipeline_log)
+            quantized_model_path = None
+            if args.quantized:
+                quantized_model_path = _resolve_quantized_model_path(args.quantized_model)
+                if not os.path.exists(quantized_model_path):
+                    print(f"[ERROR] Quantized model not found: {quantized_model_path}")
+                    sys.exit(1)
+                print(f"[INFO] Using quantized model bundle: {quantized_model_path}")
+
+            run_webcam(
+                pipeline_log=pipeline_log,
+                model_artifact_path=quantized_model_path,
+            )
         return
 
     # ── Word mode ──
     if args.predict:
-        run_predict_word(args.predict)
+        quantized_model_path = None
+        if args.quantized:
+            quantized_model_path = _resolve_quantized_model_path(args.quantized_model)
+            if not os.path.exists(quantized_model_path):
+                print(f"[ERROR] Quantized model not found: {quantized_model_path}")
+                sys.exit(1)
+            print(f"[INFO] Using quantized model bundle: {quantized_model_path}")
+
+        run_predict_word(args.predict, model_artifact_path=quantized_model_path)
         return
 
     if args.kfold:

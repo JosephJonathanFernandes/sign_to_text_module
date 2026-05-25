@@ -63,13 +63,13 @@ def main():
     parser.add_argument(
         "--augment-iterations",
         type=int,
-        default=2,
+        default=4,
         help="Number of times to run augmentation (default: 4)"
     )
     parser.add_argument(
         "--merge-iterations",
         type=int,
-        default=1,
+        default=7,
         help="Number of times to run merge (default: 7)"
     )
     parser.add_argument(

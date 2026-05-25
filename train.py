@@ -14,6 +14,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
+import argparse
 from config import get_config
 from pipeline_logger import PipelineLogger
 
@@ -40,7 +41,6 @@ CLASS_WEIGHT_POWER = cfg.training.class_weight_power
 LR_SCHEDULER = cfg.training.lr_scheduler
 LR_DECAY_FACTOR = cfg.training.lr_decay_factor
 LR_MIN = cfg.training.lr_min
-WARMUP_EPOCHS = cfg.training.warmup_epochs
 USE_FOCAL_LOSS = cfg.training.use_focal_loss
 FOCAL_ALPHA = cfg.training.focal_alpha
 FOCAL_GAMMA = cfg.training.focal_gamma
@@ -748,6 +748,9 @@ def _train_fold(
     fold: int,
     save_path: str,
     pipeline_log: PipelineLogger | None = None,
+    *,
+    epochs: int = NUM_EPOCHS,
+    learning_rate: float = LEARNING_RATE,
 ) -> float:
     """
     Train a single fold with balanced oversampling + weighted CE loss.
@@ -790,7 +793,7 @@ def _train_fold(
     )
 
     model = SignLanguageGRU(num_classes=num_classes).to(DEVICE)
-    
+
     # Select loss function (Focal Loss for hard sample mining, else CE)
     if USE_FOCAL_LOSS:
         criterion = FocalLoss(
@@ -804,22 +807,17 @@ def _train_fold(
             weight=class_weights,
             label_smoothing=LABEL_SMOOTHING,
         )
-    
-    optimizer = torch.optim.AdamW(
-        model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY,
-    )
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-        optimizer, T_0=20, T_mult=2, eta_min=1e-5,
-    )
 
     best_val_acc = 0.0
-    no_improve = 0
+    print(f"[FOLD {fold}] Starting training (epochs={epochs}, lr={learning_rate})")
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=WEIGHT_DECAY)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=20, T_mult=2, eta_min=LR_MIN)
 
-    for epoch in range(1, NUM_EPOCHS + 1):
+    no_improve = 0
+    best_val_acc = 0.0
+    for epoch in range(1, epochs + 1):
         t0 = time.time()
-        tr_loss, tr_acc = train_one_epoch(
-            model, train_loader, criterion, optimizer
-        )
+        tr_loss, tr_acc = train_one_epoch(model, train_loader, criterion, optimizer)
         va_loss, va_acc = validate(model, val_loader, criterion)
         scheduler.step(epoch)
         cur_lr = optimizer.param_groups[0]["lr"]
@@ -864,12 +862,7 @@ def _train_fold(
             no_improve += 1
 
         if epoch % 10 == 0 or marker:
-            cur_lr = optimizer.param_groups[0]["lr"]
-            print(
-                f"   F{fold} Ep {epoch:>3} | "
-                f"tr {tr_acc:>5.1f}% | va {va_acc:>5.1f}% | "
-                f"lr {cur_lr:.1e} | {elapsed:.1f}s{marker}"
-            )
+            print(f"   F{fold} Ep {epoch:>3} | tr {tr_acc:>5.1f}% | va {va_acc:>5.1f}% | lr {cur_lr:.1e} | {elapsed:.1f}s{marker}")
 
         if no_improve >= PATIENCE:
             print(f"   F{fold} Early stop at epoch {epoch}")
@@ -894,7 +887,13 @@ def _train_fold(
     return best_val_acc
 
 
-def train_kfold(pipeline_log: PipelineLogger | None = None, start_fold: int = 0) -> list:
+def train_kfold(
+    pipeline_log: PipelineLogger | None = None,
+    start_fold: int = 0,
+    *,
+    epochs: int = NUM_EPOCHS,
+    learning_rate: float = LEARNING_RATE,
+) -> list:
     """
     Train NUM_FOLDS models using disjoint source-aware K-fold CV.
     Saves each fold model to ENSEMBLE_DIR/fold_N.pth.
@@ -957,8 +956,15 @@ def train_kfold(pipeline_log: PipelineLogger | None = None, start_fold: int = 0)
         )
 
         best_acc = _train_fold(
-            full_ds, train_idx, val_idx, num_classes, fold, save_path,
+            full_ds,
+            train_idx,
+            val_idx,
+            num_classes,
+            fold,
+            save_path,
             pipeline_log=pipeline_log,
+            epochs=epochs,
+            learning_rate=learning_rate,
         )
         fold_accs.append(best_acc)
         _record_kfold_fold(manifest, fold, best_acc, save_path)
@@ -988,3 +994,37 @@ def train_kfold(pipeline_log: PipelineLogger | None = None, start_fold: int = 0)
         )
     _finalize_kfold_manifest(manifest, fold_accs)
     return fold_accs
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Training runner (single split or K-fold)")
+    parser.add_argument('--kfold', type=int, default=0, help='Run K-fold cross-validation with this many folds (overrides config)')
+    parser.add_argument('--epochs', type=int, default=NUM_EPOCHS, help='Number of training epochs')
+    parser.add_argument('--lr', type=float, default=LEARNING_RATE, help='Learning rate')
+    args = parser.parse_args()
+
+    globals()['NUM_EPOCHS'] = int(args.epochs)
+    globals()['LEARNING_RATE'] = float(args.lr)
+
+    # If K-fold requested, run k-fold pipeline
+    if args.kfold and args.kfold > 0:
+        # Override module NUM_FOLDS for this run
+        globals()['NUM_FOLDS'] = int(args.kfold)
+        print(f"[Main] Running K-Fold with {globals()['NUM_FOLDS']} folds")
+        fold_accs = train_kfold(
+            pipeline_log=None,
+            start_fold=0,
+            epochs=args.epochs,
+            learning_rate=args.lr,
+        )
+        # Summary
+        avg = float(np.mean(fold_accs)) if fold_accs else 0.0
+        std = float(np.std(fold_accs)) if fold_accs else 0.0
+        best_idx = int(np.argmax(fold_accs)) if fold_accs else -1
+        print(f"K-Fold summary: mean={avg:.2f}% std={std:.2f}% best_fold={best_idx} best_acc={fold_accs[best_idx] if best_idx>=0 else None}")
+        raise SystemExit(0)
+
+    # Single-run training
+    train_loader, val_loader, num_classes, class_weights, full_ds = create_data_loaders()
+    model = train(train_loader, val_loader, num_classes, class_weights)
+    print(f"[Done] Training complete. Model saved to {MODEL_SAVE_PATH}")

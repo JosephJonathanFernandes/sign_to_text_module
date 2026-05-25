@@ -49,6 +49,16 @@ USE_RESIDUAL_GRU_SKIP = cfg.arch_improvements.use_residual_gru_skip
 DEBUG_PRINT_SHAPES = cfg.arch_improvements.debug_print_shapes
 DEBUG_LAYER_STATS = cfg.arch_improvements.debug_layer_stats
 
+# ════════════════════════════════════════════════════════════════════════════════════
+# PHASE 10: Lightweight Spatial GNN
+# ════════════════════════════════════════════════════════════════════════════════════
+USE_GNN = cfg.arch_improvements.use_gnn
+GNN_OUTPUT_DIM = cfg.arch_improvements.gnn_output_dim
+GNN_PER_FRAME_DIM = GNN_OUTPUT_DIM * 2  # 2 hands, pooled
+
+if USE_GNN:
+    from spatial_gnn import LightweightSpatialGNN
+
 
 def _gaussian_log_bias(proximity: torch.Tensor, sigma: torch.Tensor) -> torch.Tensor:
     """Return log-bias for a Gaussian kernel over normalized proximity."""
@@ -437,10 +447,19 @@ class SignLanguageGRU(nn.Module):
         num_heads: int = 4,
         use_hybrid: bool = True,
         num_proximity_heads: int = 2,
+        hidden_size: int | None = None,
+        num_layers: int | None = None,
+        bidirectional: bool | None = None,
+        dropout: float | None = None,
     ):
         super().__init__()
 
-        self.hidden_dim = HIDDEN_SIZE * (2 if BIDIRECTIONAL else 1)
+        self.hidden_size = int(hidden_size) if hidden_size is not None else HIDDEN_SIZE
+        self.num_layers = int(num_layers) if num_layers is not None else NUM_LAYERS
+        self.bidirectional = bool(bidirectional) if bidirectional is not None else BIDIRECTIONAL
+        self.dropout_rate = float(dropout) if dropout is not None else DROPOUT
+
+        self.hidden_dim = self.hidden_size * (2 if self.bidirectional else 1)
         self.use_multihead = use_multihead and self.hidden_dim % num_heads == 0
         self.use_hybrid = use_hybrid
         self.num_heads = num_heads if self.use_multihead else 1
@@ -505,6 +524,23 @@ class SignLanguageGRU(nn.Module):
             conv_input_to_proj = INPUT_SIZE
 
         # ════════════════════════════════════════════════════════════════
+        # PHASE 10: Lightweight Spatial GNN (parallel branch)
+        # ════════════════════════════════════════════════════════════════
+        # Runs in parallel with Conv1D frontend:
+        # - Extracts raw landmark positions (first 126 dims) from input
+        # - Processes through graph convolutions for spatial topology
+        # - Output: (B, T, GNN_PER_FRAME_DIM) concatenated with conv features
+        self.use_gnn = USE_GNN
+        if self.use_gnn:
+            self.spatial_gnn = LightweightSpatialGNN()
+            # Increase projection dim to account for GNN features
+            conv_input_to_proj += GNN_PER_FRAME_DIM
+            if DEBUG_PRINT_SHAPES:
+                print(f"[Phase 10] GNN enabled: adding {GNN_PER_FRAME_DIM} dims → conv_input_to_proj={conv_input_to_proj}")
+        else:
+            self.spatial_gnn = None
+
+        # ════════════════════════════════════════════════════════════════
         # PHASE 2: Learnable Frame Weighting
         # ════════════════════════════════════════════════════════════════
         # After Conv1D (if enabled), learn importance of each frame
@@ -524,8 +560,8 @@ class SignLanguageGRU(nn.Module):
 
         # Input projection: conv_input_to_proj -> HIDDEN_SIZE with normalization
         self.input_proj = nn.Sequential(
-            nn.Linear(conv_input_to_proj, HIDDEN_SIZE),
-            nn.LayerNorm(HIDDEN_SIZE),
+            nn.Linear(conv_input_to_proj, self.hidden_size),
+            nn.LayerNorm(self.hidden_size),
             nn.ReLU(),
             nn.Dropout(CONV_FRONTEND_DROPOUT if self.use_conv_frontend else DROPOUT * 0.5),
         )
@@ -535,12 +571,12 @@ class SignLanguageGRU(nn.Module):
         # ════════════════════════════════════════════════════════════════
         # GRU with reduced dropout (0.25 instead of 0.35)
         self.gru = nn.GRU(
-            input_size=HIDDEN_SIZE,
-            hidden_size=HIDDEN_SIZE,
-            num_layers=NUM_LAYERS,
+            input_size=self.hidden_size,
+            hidden_size=self.hidden_size,
+            num_layers=self.num_layers,
             batch_first=True,
-            bidirectional=BIDIRECTIONAL,
-            dropout=GRU_DROPOUT if NUM_LAYERS > 1 else 0.0,  # Use reduced dropout
+            bidirectional=self.bidirectional,
+            dropout=GRU_DROPOUT if self.num_layers > 1 else 0.0,  # Use reduced dropout
         )
 
         self.layer_norm = nn.LayerNorm(self.hidden_dim)
@@ -646,6 +682,18 @@ class SignLanguageGRU(nn.Module):
                 proximity = proximity.to(x.device)
 
         # ────────────────────────────────────────────────────────────────
+        # PHASE 10: Lightweight Spatial GNN (parallel branch)
+        # ────────────────────────────────────────────────────────────────
+        # Run GNN on original input (landmark positions) BEFORE conv frontend
+        # modifies x. The GNN only needs the first 126 dims (left+right raw).
+        # GNN output: (B, T, GNN_PER_FRAME_DIM)
+        gnn_features = None
+        if self.use_gnn and self.spatial_gnn is not None:
+            gnn_features = self.spatial_gnn(x)  # (B, T, 16)
+            if DEBUG_PRINT_SHAPES:
+                print(f"[Phase 10] GNN features: {gnn_features.shape}")
+
+        # ────────────────────────────────────────────────────────────────
         # PHASE 1: Conv1D Temporal Feature Extractor
         # ────────────────────────────────────────────────────────────────
         if self.use_conv_frontend:
@@ -679,6 +727,15 @@ class SignLanguageGRU(nn.Module):
 
             if DEBUG_PRINT_SHAPES:
                 print(f"[Phase 1] After conv_frontend: {x.shape}")
+
+        # ────────────────────────────────────────────────────────────────
+        # Concatenate GNN features with Conv frontend output
+        # ────────────────────────────────────────────────────────────────
+        # GNN: (B, T, 16) + Conv: (B, T, 128) → (B, T, 144)
+        if self.use_gnn and gnn_features is not None:
+            x = torch.cat([x, gnn_features], dim=-1)
+            if DEBUG_PRINT_SHAPES:
+                print(f"[Phase 10] After concat GNN+Conv: {x.shape}")
 
         # ────────────────────────────────────────────────────────────────
         # PHASE 2: Learnable Frame Weighting

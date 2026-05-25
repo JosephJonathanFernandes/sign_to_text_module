@@ -24,8 +24,8 @@ import numpy as np
 # Configurable settings
 # ------------------------------
 ROOT_DIR = "processed"
-MAX_AUG_PER_CLASS = 250
-MAX_MERGE_PER_CLASS = 200
+MAX_AUG_PER_CLASS = 400
+MAX_MERGE_PER_CLASS = 300
 DRY_RUN = False
 SEED = 42
 

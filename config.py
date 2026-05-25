@@ -180,10 +180,30 @@ class PreprocessingConfig:
     Higher values = faster but slightly less accurate in fast motion. Min: 1, Max: 10.
     """
 
-    disable_hog_detection: bool = False
+    hand_detection_interval: int = 5
+    """Run full hand detection every N frames and reuse cached hand landmarks between.
+    Default: 5. Higher values improve FPS but can reduce responsiveness on fast motion.
+    """
+
+    forced_hand_redetect_interval: int = 15
+    """Force a full hand re-detection at least every N frames, even if tracking is stable."""
+
+    adaptive_hand_interval_enabled: bool = True
+    """Increase hand detection interval only during low motion in live mode."""
+
+    low_motion_interval_multiplier: float = 2.0
+    """Multiplier applied to hand_detection_interval when motion is low."""
+
+    low_motion_threshold_ratio: float = 0.6
+    """Treat motion as low when motion_magnitude <= ratio * motion_threshold."""
+
+    max_adaptive_hand_interval: int = 8
+    """Upper cap for adaptive hand detection interval."""
+
+    disable_hog_detection: bool = True
     """Disable HOG person detection completely. Speeds up by ~8ms but loses person-aware filtering.
     Safe when: mostly single-signer videos or when face detection is primary anchor.
-    Default: False (enabled). Set True to disable.
+    Default: True (disabled). Set False to enable.
     """
 
     @property
@@ -205,10 +225,10 @@ class PreprocessingConfig:
 class ModelConfig:
     """Neural network architecture hyperparameters."""
 
-    hidden_size: int = 96
+    hidden_size: int = 64
     """Hidden dimension of LSTM/GRU layers."""
 
-    num_layers: int = 2
+    num_layers: int = 3
     """Number of recurrent layers (depth of the network)."""
 
     bidirectional: bool = True
@@ -338,9 +358,6 @@ class TrainingConfig:
     lr_min: float = 1e-5
     """Minimum learning rate for cosine annealing."""
 
-    warmup_epochs: int = 2
-    """Number of warmup epochs with linear LR increase."""
-
     def validate(self) -> None:
         """Validate training configuration consistency."""
         assert self.batch_size > 0, "Batch size must be positive"
@@ -405,7 +422,7 @@ class MotionConfig:
     Auto-scales to different resolutions.
     """
 
-    motion_smoothing: float = 0.7
+    motion_smoothing: float = 0.6
     """Exponential moving average factor for motion detection (0-1)."""
 
     idle_confidence_threshold: float = 0.70
@@ -548,7 +565,7 @@ class ArchitectureImprovementsConfig:
     """Initialization strategy for frame weights ('uniform' or 'ones')."""
 
     # ── PHASE 4: Reduced Dropout ──
-    gru_dropout: float = 0.25
+    gru_dropout: float = 0.30
     """Dropout rate for GRU layers (PHASE 4).
     Reduced from 0.35 to prevent over-regularization.
     """
@@ -599,6 +616,63 @@ class ArchitectureImprovementsConfig:
     - Reduces need for aggressive regularization
     """
 
+    # ── PHASE 10: Lightweight Spatial GNN ──
+    use_gnn: bool = True
+    """Enable lightweight spatial GNN for hand skeleton topology (PHASE 10).
+    
+    Adds a parallel GNN branch that processes MediaPipe landmark positions
+    through graph convolutions based on the anatomical hand skeleton.
+    
+    Benefits:
+    - Explicit finger-joint connectivity modeling
+    - Better handshape discrimination
+    - Robustness to missing landmarks via message passing
+    - Minimal parameter increase (<2K extra params)
+    
+    Disable for: Backward compatibility, strict latency requirements
+    """
+    
+    gnn_hidden_dim: int = 16
+    """Hidden dimension of GNN layers (PHASE 10)."""
+    
+    gnn_num_layers: int = 2
+    """Number of graph convolution layers (PHASE 10).
+    
+    Recommended: 1-3 layers maximum. 2 layers provides good
+    receptive field for hand skeleton (21 nodes, ~avg path length 3).
+    """
+    
+    gnn_output_dim: int = 8
+
+    # Select GNN implementation: 'gcn' | 'gat' | 'mini_stgcn'
+    gnn_type: str = "gcn"
+    """Per-node output dimension after final GNN layer (PHASE 10).
+    
+    After max-pooling over 21 nodes and 2 hands:
+    Total per-frame output = gnn_output_dim * 2 = 16 dims
+    """
+    
+    gnn_dropout: float = 0.1
+    """Dropout rate between GNN layers (PHASE 10)."""
+    
+    gnn_use_residual: bool = True
+    """Use residual connections in GNN layers (PHASE 10).
+    
+    Only applied when input dim == output dim.
+    Improves gradient flow in deeper GNN stacks.
+    """
+    
+    gnn_shared_weights: bool = True
+    """Share GNN weights between left and right hands (PHASE 10).
+    
+    Benefits:
+    - Half the parameters
+    - Hand-agnostic spatial understanding
+    - Both hands benefit from each other's training signal
+    
+    Disable for: Per-hand specialized processing
+    """
+
 
 @dataclass
 class LiveInferenceConfig:
@@ -615,7 +689,7 @@ class LiveInferenceConfig:
     - Enabled: ~2 fps (very slow)
     """
 
-    ensemble_size: int = 2
+    ensemble_size: int = 1
     """Number of models to load for LIVE inference (PHASE 3).
     
     Options:
@@ -651,15 +725,35 @@ class LiveInferenceConfig:
     adapter_min_samples_per_class: int = 5
     """Require each participating class to have at least this many samples."""
 
+    temporal_smoothing_enabled: bool = True
+    """Enable temporal post-processing during live inference."""
+
+    temporal_window_size: int = 3
+    """Temporal smoothing window size (frames)."""
+
+    temporal_patience: int = 1
+    """Frames required to confirm a transition in temporal post-processing."""
+
+    temporal_delta: float = 0.05
+    """Confidence margin used by temporal anti-flicker logic."""
+
+    temporal_decay_factor: float = 0.3
+    """Exponential decay factor for older frames in temporal smoothing."""
+
     def validate(self) -> None:
         """Validate live inference configuration."""
-        assert self.ensemble_size in (1, 3, 5), \
-            f"ensemble_size must be 1, 3, or 5, got {self.ensemble_size}"
+        # Allow 2 for dynamic/live experimental configs while preserving common options
+        assert self.ensemble_size in (1, 2, 3, 5), \
+            f"ensemble_size must be 1, 2, 3, or 5, got {self.ensemble_size}"
         assert self.adapter_training_interval > 0, "adapter_training_interval must be positive"
         assert self.adapter_train_min_samples > 0, "adapter_train_min_samples must be positive"
         assert self.adapter_min_saved_samples > 0, "adapter_min_saved_samples must be positive"
         assert self.adapter_min_classes >= 3, "adapter_min_classes must be at least 3"
         assert self.adapter_min_samples_per_class > 0, "adapter_min_samples_per_class must be positive"
+        assert self.temporal_window_size > 0, "temporal_window_size must be positive"
+        assert self.temporal_patience > 0, "temporal_patience must be positive"
+        assert self.temporal_delta >= 0.0, "temporal_delta must be non-negative"
+        assert 0.0 <= self.temporal_decay_factor <= 1.0, "temporal_decay_factor must be in [0, 1]"
         assert self.momentum_window >= 3, "momentum_window must be at least 3"
         assert self.momentum_commit_count > 0, "momentum_commit_count must be positive"
         assert self.momentum_commit_count <= self.momentum_window, \
@@ -668,13 +762,13 @@ class LiveInferenceConfig:
             "momentum_min_avg_conf must be in (0, 1)"
 
     # Prediction momentum parameters for live inference (majority + confidence commit)
-    momentum_window: int = 5
-    """Number of recent predictions to keep for momentum majority voting (3-5 recommended)."""
+    momentum_window: int = 3
+    """Number of recent predictions to keep for momentum majority voting."""
 
-    momentum_commit_count: int = 3
-    """Minimum occurrences of the same class within `momentum_window` required to commit."""
+    momentum_commit_count: int = 2
+    """Minimum occurrences of the same class within `momentum_window` required to commit (2-of-3)."""
 
-    momentum_min_avg_conf: float = 0.6
+    momentum_min_avg_conf: float = 0.5
     """Minimum average confidence on the agreeing entries required to commit prediction."""
 
 
@@ -1007,7 +1101,6 @@ MIXUP_PROB = _default_config.training.mixup_prob
 LR_SCHEDULER = _default_config.training.lr_scheduler
 LR_DECAY_FACTOR = _default_config.training.lr_decay_factor
 LR_MIN = _default_config.training.lr_min
-WARMUP_EPOCHS = _default_config.training.warmup_epochs
 
 DEVICE = _default_config.hardware.torch_device
 NUM_THREADS = _default_config.hardware.num_threads

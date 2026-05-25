@@ -17,7 +17,7 @@ from dataclasses import dataclass
 
 
 ROOT_DIR = "processed"
-DEFAULT_THRESHOLD = 500
+DEFAULT_THRESHOLD = 700
 
 
 @dataclass

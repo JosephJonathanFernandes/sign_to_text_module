@@ -9,7 +9,7 @@ This repository currently implements a strong isolated-word recognition pipeline
 - **Landmark-based pipeline:** MediaPipe hand + face-relative keypoints stored as compact `.npy` sequences
 - **BiGRU + Attention classifier:** temporal sequence model for isolated sign recognition
 - **K-fold ensemble inference:** more robust prediction by averaging multiple checkpoints
-- **Real-time webcam mode:** sliding-window recognition with signer validation and confidence gating
+- **Real-time webcam mode:** sliding-window recognition with signer validation, confidence gating, periodic full hand re-detection, and drift-triggered cache refresh
 - **Sentence builder:** accumulates recognized signs into continuous text
 - **Rule-based NLP post-processing:** grammar cleanup, punctuation insertion, text normalization
 - **Data collection utilities:** webcam capture for new training samples
@@ -68,6 +68,17 @@ Minimal packages in requirements:
 - **ensemble/** — K-fold ensemble checkpoints
 - **Dataset/** — Raw video files organized by class
 - **processed/** — Preprocessed landmark `.npy` files (20 frames × 506 dims)
+
+## Developer utilities
+
+Developer and debugging tools are collected in `DEVELOPER.md`. It lists quick verification commands, profiling helpers, data QC scripts, K-fold helpers, and checkpoint naming conventions. See: [DEVELOPER.md](DEVELOPER.md)
+
+For a quick webcam-pipeline measurement, run:
+
+```bash
+python -u scripts/benchmark_webcam_pipeline.py --frames 120 --warmup 10
+```
+
 
 ## Quick Start
 
@@ -158,6 +169,33 @@ Direct class mode:
 
 ```bash
 python main.py --collect --cls happy --n 10
+```
+
+### 6) Dynamic Quantization for CPU Inference
+
+Quantize the main checkpoint:
+
+```bash
+python quantize_model.py --checkpoint model.pth --output model_quantized.pt
+```
+
+Quantize every ensemble checkpoint into a separate directory:
+
+```bash
+python quantize_model.py --ensemble-dir ensemble --output ensemble_quantized
+```
+
+Benchmark and optionally measure validation accuracy:
+
+```bash
+python evaluate_quantized_model.py --checkpoint model_quantized.pt --evaluate-accuracy
+```
+
+The live pipeline can load quantized bundles through the existing ensemble loader. Opt in with:
+
+```bash
+python main.py --webcam --quantized
+python main.py --predict sample.mp4 --quantized
 ```
 
 ## Model Architecture
@@ -253,3 +291,24 @@ This keeps the system lightweight and deployable while adding incremental intell
 ## License
 
 For academic and learning use unless a separate license is added.
+
+## Recent changes (2026-05-21)
+
+These notes summarize recent development pushes so the repo README matches the latest code.
+
+- Added a lightweight per-frame Spatial GNN and integrated it into the model pipeline. The GNN feature is concatenated before the model `input_proj` and controlled by config flags under `arch_improvements`.
+- Updated training policy: removed GNN warmup. Training now uses direct full-model fine-tuning only (single-split and K-fold).
+- K-fold training runs full fine-tuning directly with `--kfold`; no staged warmup flags remain in `train.py`.
+- Current CLI flags for training control are: `--kfold`, `--epochs`, `--lr`.
+- Added quick scripts for testing and benchmarking: `scripts/smoke_gnn_test.py` and `scripts/benchmark_gnn.py`.
+
+Example usage:
+```bash
+# Single full-training run
+python train.py --epochs 8 --lr 1e-4
+
+# K-fold full fine-tuning (5 folds)
+python train.py --kfold 5 --epochs 8 --lr 1e-4
+```
+
+If you'd like, I can expand these notes into a longer changelog section or add per-file developer notes.

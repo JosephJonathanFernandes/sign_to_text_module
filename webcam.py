@@ -23,6 +23,7 @@ import mediapipe as mp
 import torch
 import os
 import time
+import threading
 
 from profiling import get_profiler, profile_section, start_frame, end_frame, record_inference
 
@@ -56,6 +57,14 @@ TRANSITION_HYSTERESIS = cfg.inference.transition_hysteresis
 LIVE_ENSEMBLE_SIZE = cfg.live_inference.ensemble_size
 LIVE_USE_TTA = cfg.live_inference.use_tta
 PRINT_LATENCY_STATS = cfg.live_inference.print_latency_stats
+LIVE_TEMPORAL_SMOOTHING_ENABLED = cfg.live_inference.temporal_smoothing_enabled
+LIVE_TEMPORAL_WINDOW = cfg.live_inference.temporal_window_size
+LIVE_TEMPORAL_PATIENCE = cfg.live_inference.temporal_patience
+LIVE_TEMPORAL_DELTA = cfg.live_inference.temporal_delta
+LIVE_TEMPORAL_DECAY = cfg.live_inference.temporal_decay_factor
+HAND_FORCE_REDETECT_INTERVAL = cfg.preprocessing.forced_hand_redetect_interval
+HAND_DRIFT_JUMP_RATIO = 0.08
+HAND_DRIFT_MIN_JUMP_PX = 40
 
 # ── Pseudo-Label Collection (PART A) ──
 PSEUDO_BUFFER_ENABLED = True  # Toggle pseudo-label collection
@@ -192,6 +201,34 @@ def _calculate_hand_motion(wrist_pos, wrist_history, motion_magnitude):
     return new_motion
 
 
+def _detect_hand_drift(hand_infos, wrist_history, frame_shape):
+    """Detect suspicious wrist jumps that usually indicate stale tracking."""
+    if not hand_infos or len(wrist_history) == 0:
+        return False
+
+    current_wrists = []
+    for info in hand_infos:
+        landmarks = info.get("landmarks")
+        if landmarks:
+            current_wrists.append(_wrist_point_px(landmarks, frame_shape[1], frame_shape[0]))
+
+    if not current_wrists:
+        return False
+
+    current_center = (
+        sum(point[0] for point in current_wrists) / len(current_wrists),
+        sum(point[1] for point in current_wrists) / len(current_wrists),
+    )
+    previous_center = wrist_history[-1]
+    dx = current_center[0] - previous_center[0]
+    dy = current_center[1] - previous_center[1]
+    jump = (dx * dx + dy * dy) ** 0.5
+
+    frame_diag = (frame_shape[1] ** 2 + frame_shape[0] ** 2) ** 0.5
+    jump_threshold = max(HAND_DRIFT_MIN_JUMP_PX, frame_diag * HAND_DRIFT_JUMP_RATIO)
+    return jump > jump_threshold
+
+
 def _calculate_dynamic_threshold(motion_magnitude, stability_counter, is_transition):
     """Calculate adaptive confidence threshold based on motion and stability.
     
@@ -295,6 +332,20 @@ def _compute_adaptive_thresholds(elapsed_seconds: float, base_interval: int, bas
     return adaptive_interval, adaptive_min_saved, True
 
 
+def _get_adaptive_hand_detection_interval(motion_magnitude: float) -> int:
+    """Return hand detection interval that expands only when motion is low."""
+    base_interval = max(1, int(cfg.preprocessing.hand_detection_interval))
+    if not cfg.preprocessing.adaptive_hand_interval_enabled:
+        return base_interval
+
+    threshold = MOTION_THRESHOLD * float(cfg.preprocessing.low_motion_threshold_ratio)
+    if motion_magnitude > threshold:
+        return base_interval
+
+    expanded = int(round(base_interval * float(cfg.preprocessing.low_motion_interval_multiplier)))
+    return max(base_interval, min(expanded, int(cfg.preprocessing.max_adaptive_hand_interval)))
+
+
 
 def _detect_person_boxes(frame, hog_detector):
     """Detect person boxes and apply a lightweight NMS by IoU."""
@@ -372,21 +423,30 @@ def _draw_landmarks(frame, hand_landmarks, w, h):
 
 def _extract_frame_landmarks(
     landmarker,
+    force_landmarker,
     holistic,
     frame,
+    hand_cache,
     face_cache,
     frame_idx,
+    frame_timestamp_ms=None,
+    hand_detect_interval=None,
     face_detect_interval=None,
+    force_detection=False,
 ):
     """
     Extract frame vector with shared preprocess feature logic.
 
-    Optimized for real-time: face detection runs every N frames
-    (cached between). Hand detection runs every frame (critical).
+    Optimized for real-time: face/hand detection can run every N frames
+    with cached reuse between intervals.
     
     Args:
+        hand_detect_interval: Run full hand detection every N frames (None = use config default)
         face_detect_interval: Run face detection every N frames (None = use config default)
     """
+    if hand_detect_interval is None:
+        hand_detect_interval = cfg.preprocessing.hand_detection_interval
+
     # Use config default if not provided
     if face_detect_interval is None:
         face_detect_interval = cfg.preprocessing.face_detection_interval
@@ -394,13 +454,72 @@ def _extract_frame_landmarks(
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
 
-    # Hand detection every frame (fast and critical)
-    result = landmarker.detect(mp_image)
+    def _next_video_timestamp_ms(cache_dict: dict, cache_key: str, ts_ms: int | None) -> int | None:
+        """Return a strictly increasing timestamp for MediaPipe VIDEO mode."""
+        if ts_ms is None:
+            return None
+
+        current_ts = int(ts_ms)
+        last_ts = cache_dict.get(cache_key)
+        if last_ts is not None and current_ts <= int(last_ts):
+            current_ts = int(last_ts) + 1
+        cache_dict[cache_key] = current_ts
+        return current_ts
+
+    # Hand detection every N frames; reuse cached result between detects.
+    # To avoid visibly "stuck" landmarks during subtle hand motion, we cap
+    # cache age more aggressively while hands are currently tracked.
+    cached_result = hand_cache.get('result')
+    cached_frame_idx = int(hand_cache.get('frame_idx', -10**9))
+    cache_age_frames = frame_idx - cached_frame_idx
+    has_cached_hands = bool(
+        cached_result is not None
+        and getattr(cached_result, "hand_landmarks", None)
+    )
+
+    # When hands are visible, refresh often for responsiveness.
+    # When no hands are tracked, keep the normal interval for efficiency.
+    max_cache_age_frames = 2 if has_cached_hands else max(1, int(hand_detect_interval))
+
+    should_detect_hands = (
+        force_detection
+        or frame_idx % max(1, int(HAND_FORCE_REDETECT_INTERVAL)) == 0
+        or frame_idx % max(1, int(hand_detect_interval)) == 0
+        or cached_result is None
+        or cache_age_frames >= max_cache_age_frames
+    )
+    if should_detect_hands:
+        if force_detection:
+            if force_landmarker is not None:
+                result = force_landmarker.detect(mp_image)
+            else:
+                result = landmarker.detect(mp_image)
+        elif frame_timestamp_ms is not None and hasattr(landmarker, "detect_for_video"):
+            hand_ts_ms = _next_video_timestamp_ms(
+                hand_cache,
+                "last_video_timestamp_ms",
+                frame_timestamp_ms,
+            )
+            result = landmarker.detect_for_video(mp_image, hand_ts_ms)
+        else:
+            result = landmarker.detect(mp_image)
+        hand_cache['result'] = result
+        hand_cache['frame_idx'] = frame_idx
+    else:
+        result = hand_cache.get('result')
 
     # Face detection every N frames to speed up real-time inference
     face_landmarks = None
     if holistic is not None and frame_idx % face_detect_interval == 0:
-        face_result = holistic.detect(mp_image)
+        if frame_timestamp_ms is not None and hasattr(holistic, "detect_for_video"):
+            face_ts_ms = _next_video_timestamp_ms(
+                face_cache,
+                "last_video_timestamp_ms",
+                frame_timestamp_ms,
+            )
+            face_result = holistic.detect_for_video(mp_image, face_ts_ms)
+        else:
+            face_result = holistic.detect(mp_image)
         if face_result.face_landmarks:
             face_landmarks = face_result.face_landmarks[0]
             face_cache['landmarks'] = face_landmarks
@@ -438,7 +557,7 @@ def _extract_frame_landmarks(
     return landmarks_vec, hand_infos, face_center, face_landmarks
 
 
-def run_webcam(pipeline_log=None):
+def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
     """
         Main webcam loop for continuous word recognition.
 
@@ -455,9 +574,17 @@ def run_webcam(pipeline_log=None):
     def ensure_word_models():
         nonlocal word_models, word_models_fallback, word_classes
         if word_models is None:
-            print("Loading merged 10+2 ensemble...")
-            from ensemble import load_merged_ensemble_10_2
-            word_models, word_models_fallback, word_classes, _ = load_merged_ensemble_10_2()
+            if model_artifact_path:
+                print(f"Loading quantized model bundle: {model_artifact_path}")
+                from ensemble import load_ensemble
+
+                word_models, word_classes, _ = load_ensemble(model_artifact_path=model_artifact_path)
+                word_models_fallback = []
+            else:
+                print("Loading merged 10+2 ensemble...")
+                from ensemble import load_merged_ensemble_10_2
+
+                word_models, word_models_fallback, word_classes, _ = load_merged_ensemble_10_2()
             if pipeline_log is not None:
                 pipeline_log.event(
                     "ensemble_loaded",
@@ -477,20 +604,74 @@ def run_webcam(pipeline_log=None):
 
     # ── Landmarker — optimized for webcam (high conf, face skipping) ──
     landmarker = create_landmarker(num_hands=NUM_HANDS, for_webcam=True)
+    force_landmarker = create_landmarker(num_hands=NUM_HANDS, for_webcam=True, force_image_mode=True)
     holistic = create_face_landmarker(for_webcam=True)
-    hog_detector = cv2.HOGDescriptor()
-    hog_detector.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
+    # Force-disable HOG person detection in live webcam mode to save CPU/time.
+    # This avoids creating the HOG detector object and running detectMultiScale.
+    HOG_ENABLED = False  # Set to True to re-enable HOG during live runs
+    hog_detector = None
+    if HOG_ENABLED and not cfg.preprocessing.disable_hog_detection:
+        try:
+            hog_detector = cv2.HOGDescriptor()
+            hog_detector.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
+        except Exception:
+            hog_detector = None
+    # Threaded camera capture to avoid blocking the main inference loop
+    class CameraThread:
+        def __init__(self, src=0):
+            self.cap = cv2.VideoCapture(src)
+            self.lock = threading.Lock()
+            self.ret = False
+            self.frame = None
+            self.running = False
+            if self.cap.isOpened():
+                # Pre-warm a few frames to avoid the first-frame stall
+                for _ in range(3):
+                    self.cap.read()
+                self.running = True
+                self.thread = threading.Thread(target=self._reader, daemon=True)
+                self.thread.start()
 
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
+        def _reader(self):
+            while self.running:
+                ret, frame = self.cap.read()
+                with self.lock:
+                    self.ret, self.frame = ret, frame
+                if not ret:
+                    # Avoid tight loop if camera fails
+                    time.sleep(0.01)
+
+        def read(self):
+            with self.lock:
+                return self.ret, self.frame
+
+        def isOpened(self):
+            return self.cap.isOpened()
+
+        def release(self):
+            self.running = False
+            try:
+                if hasattr(self, 'thread'):
+                    self.thread.join(timeout=1.0)
+            except Exception:
+                pass
+            try:
+                self.cap.release()
+            except Exception:
+                pass
+
+    camera = CameraThread(0)
+    if not camera.isOpened():
         print("[ERROR] Cannot open webcam.")
         if pipeline_log is not None:
             pipeline_log.event("webcam_open_failed")
         return
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    # Preferred live resolution; can be reduced for performance
+    camera.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+    camera.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
     # ── State ──
+    hand_cache = {}  # Cache hand landmarks between detection frames
     face_cache = {}  # Cache face landmarks between frames
     frame_idx = 0
     sequence_buffer = deque(maxlen=NUM_FRAMES)
@@ -519,17 +700,21 @@ def run_webcam(pipeline_log=None):
 
     # ── Temporal Post-Processor (confidence-weighted smoothing + anti-flicker) ──
     from ensemble import load_merged_ensemble_10_2
-    try:
-        temporal_postprocessor = TemporalPostProcessor(
-            window_size=3,  # Frames for confidence averaging (reduced for faster transitions)
-            patience=1,  # Frames to confirm transition (reduced from 3 for faster response)
-            delta=0.05,  # Confidence margin for transitions (reduced from 0.1 for easier switching)
-            enable_decay=True,  # Use exponential decay for older frames
-            decay_factor=0.3  # Decay weight for older predictions
-        )
-        temporal_postprocessor_enabled = True  # ENABLED: Confidence averaging + anti-flicker
-    except Exception as e:
-        print(f"[WARN] Could not initialize TemporalPostProcessor: {e}")
+    if LIVE_TEMPORAL_SMOOTHING_ENABLED:
+        try:
+            temporal_postprocessor = TemporalPostProcessor(
+                window_size=LIVE_TEMPORAL_WINDOW,
+                patience=LIVE_TEMPORAL_PATIENCE,
+                delta=LIVE_TEMPORAL_DELTA,
+                enable_decay=True,
+                decay_factor=LIVE_TEMPORAL_DECAY,
+            )
+            temporal_postprocessor_enabled = True
+        except Exception as e:
+            print(f"[WARN] Could not initialize TemporalPostProcessor: {e}")
+            temporal_postprocessor = None
+            temporal_postprocessor_enabled = False
+    else:
         temporal_postprocessor = None
         temporal_postprocessor_enabled = False
 
@@ -587,6 +772,10 @@ def run_webcam(pipeline_log=None):
     # ── PART A: Pseudo-Label Collection ──
     pseudo_buffer = None
     prediction_count_since_save = 0
+    # Locks for background operations
+    _pseudo_lock = threading.Lock()
+    _adapter_lock = threading.Lock()
+    _adapter_training_in_progress = False
     
     if PSEUDO_BUFFER_ENABLED:
         pseudo_buffer = PseudoLabelBuffer(
@@ -596,6 +785,55 @@ def run_webcam(pipeline_log=None):
             per_class_cap=PER_CLASS_CAP,
             auto_save=AUTO_SAVE_PSEUDO,
         )
+
+    def _background_save_buffer(buffer_copy, verbose=True):
+        try:
+            total_saved = 0
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            for class_name, sequences in buffer_copy.items():
+                class_dir = os.path.join(PSEUDO_SAVE_DIR, class_name)
+                os.makedirs(class_dir, exist_ok=True)
+                for idx, seq in enumerate(sequences):
+                    filename = f"{class_name}_{timestamp}_{idx:03d}.npy"
+                    filepath = os.path.join(class_dir, filename)
+                    try:
+                        np.save(filepath, seq)
+                        total_saved += 1
+                    except Exception:
+                        continue
+
+            if verbose:
+                print(f"[PseudoBuffer] (bg) ✓ Saved {total_saved} samples to {PSEUDO_SAVE_DIR}")
+            if pipeline_log is not None:
+                pipeline_log.event(
+                    "pseudo_buffer_saved_bg",
+                    saved_samples=int(total_saved),
+                    total_saved_on_disk=pseudo_buffer.get_saved_sample_count() if pseudo_buffer is not None else 0,
+                )
+        except Exception as e:
+            print(f"[PseudoBuffer] Background save failed: {e}")
+
+    def _background_adapter_training(trigger_label: str):
+        nonlocal _adapter_training_in_progress
+        # Prevent concurrent adapter training
+        if not _adapter_lock.acquire(blocking=False):
+            return
+        try:
+            if _adapter_training_in_progress:
+                return
+            _adapter_training_in_progress = True
+            try:
+                _attempt_adapter_training(trigger_label)
+                if pipeline_log is not None:
+                    pipeline_log.event("adapter_training_requested_bg", trigger=trigger_label)
+            except Exception as e:
+                print(f"[Adapter] Background training failed: {e}")
+        finally:
+            _adapter_training_in_progress = False
+            try:
+                _adapter_lock.release()
+            except Exception:
+                pass
     
     # ── PART B: Adapter Model ──
     adapter_model = None
@@ -850,8 +1088,20 @@ def run_webcam(pipeline_log=None):
     print(f"  Word stability: {sentence_builder.stability_frames} frames")
     print(f"  Auto-sentence timeout: {sentence_builder.auto_sentence_timeout} frames (~{sentence_builder.auto_sentence_timeout/30:.1f}s)")
     print(f"  ✓ Real-time profiling ENABLED (time.perf_counter, report every 100 frames)")
+    if cfg.preprocessing.adaptive_hand_interval_enabled:
+        print(
+            "  ✓ Adaptive hand detect interval ENABLED "
+            f"(base: {cfg.preprocessing.hand_detection_interval}, "
+            f"low-motion max: {cfg.preprocessing.max_adaptive_hand_interval}, "
+            f"hard re-detect: every {HAND_FORCE_REDETECT_INTERVAL} frames)"
+        )
     if temporal_postprocessor_enabled:
-        print(f"  ✓ Temporal Smoothing ENABLED (window: 3 frames, decay: 0.3, anti-flicker: delta=5%)")
+        print(
+            f"  ✓ Temporal Smoothing ENABLED "
+            f"(window: {LIVE_TEMPORAL_WINDOW}, decay: {LIVE_TEMPORAL_DECAY}, anti-flicker: delta={LIVE_TEMPORAL_DELTA:.2f})"
+        )
+    else:
+        print("  ✗ Temporal Smoothing DISABLED")
     if MOTION_GATING_ENABLED:
         print(f"  ✓ Motion gating ENABLED (motion threshold: {MOTION_THRESHOLD:.1f}px)")
     if DYNAMIC_THRESHOLD_ENABLED:
@@ -899,31 +1149,57 @@ def run_webcam(pipeline_log=None):
         # [SECTION 1] Frame Capture
         # ─────────────────────────────────────────────────────────────────────────
         with profile_section("frame_capture"):
-            ret, frame = cap.read()
-            if not ret:
-                break
+            ret, frame = camera.read()
+            if not ret or frame is None:
+                # If camera temporarily fails, sleep briefly and continue
+                time.sleep(0.005)
+                continue
 
             frame = cv2.flip(frame, 1)
+
+        frame_timestamp_ms = int(time.perf_counter() * 1000)
         
         h, w = frame.shape[:2]
+        hand_detect_interval = _get_adaptive_hand_detection_interval(motion_magnitude)
 
         # ─────────────────────────────────────────────────────────────────────────
         # [SECTION 2] Landmark Extraction (Hand + Face)
         # ─────────────────────────────────────────────────────────────────────────
         with profile_section("hand_detection"):
-            if cfg.preprocessing.disable_hog_detection:
-                people = []  # OPTIMIZATION: Skip HOG detection if disabled
+            # Respect runtime override: do not run HOG detection in live mode when forced off.
+            if not HOG_ENABLED or cfg.preprocessing.disable_hog_detection or hog_detector is None:
+                people = []  # OPTIMIZATION: Skip HOG detection entirely in live mode
             else:
                 people = _detect_person_boxes(frame, hog_detector)
         
         with profile_section("landmark_extraction"):
             landmarks_vec, hand_infos, face_center, face_landmarks = _extract_frame_landmarks(
                 landmarker,
+                force_landmarker,
                 holistic,
                 frame,
+                hand_cache,
                 face_cache,
                 frame_idx,
+                frame_timestamp_ms=frame_timestamp_ms,
+                hand_detect_interval=hand_detect_interval,
             )
+
+        if _detect_hand_drift(hand_infos, wrist_history, frame.shape):
+            hand_cache['result'] = None
+            with profile_section("hand_redetect"):
+                landmarks_vec, hand_infos, face_center, face_landmarks = _extract_frame_landmarks(
+                    landmarker,
+                    force_landmarker,
+                    holistic,
+                    frame,
+                    hand_cache,
+                    face_cache,
+                    frame_idx,
+                    frame_timestamp_ms=frame_timestamp_ms,
+                    hand_detect_interval=hand_detect_interval,
+                    force_detection=True,
+                )
 
         if DEBUG_DRAW_FACE_CENTER and face_center is not None:
             cv2.circle(frame, face_center, 6, (255, 0, 255), -1)
@@ -1233,11 +1509,13 @@ def run_webcam(pipeline_log=None):
                     # ── PART A: Pseudo-Label Collection ──
                     # Collect high-confidence prediction as pseudo-labeled sample
                     if pseudo_buffer is not None and conf >= PSEUDO_THRESHOLD:
-                        collected = pseudo_buffer.add_sample(
-                            class_name=predicted,
-                            seq=seq,
-                            confidence=conf,
-                        )
+                        # Protect pseudo-buffer operations with lock
+                        with _pseudo_lock:
+                            collected = pseudo_buffer.add_sample(
+                                class_name=predicted,
+                                seq=seq,
+                                confidence=conf,
+                            )
                         if collected:
                             prediction_count_since_save = 0
                             if pipeline_log is not None:
@@ -1251,15 +1529,18 @@ def run_webcam(pipeline_log=None):
                     # Periodically save pseudo-buffer
                     prediction_count_since_save += 1
                     if pseudo_buffer is not None and AUTO_SAVE_PSEUDO:
-                        if pseudo_buffer.should_save() and prediction_count_since_save >= PSEUDO_SAVE_INTERVAL:
-                            saved_count = pseudo_buffer.save(verbose=True)
-                            if pipeline_log is not None:
-                                pipeline_log.event(
-                                    "pseudo_buffer_saved",
-                                    saved_samples=int(saved_count),
-                                    total_saved_on_disk=pseudo_buffer.get_saved_sample_count(),
-                                )
-                            pseudo_buffer.clear()
+                        # Check and swap buffer for background save
+                        should = False
+                        with _pseudo_lock:
+                            should = pseudo_buffer.should_save()
+                        if should and prediction_count_since_save >= PSEUDO_SAVE_INTERVAL:
+                            # Create a copy to save in background and clear main buffer
+                            with _pseudo_lock:
+                                buffer_copy = pseudo_buffer.get_buffer_copy()
+                                pseudo_buffer.clear()
+                            # Spawn background thread to save copied buffer
+                            t = threading.Thread(target=_background_save_buffer, args=(buffer_copy, True), daemon=True)
+                            t.start()
                             prediction_count_since_save = 0
                     
                     # ── Adapter Training Trigger ──
@@ -1279,11 +1560,10 @@ def run_webcam(pipeline_log=None):
                             print(f"[Adapter] Short session detected ({elapsed_secs:.0f}s): lowering interval {ADAPTER_TRAINING_INTERVAL} → {adaptive_interval}")
                         
                         if prediction_count_since_training >= adaptive_interval:
-                            if _attempt_adapter_training("periodic check"):
-                                prediction_count_since_training = 0
-                                last_adapter_poll = 0
-                            else:
-                                prediction_count_since_training = 0
+                            # Run adapter training check asynchronously to avoid blocking
+                            t = threading.Thread(target=_background_adapter_training, args=("periodic check",), daemon=True)
+                            t.start()
+                            prediction_count_since_training = 0
                 
                 else:
                     # Prediction rejected
@@ -1479,7 +1759,11 @@ def run_webcam(pipeline_log=None):
 
         frame_idx += 1
 
-    cap.release()
+    # Cleanup camera thread and release resources
+    try:
+        camera.release()
+    except Exception:
+        pass
     landmarker.close()
     if holistic is not None:
         holistic.close()
