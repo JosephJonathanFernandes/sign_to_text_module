@@ -15,6 +15,7 @@ This repository currently implements a strong isolated-word recognition pipeline
 - **Data collection utilities:** webcam capture for new training samples
 - **Raw-video augmentation:** controlled dataset expansion before preprocessing
 - **Landmark augmentation:** sequence-level augmentation on processed `.npy` files
+- **Dataset balancing:** duplicate webcam samples and trim overfull classes to a fixed target
 - **Balanced training:** class weights, mixup, optional focal loss, oversampling
 - **Pseudo-label and adapter hooks:** experimental live adaptation pipeline for future personalization
 
@@ -78,6 +79,14 @@ For a quick webcam-pipeline measurement, run:
 ```bash
 python -u scripts/benchmark_webcam_pipeline.py --frames 120 --warmup 10
 ```
+
+To rebalance `processed/` so every class ends at 850 samples, run:
+
+```bash
+python balance_processed_dataset.py --target 850
+```
+
+Use `--dry-run` first if you want to inspect the planned additions and removals without changing files.
 
 
 ## Quick Start
