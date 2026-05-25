@@ -5,3 +5,7 @@ torch
 numpy
 opencv-python
 mediapipe
+onnxruntime 
+onnx 
+scipy 
+tqdm
