@@ -171,6 +171,8 @@ Direct class mode:
 python main.py --collect --cls happy --n 10
 ```
 
+The collector uses image-mode MediaPipe detection per frame, which keeps the live webcam capture path compatible with the sample extraction code.
+
 ### 6) Dynamic Quantization for CPU Inference
 
 Quantize the main checkpoint:

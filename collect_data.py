@@ -192,9 +192,10 @@ def record_samples(cls_name, num_samples=None, pipeline_log: PipelineLogger | No
         print(f"[Collect] Target: {num_samples} new samples")
     print()
 
-    # MediaPipe landmarker (optimized for real-time)
-    landmarker = create_landmarker(num_hands=NUM_HANDS, for_webcam=True)
-    holistic = create_face_landmarker(for_webcam=True)
+    # Collection uses per-frame `detect()` calls, so both tasks must stay in
+    # IMAGE mode even though the camera source is live.
+    landmarker = create_landmarker(num_hands=NUM_HANDS, for_webcam=True, force_image_mode=True)
+    holistic = create_face_landmarker(for_webcam=False)
     face_cache = {}
     frame_idx = 0
 
