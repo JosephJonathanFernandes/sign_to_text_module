@@ -3,6 +3,10 @@
 This script keeps at most ``threshold`` .npy files per class folder and deletes
 the rest using a random selection with no ordering bias.
 
+Pure webcam captures (``webcam_*.npy``) are protected and never deleted. If a
+class already has more protected webcam files than the threshold, that class
+will remain above threshold by design.
+
 The default threshold is 500 because the smallest processed class currently has
 253 samples, so 500 trims the large classes substantially while leaving the
 smallest classes untouched.
@@ -17,7 +21,7 @@ from dataclasses import dataclass
 
 
 ROOT_DIR = "processed"
-DEFAULT_THRESHOLD = 700
+DEFAULT_THRESHOLD = 800
 
 
 @dataclass
@@ -48,6 +52,11 @@ def _list_npy_files(class_dir: str) -> list[str]:
     ]
 
 
+def _is_webcam_sample(path: str) -> bool:
+    """Return True for protected webcam-captured samples."""
+    return os.path.basename(path).lower().startswith("webcam_")
+
+
 def _safe_delete(path: str, class_dir: str, dry_run: bool) -> bool:
     path_abs = os.path.abspath(path)
     class_abs = os.path.abspath(class_dir)
@@ -74,12 +83,23 @@ def downsample_class_folder(
     total = len(files)
     class_name = os.path.basename(class_dir)
 
+    webcam_files = [path for path in files if _is_webcam_sample(path)]
+    non_webcam_files = [path for path in files if not _is_webcam_sample(path)]
+
     if total <= threshold:
         print(f"[{class_name}] total={total} kept={total} deleted=0 (already at or below threshold)")
         return ClassSummary(class_name, total, total, 0, dry_run)
 
-    keep_set = set(rng.sample(files, threshold))
-    delete_files = [path for path in files if path not in keep_set]
+    protected_count = len(webcam_files)
+    # Keep all webcam samples; fill the rest from non-webcam files.
+    non_webcam_quota = max(0, threshold - protected_count)
+    kept_non_webcam = min(non_webcam_quota, len(non_webcam_files))
+
+    keep_set = set(webcam_files)
+    if kept_non_webcam > 0:
+        keep_set.update(rng.sample(non_webcam_files, kept_non_webcam))
+
+    delete_files = [path for path in non_webcam_files if path not in keep_set]
     rng.shuffle(delete_files)
 
     deleted = 0
@@ -87,11 +107,16 @@ def downsample_class_folder(
         if _safe_delete(path, class_dir, dry_run):
             deleted += 1
 
+    final_kept = total - deleted
+    extra_note = ""
+    if protected_count > threshold:
+        extra_note = f" | protected_webcam={protected_count} (> threshold, retained)"
+
     print(
-        f"[{class_name}] total={total} kept={threshold} deleted={deleted} "
-        f"({'dry-run' if dry_run else 'applied'})"
+        f"[{class_name}] total={total} kept={final_kept} deleted={deleted} "
+        f"({'dry-run' if dry_run else 'applied'}){extra_note}"
     )
-    return ClassSummary(class_name, total, threshold, deleted, dry_run)
+    return ClassSummary(class_name, total, final_kept, deleted, dry_run)
 
 
 def downsample_processed(

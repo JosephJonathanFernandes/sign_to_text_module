@@ -25,6 +25,8 @@ pseudo_data/
 # Model weights & checkpoints
 adapter_weights/
 ensemble/
+models/
+checkpoints/
 
 # Logs
 logs/
