@@ -283,7 +283,7 @@ class FocalLoss(nn.Module):
             return focal_loss
 
 
-def create_data_loaders(neg_root: str | None = None) -> tuple:
+def create_data_loaders(neg_root: str | None = None, archived_root: str | None = None, archived_weight: float = 0.25) -> tuple:
     """
     Create train (with augmentation + oversampling) and val datasets
     using a class-aware split that keeps validation MVI-heavy.
@@ -291,12 +291,26 @@ def create_data_loaders(neg_root: str | None = None) -> tuple:
     Returns:
         (train_loader, val_loader, num_classes, class_weights, full_ds)
     """
+    # If an archived folder exists next to processed, auto-include it unless overridden
+    if archived_root is None:
+        default_arch = os.path.join(os.path.dirname(cfg.paths.processed_dir), "processed_del")
+        if os.path.isdir(default_arch):
+            archived_root = default_arch
+
     # Load without oversampling first for splitting
-    full_ds = ISLDataset(augment=False, min_samples=2, oversample=False, neg_root=neg_root)
+    full_ds = ISLDataset(
+        augment=False,
+        min_samples=2,
+        oversample=False,
+        neg_root=neg_root,
+        archived_root=archived_root,
+        archived_weight=archived_weight,
+    )
     total = len(full_ds)
 
     # Extract labels for stratified splitting
-    labels = np.array([lbl for _, lbl in full_ds.samples])
+    # samples are (path, label, weight)
+    labels = np.array([s[1] for s in full_ds.samples])
 
     train_idx, val_idx = _disjoint_stratified_split(
         full_ds.samples,
@@ -388,13 +402,14 @@ class _BalancedAugSubset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         import numpy as np
         real_idx = self.balanced_indices[idx]
-        fpath, label = self.parent.samples[real_idx]
+        fpath, label, weight = self.parent.samples[real_idx]
         seq = np.load(fpath).astype(np.float32)
         seq, proximity = ISLDataset._prepare_sequence(seq, augment=True)
         return (
             torch.from_numpy(seq),
             torch.from_numpy(proximity),
             torch.tensor(label, dtype=torch.long),
+            torch.tensor(weight, dtype=torch.float32),
         )
 
 
@@ -410,13 +425,14 @@ class _PlainSubset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         import numpy as np
-        fpath, label = self.parent.samples[self.indices[idx]]
+        fpath, label, weight = self.parent.samples[self.indices[idx]]
         seq = np.load(fpath).astype(np.float32)
         seq, proximity = ISLDataset._prepare_sequence(seq, augment=False)
         return (
             torch.from_numpy(seq),
             torch.from_numpy(proximity),
             torch.tensor(label, dtype=torch.long),
+            torch.tensor(weight, dtype=torch.float32),
         )
 
 
@@ -433,10 +449,11 @@ def train_one_epoch(
     correct = 0
     total = 0
 
-    for sequences, proximity, labels in loader:
+    for sequences, proximity, labels, weights in loader:
         sequences = sequences.to(DEVICE)
         proximity = proximity.to(DEVICE)
         labels = labels.to(DEVICE)
+        weights = weights.to(DEVICE)
 
         optimizer.zero_grad()
 
@@ -445,15 +462,21 @@ def train_one_epoch(
             # Mixup: interpolate random training pairs
             mixed_x, y_a, y_b, lam = mixup_data(sequences, labels, alpha=MIXUP_ALPHA)
             logits = model(mixed_x, proximity=proximity)
-            loss = mixup_criterion(criterion, logits, y_a, y_b, lam)
+            # Per-sample losses (reduction='none')
+            loss_a = criterion(logits, y_a)
+            loss_b = criterion(logits, y_b)
+            per_sample = lam * loss_a + (1 - lam) * loss_b
+            # Apply sample weights and reduce
+            loss = (per_sample * weights).mean()
             # Accuracy on original labels (approximate - weighted sum)
             preds = logits.argmax(dim=1)
             correct += (lam * (preds == y_a).float().sum().item()
                         + (1 - lam) * (preds == y_b).float().sum().item())
         else:
-            # Standard training
+            # Standard training: get per-sample losses then weight
             logits = model(sequences, proximity=proximity)
-            loss = criterion(logits, labels)
+            per_sample = criterion(logits, labels)
+            loss = (per_sample * weights).mean()
             preds = logits.argmax(dim=1)
             correct += (preds == labels).sum().item()
 
@@ -484,13 +507,15 @@ def validate(
     correct = 0
     total = 0
 
-    for sequences, proximity, labels in loader:
+    for sequences, proximity, labels, weights in loader:
         sequences = sequences.to(DEVICE)
         proximity = proximity.to(DEVICE)
         labels = labels.to(DEVICE)
+        weights = weights.to(DEVICE)
 
         logits = model(sequences, proximity=proximity)
-        loss = criterion(logits, labels)
+        per_sample = criterion(logits, labels)
+        loss = (per_sample * weights).mean()
 
         running_loss += loss.item() * sequences.size(0)
         preds = logits.argmax(dim=1)
@@ -531,17 +556,20 @@ def train(
     model = SignLanguageGRU(num_classes=num_classes).to(DEVICE)
 
     # Select loss function (Focal Loss for hard sample mining, else CE)
+    # Create criterion that returns per-sample losses (reduction='none'),
+    # we will apply per-sample weights from the dataset before taking the mean.
     if USE_FOCAL_LOSS:
         criterion = FocalLoss(
             alpha=FOCAL_ALPHA,
             gamma=FOCAL_GAMMA,
             weight=class_weights,
-            reduction='mean',
+            reduction='none',
         )
     else:
         criterion = nn.CrossEntropyLoss(
             weight=class_weights,
             label_smoothing=LABEL_SMOOTHING,
+            reduction='none',
         )
     
     optimizer = torch.optim.AdamW(

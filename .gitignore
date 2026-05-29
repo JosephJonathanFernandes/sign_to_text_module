@@ -26,6 +26,7 @@ augmented_dataset/
 processed/
 pseudo_data/
 processed_negatives/
+processed_del/
 
 # Model weights & checkpoints
 adapter_weights/

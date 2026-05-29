@@ -40,6 +40,8 @@ class ISLDataset(Dataset):
         oversample: bool = False,
         neg_root: str | None = None,
         neg_label: str = "__reject__",
+        archived_root: str | None = None,
+        archived_weight: float = 0.25,
     ):
         """
         Args:
@@ -50,7 +52,8 @@ class ISLDataset(Dataset):
                         balance the dataset (repeat samples).
         """
         self.augment = augment
-        self.samples = []   # List of (file_path, label_index)
+        # Each sample is a tuple: (file_path, label_index, sample_weight)
+        self.samples = []   # List of (file_path, label_index, weight)
         self.classes = []    # Sorted list of class names
         self.class_to_idx = {}
 
@@ -125,7 +128,7 @@ class ISLDataset(Dataset):
                             try:
                                 test_data = np.load(fpath)
                                 if test_data.size > 0:
-                                    class_samples[cls_idx].append((fpath, cls_idx))
+                                    class_samples[cls_idx].append((fpath, cls_idx, 1.0))
                                 else:
                                     corrupt_files.append((fpath, "Empty file"))
                             except Exception as e:
@@ -140,11 +143,25 @@ class ISLDataset(Dataset):
                         try:
                             test_data = np.load(fpath)
                             if test_data.size > 0:
-                                class_samples[cls_idx].append((fpath, cls_idx))
+                                class_samples[cls_idx].append((fpath, cls_idx, 1.0))
                             else:
                                 corrupt_files.append((fpath, "Empty file"))
                         except Exception as e:
                             corrupt_files.append((fpath, str(e)))
+                # Optionally include archived samples for this class (lower weight)
+                if archived_root and os.path.isdir(archived_root):
+                    archived_cls_dir = os.path.join(archived_root, cls_name)
+                    if os.path.isdir(archived_cls_dir):
+                        for af in os.listdir(archived_cls_dir):
+                            if af.endswith(".npy"):
+                                afpath = os.path.join(archived_cls_dir, af)
+                                try:
+                                    test_data = np.load(afpath)
+                                    if test_data.size > 0:
+                                        class_samples[cls_idx].append((afpath, cls_idx, float(archived_weight)))
+                                except Exception:
+                                    # skip corrupt archived files silently
+                                    pass
         
         if corrupt_files:
             print(f"[Dataset] WARNING: Found {len(corrupt_files)} corrupt files:")
@@ -170,11 +187,12 @@ class ISLDataset(Dataset):
 
         # Flatten to single list
         for cls_idx in sorted(class_samples.keys()):
+            # Each item already has (fpath, idx, weight)
             self.samples.extend(class_samples[cls_idx])
 
         # Print distribution
         label_counts = {}
-        for _, lbl in self.samples:
+        for _, lbl, _ in self.samples:
             label_counts[lbl] = label_counts.get(lbl, 0) + 1
 
         print(
@@ -202,7 +220,7 @@ class ISLDataset(Dataset):
         """
         import sys
         
-        fpath, label = self.samples[idx]
+        fpath, label, weight = self.samples[idx]
         
         # Try to load the file with error handling
         max_retries = 3
@@ -240,7 +258,8 @@ class ISLDataset(Dataset):
         seq_t = torch.from_numpy(seq)
         prox_t = torch.from_numpy(proximity)
         lbl_t = torch.tensor(label, dtype=torch.long)
-        return seq_t, prox_t, lbl_t
+        weight_t = torch.tensor(weight, dtype=torch.float32)
+        return seq_t, prox_t, lbl_t, weight_t
 
     @property
     def num_classes(self) -> int:

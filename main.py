@@ -113,7 +113,7 @@ def run_augment_landmarks(
     print()
 
 
-def run_train_word(neg_root: str | None = None):
+def run_train_word(neg_root: str | None = None, archived_weight: float | None = None):
     """Train single word model."""
     from config import get_config
 
@@ -136,7 +136,7 @@ def run_train_word(neg_root: str | None = None):
 
         from train import create_data_loaders, train
 
-        tl, vl, nc, cw, ds = create_data_loaders(neg_root=neg_root)
+        tl, vl, nc, cw, ds = create_data_loaders(neg_root=neg_root, archived_weight=archived_weight)
         train(tl, vl, nc, cw, classes_list=ds.classes, pipeline_log=pipeline_log)
         pipeline_log.event(
             "train_end",
@@ -196,7 +196,7 @@ def run_cleanup_dataset(
     print()
 
 
-def run_kfold_word(neg_root: str | None = None):
+def run_kfold_word(neg_root: str | None = None, archived_weight: float | None = None):
     """K-fold word ensemble training.
 
     Args:
@@ -223,7 +223,7 @@ def run_kfold_word(neg_root: str | None = None):
 
         from train import train_kfold
 
-        fold_accs = train_kfold(pipeline_log=pipeline_log, neg_root=neg_root)
+        fold_accs = train_kfold(pipeline_log=pipeline_log, neg_root=neg_root, archived_weight=archived_weight)
         pipeline_log.event(
             "kfold_end",
             fold_accuracies=fold_accs,
@@ -463,6 +463,10 @@ def main():
         "--neg-root", type=str, default=None,
         help="Path to negatives root to include as __reject__ during training",
     )
+    parser.add_argument(
+        "--archived-weight", type=float, default=None,
+        help="Weight to assign to archived samples from processed_del (0-1). If omitted, uses default 0.25",
+    )
     args = parser.parse_args()
 
     # ── Data collection ──
@@ -555,20 +559,20 @@ def main():
         return
 
     if args.kfold:
-        run_kfold_word(neg_root=args.neg_root)
+        run_kfold_word(neg_root=args.neg_root, archived_weight=args.archived_weight)
         return
 
     # Default: preprocess + train
     if not args.preprocess and not args.train:
         run_preprocess(args.preprocess_dir)
-        run_train_word(neg_root=args.neg_root)
+        run_train_word(neg_root=args.neg_root, archived_weight=args.archived_weight)
         return
 
     if args.preprocess:
         run_preprocess(args.preprocess_dir)
 
     if args.train:
-        run_train_word(neg_root=args.neg_root)
+        run_train_word(neg_root=args.neg_root, archived_weight=args.archived_weight)
 
 
 if __name__ == "__main__":

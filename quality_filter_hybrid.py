@@ -22,6 +22,7 @@ import json
 import math
 import os
 import random
+import shutil
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from typing import Any
@@ -297,7 +298,7 @@ def _normalize_class_token(value: str) -> str:
     return value.strip().lower().replace(" ", "_")
 
 
-def _safe_delete(path: str, class_dir: str, dry_run: bool) -> bool:
+def _safe_delete(path: str, class_dir: str, dry_run: bool, archive_root: str | None = None) -> bool:
     path_abs = os.path.normcase(os.path.abspath(path))
     class_abs = os.path.normcase(os.path.abspath(class_dir))
 
@@ -309,6 +310,11 @@ def _safe_delete(path: str, class_dir: str, dry_run: bool) -> bool:
         return False
 
     if not dry_run:
+        if archive_root:
+            archive_class_dir = os.path.join(os.path.abspath(archive_root), os.path.basename(class_dir))
+            os.makedirs(archive_class_dir, exist_ok=True)
+            archive_path = os.path.join(archive_class_dir, os.path.basename(path_abs))
+            shutil.copy2(path_abs, archive_path)
         os.remove(path_abs)
     return True
 
@@ -1044,6 +1050,7 @@ def filter_quality_class_folder(
     viz_pca_dims: int = 2,
     dry_run: bool = False,
     min_score: float = DEFAULT_MIN_SCORE,
+    archive_root: str | None = None,
 ) -> tuple[ClassSummary, list[SelectedSampleRecord], dict[str, Any]]:
     files = _list_npy_files(class_dir)
     total = len(files)
@@ -1201,7 +1208,7 @@ def filter_quality_class_folder(
 
     deleted = 0
     for path in delete_set:
-        if _safe_delete(path, class_dir, dry_run):
+        if _safe_delete(path, class_dir, dry_run, archive_root=archive_root):
             deleted += 1
 
     final_kept = len(selected_records)
@@ -1336,6 +1343,7 @@ def filter_quality_processed(
     min_class_samples: int | None = None,
     report_dir: str = DEFAULT_REPORT_DIR,
     report_prefix: str = DEFAULT_REPORT_PREFIX,
+    archive_root: str | None = None,
 ) -> dict[str, Any]:
     if quality_coverage <= 0.0 or quality_coverage > 1.0:
         raise ValueError("quality_coverage must be in the range (0, 1]")
@@ -1350,6 +1358,10 @@ def filter_quality_processed(
     if duplicate_mode not in DEFAULT_DUPLICATE_THRESHOLDS:
         available = ", ".join(DEFAULT_DUPLICATE_THRESHOLDS)
         raise ValueError(f"duplicate_mode must be one of {available}, got '{duplicate_mode}'")
+
+    if archive_root is None:
+        archive_root = f"{root_dir}_del"
+    archive_root = os.path.abspath(archive_root)
 
     rng = random.Random(DEFAULT_SEED)
     class_dirs = _list_class_dirs(root_dir)
@@ -1408,7 +1420,8 @@ def filter_quality_processed(
         f"KEEP_PER_CLASS={keep_limit} | SHORTLIST_MULTIPLIER={shortlist_multiplier:.1f} | "
         f"DUPLICATE_MODE={duplicate_mode} | DUPLICATE_THRESHOLD={effective_duplicate_threshold:.3f} | "
         f"MIN_FILL_RATIO={min_fill_ratio:.2f} | QUALITY_POWER={quality_power:.1f} | "
-        f"EMBEDDINGS={embedder.embedding_mode} | CACHE={'on' if embedding_cache else 'off'} | DRY_RUN={dry_run}"
+        f"EMBEDDINGS={embedder.embedding_mode} | CACHE={'on' if embedding_cache else 'off'} | "
+        f"ARCHIVE_ROOT={archive_root} | DRY_RUN={dry_run}"
     )
     print("=" * 100)
 
@@ -1445,6 +1458,7 @@ def filter_quality_processed(
                 viz_pca_dims=viz_pca_dims,
                 dry_run=dry_run,
                 min_score=min_score,
+                archive_root=archive_root,
             )
             summaries.append(summary)
             all_records.extend(records)
@@ -1537,6 +1551,7 @@ def filter_quality_processed(
             "embedding_batch_size": embedding_batch_size,
             "embedding_cache": embedding_cache,
             "cache_dir": os.path.abspath(cache_dir),
+            "archive_root": archive_root,
             "embedding_cache_stats": dict(EMBEDDING_CACHE_STATS),
             "export_viz_data": export_viz_data,
             "viz_pca_dims": viz_pca_dims,
@@ -1652,6 +1667,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--max-keep-per-class", type=int, default=None, help="Hard cap on kept samples per class to limit CPU/embedding work")
     parser.add_argument("--max-total-kept", type=int, default=None, help="Hard cap on total kept samples across all classes; translated to a per-class cap")
     parser.add_argument("--min-class-samples", type=int, default=DEFAULT_MIN_CLASS_SAMPLES, help="Minimum samples to keep per class to protect rare classes")
+    parser.add_argument("--archive-root", default=None, help="Directory where deleted samples are copied before removal (default: <root>_del)")
     parser.add_argument("--report-dir", default=DEFAULT_REPORT_DIR, help="Directory for JSON and CSV reports")
     parser.add_argument("--report-prefix", default=DEFAULT_REPORT_PREFIX, help="Report filename prefix")
     parser.add_argument("--dry-run", action="store_true", help="Print what would be deleted without changing files")
@@ -1684,6 +1700,7 @@ def main() -> None:
         min_class_samples=args.min_class_samples,
         report_dir=args.report_dir,
         report_prefix=args.report_prefix,
+        archive_root=args.archive_root,
     )
 
 

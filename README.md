@@ -131,6 +131,10 @@ This filter now uses a hybrid quality + diversity pass: it keeps the adaptive qu
 
 Dry-run and cleanup reports are written to `logs/quality_filter/` as JSON and CSV files.
 
+When you run the quality filter without `--dry-run`, deleted samples are copied into a sibling archive folder named `processed_del/` by default. The live training set stays in `processed/`, while `processed_del/` becomes the rollback and audit copy of removed samples.
+
+Use `processed/` for model training, evaluation, and any task that should reflect the curated dataset. Use `processed_del/` only when you explicitly want the removed samples for inspection, recovery, or a separate comparison task. The kept samples are the best subset according to this filter: highest-quality and least redundant within the current settings, but not a human guarantee of absolute perfection.
+
 ## Training And ONNX
 
 Train the main classifier with a plain disjoint split:
@@ -393,6 +397,32 @@ Direct class mode:
 ```bash
 python main.py --collect --cls happy --n 10
 ```
+
+## Latest Changes (2026-05-29)
+
+- **Archive-on-delete:** When you run the quality filter without `--dry-run`, removed samples are moved to a sibling archive folder `processed_del/` (keeps original filenames and class layout). `processed/` remains the curated training set.
+
+- **Implicit archived inclusion in training:** If a `processed_del/` folder exists next to `processed/`, the training pipeline will automatically include those archived samples with reduced influence so you can fine-tune robustness without forgetting the clean data.
+
+- **Per-sample weights applied:** Archived samples are assigned a default weight (0.25) and the training loop multiplies per-sample losses by these weights before averaging. Clean `processed/` samples keep weight `1.0`.
+
+- **New CLI flag:** `--archived-weight` — set from the command line to control the archived-sample weight (range 0–1). Examples:
+
+```bash
+# Train with lower influence from archived samples (0.15)
+python main.py --train --archived-weight 0.15
+
+# Run K-fold with archived weight 0.10
+python main.py --kfold --archived-weight 0.10
+```
+
+- **Helper script:** `tools/build_weighted_filelist.py` — builds a combined or staged filelist mixing `processed/` and `processed_del/` with per-sample weights. Use `--staged` to create `stage1_...` (clean) and `stage2_...` (archived) files for staged training.
+
+- **Training safety:** Default behavior favors clean data (weight=1.0) and uses lower LR/fewer epochs when fine-tuning on archived data is recommended. Always inspect samples in `processed_del/` before reintroducing them.
+
+- **Reports & QC artifacts:** Quality-filter dry-run reports and problematic-class CSVs are written to `logs/quality_filter/` (JSON + CSV) for audit and manual review.
+
+If you'd like, I can add a short note in `DEVELOPER.md` showing the recommended staged training commands and a PyTorch `WeightedRandomSampler` snippet to consume the three-column filelist automatically.
 
 The collector uses image-mode MediaPipe detection per frame, which keeps the live webcam capture path compatible with the sample extraction code.
 
