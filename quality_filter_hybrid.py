@@ -45,7 +45,7 @@ except Exception:  # pragma: no cover - importing the model should usually work
 ROOT_DIR = "processed"
 DEFAULT_QUALITY_COVERAGE = 0.85
 DEFAULT_SHORTLIST_MULTIPLIER = 3.0
-DEFAULT_DUPLICATE_MODE = "balanced"
+DEFAULT_DUPLICATE_MODE = "relaxed"
 DEFAULT_DUPLICATE_THRESHOLD = 0.985
 DEFAULT_DUPLICATE_THRESHOLDS = {
     "strict": 0.975,
@@ -61,6 +61,8 @@ DEFAULT_REPORT_DIR = os.path.join("logs", "quality_filter")
 DEFAULT_REPORT_PREFIX = "hybrid_quality_diversity"
 DEFAULT_CACHE_DIR = os.path.join("logs", "cache", "quality_filter")
 DEFAULT_CACHE_MAX_AGE_HOURS = 24
+EMBEDDING_CACHE_STATS: dict[str, int] = {"hits": 0, "misses": 0, "stale": 0, "saves": 0}
+DEFAULT_MIN_CLASS_SAMPLES = 20
 EPS = 1e-6
 FRAME_FEAT_DIM = 253
 RAW_FRAME_FEAT_DIM = 126
@@ -539,12 +541,20 @@ def _stale_cache(metadata: dict[str, Any], cache_key: str) -> bool:
 def _load_embedding_cache(cache_root: str, class_name: str, cache_key: str) -> dict[str, Any] | None:
     npz_path, json_path = _cache_file_paths(cache_root, class_name, cache_key)
     if not os.path.isfile(npz_path) or not os.path.isfile(json_path):
+        try:
+            EMBEDDING_CACHE_STATS["misses"] += 1
+        except Exception:
+            pass
         return None
 
     try:
         with open(json_path, "r", encoding="utf-8") as f:
             metadata = json.load(f)
         if _stale_cache(metadata, cache_key):
+            try:
+                EMBEDDING_CACHE_STATS["stale"] += 1
+            except Exception:
+                pass
             # Remove stale cache files silently
             try:
                 os.remove(npz_path)
@@ -565,9 +575,17 @@ def _load_embedding_cache(cache_root: str, class_name: str, cache_key: str) -> d
                 pass
             return None
 
+        try:
+            EMBEDDING_CACHE_STATS["hits"] += 1
+        except Exception:
+            pass
         return {"metadata": metadata, "embeddings": embeddings, "paths": paths}
     except Exception:
         # Corrupted cache → remove and recompute
+        try:
+            EMBEDDING_CACHE_STATS["stale"] += 1
+        except Exception:
+            pass
         try:
             os.remove(npz_path)
             os.remove(json_path)
@@ -593,6 +611,10 @@ def _save_embedding_cache(
     )
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2)
+    try:
+        EMBEDDING_CACHE_STATS["saves"] += 1
+    except Exception:
+        pass
 
 
 def _safe_similarity_matrix(embeddings: np.ndarray) -> np.ndarray:
@@ -1015,9 +1037,11 @@ def filter_quality_class_folder(
     embedder: DiversityEmbedder,
     min_fill_ratio: float,
     embedding_cache: bool,
-    cache_dir: str,
-    export_viz_data: bool,
-    viz_pca_dims: int,
+    max_keep_per_class: int | None = None,
+    min_class_samples: int | None = None,
+    cache_dir: str = DEFAULT_CACHE_DIR,
+    export_viz_data: bool = False,
+    viz_pca_dims: int = 2,
     dry_run: bool = False,
     min_score: float = DEFAULT_MIN_SCORE,
 ) -> tuple[ClassSummary, list[SelectedSampleRecord], dict[str, Any]]:
@@ -1067,6 +1091,30 @@ def filter_quality_class_folder(
         budget = max(0, min(keep_limit, len(candidates)))
     else:
         budget = min(curve_budget, len(candidates))
+
+    # Enforce minimum samples per class safeguard.
+    if min_class_samples is not None:
+        try:
+            min_class_samples = int(min_class_samples)
+            if min_class_samples > 0 and budget < min_class_samples:
+                print(f"    [INFO] Raising budget for class '{class_name}' from {budget} to min_class_samples={min_class_samples} to protect rare classes")
+            budget = max(budget, min_class_samples)
+        except Exception:
+            pass
+
+    # Enforce per-class cap to limit CPU/memory when processing large corpora.
+    if max_keep_per_class is not None:
+        try:
+            max_keep_per_class = int(max_keep_per_class)
+            # If the cap conflicts with the minimum, honor the minimum and adjust the cap upward
+            if min_class_samples is not None and max_keep_per_class < min_class_samples:
+                print(f"    [WARN] --max-keep-per-class={max_keep_per_class} is less than --min-class-samples={min_class_samples}; raising cap to honor minimum")
+                max_keep_per_class = min_class_samples
+            if budget > max_keep_per_class:
+                print(f"    [INFO] Capping budget for class '{class_name}' from {budget} to {max_keep_per_class} to respect --max-keep-per-class")
+            budget = min(budget, max_keep_per_class)
+        except Exception:
+            pass
 
     shortlist_size = min(len(candidates), max(1, int(math.ceil(shortlist_multiplier * budget))))
     shortlist_size = min(shortlist_size, len(candidates))
@@ -1283,6 +1331,9 @@ def filter_quality_processed(
     dry_run: bool = False,
     class_only: str | None = None,
     min_score: float = DEFAULT_MIN_SCORE,
+    max_keep_per_class: int | None = None,
+    max_total_kept: int | None = None,
+    min_class_samples: int | None = None,
     report_dir: str = DEFAULT_REPORT_DIR,
     report_prefix: str = DEFAULT_REPORT_PREFIX,
 ) -> dict[str, Any]:
@@ -1302,6 +1353,36 @@ def filter_quality_processed(
 
     rng = random.Random(DEFAULT_SEED)
     class_dirs = _list_class_dirs(root_dir)
+
+    # If a global cap on total kept samples is provided, translate to a
+    # per-class cap to avoid excessive CPU/embeddings computations.
+    num_classes = max(1, len(class_dirs))
+    if max_total_kept is not None:
+        try:
+            per_class_cap = max(1, int(math.floor(float(max_total_kept) / float(num_classes))))
+            # Ensure the per-class cap will at least allow the requested minimum samples
+            if min_class_samples is not None:
+                try:
+                    per_class_cap = max(per_class_cap, int(min_class_samples))
+                except Exception:
+                    pass
+            if keep_limit > per_class_cap:
+                print(f"[INFO] Adjusting --keep-per-class from {keep_limit} to {per_class_cap} to respect --max-total-kept={max_total_kept}")
+            keep_limit = min(keep_limit, per_class_cap)
+        except Exception:
+            pass
+
+    # Also enforce an explicit per-class cap if provided.
+    if max_keep_per_class is not None:
+        try:
+            if min_class_samples is not None and int(max_keep_per_class) < int(min_class_samples):
+                print(f"[WARN] --max-keep-per-class={max_keep_per_class} is less than --min-class-samples={min_class_samples}; raising cap to honor minimum")
+                max_keep_per_class = int(min_class_samples)
+            if keep_limit > int(max_keep_per_class):
+                print(f"[INFO] Enforcing --max-keep-per-class={max_keep_per_class}; reducing keep-per-class from {keep_limit} to {max_keep_per_class}")
+            keep_limit = min(keep_limit, int(max_keep_per_class))
+        except Exception:
+            pass
 
     if class_only:
         class_token = _normalize_class_token(class_only)
@@ -1357,6 +1438,8 @@ def filter_quality_processed(
                 embedder=embedder,
                 min_fill_ratio=min_fill_ratio,
                 embedding_cache=embedding_cache,
+                max_keep_per_class=max_keep_per_class,
+                min_class_samples=min_class_samples,
                 cache_dir=cache_dir,
                 export_viz_data=export_viz_data,
                 viz_pca_dims=viz_pca_dims,
@@ -1448,10 +1531,13 @@ def filter_quality_processed(
             "duplicate_threshold": effective_duplicate_threshold,
             "quality_power": quality_power,
             "min_fill_ratio": min_fill_ratio,
+            "max_keep_per_class": max_keep_per_class,
+            "max_total_kept": max_total_kept,
             "embedding_checkpoint": os.path.abspath(embedding_checkpoint) if embedding_checkpoint else None,
             "embedding_batch_size": embedding_batch_size,
             "embedding_cache": embedding_cache,
             "cache_dir": os.path.abspath(cache_dir),
+            "embedding_cache_stats": dict(EMBEDDING_CACHE_STATS),
             "export_viz_data": export_viz_data,
             "viz_pca_dims": viz_pca_dims,
             "min_score": min_score,
@@ -1459,6 +1545,7 @@ def filter_quality_processed(
             "generated_at": stamp,
         },
         "classes": [asdict(summary) for summary in summaries],
+        "pinned_to_min_fill": [s.class_name for s in summaries if s.fill_ratio < s.min_fill_ratio],
         "class_rankings": class_rankings,
         "kept_samples": [asdict(record) for record in all_records],
         "totals": {
@@ -1483,6 +1570,48 @@ def filter_quality_processed(
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerow(["no_samples"])
+
+    # Export lightweight per-class analytics CSV
+    analytics_csv = os.path.join(report_dir, f"{report_prefix}_{stamp}_class_analytics.csv")
+    try:
+        with open(analytics_csv, "w", newline="", encoding="utf-8") as f:
+            fieldnames = [
+                "class_name",
+                "total_samples",
+                "adaptive_budget",
+                "final_kept",
+                "fill_ratio",
+                "min_fill_ratio",
+                "duplicates_removed",
+                "redundancy_ratio",
+                "average_pairwise_similarity",
+                "health_score",
+                "collapse_reason",
+                "adaptive_relaxed",
+            ]
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            for s in summaries:
+                writer.writerow({
+                    "class_name": s.class_name,
+                    "total_samples": s.total_samples,
+                    "adaptive_budget": s.adaptive_budget,
+                    "final_kept": s.final_kept,
+                    "fill_ratio": s.fill_ratio,
+                    "min_fill_ratio": s.min_fill_ratio,
+                    "duplicates_removed": s.duplicates_removed,
+                    "redundancy_ratio": s.redundancy_ratio,
+                    "average_pairwise_similarity": s.average_pairwise_similarity,
+                    "health_score": s.health_score,
+                    "collapse_reason": s.collapse_reason,
+                    "max_keep_per_class": max_keep_per_class,
+                    "max_total_kept": max_total_kept,
+                    "min_class_samples": min_class_samples,
+                    "adaptive_relaxed": s.adaptive_relaxed,
+                })
+        print(f"Saved per-class analytics CSV: {analytics_csv}")
+    except Exception:
+        pass
 
     print(f"Saved JSON report: {json_path}")
     print(f"Saved CSV summary: {csv_path}")
@@ -1520,6 +1649,9 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--export-viz-data", action="store_true", help="Export PCA-ready embeddings and t-SNE-ready sample metadata")
     parser.add_argument("--viz-pca-dims", type=int, default=2, help="PCA reduction dimensions for visualization data (default: 2)")
     parser.add_argument("--no-embedding-cache", dest="embedding_cache", action="store_false", default=True, help="Disable embedding cache")
+    parser.add_argument("--max-keep-per-class", type=int, default=None, help="Hard cap on kept samples per class to limit CPU/embedding work")
+    parser.add_argument("--max-total-kept", type=int, default=None, help="Hard cap on total kept samples across all classes; translated to a per-class cap")
+    parser.add_argument("--min-class-samples", type=int, default=DEFAULT_MIN_CLASS_SAMPLES, help="Minimum samples to keep per class to protect rare classes")
     parser.add_argument("--report-dir", default=DEFAULT_REPORT_DIR, help="Directory for JSON and CSV reports")
     parser.add_argument("--report-prefix", default=DEFAULT_REPORT_PREFIX, help="Report filename prefix")
     parser.add_argument("--dry-run", action="store_true", help="Print what would be deleted without changing files")
@@ -1547,6 +1679,9 @@ def main() -> None:
         dry_run=args.dry_run,
         class_only=args.class_only,
         min_score=args.min_score,
+        max_keep_per_class=args.max_keep_per_class,
+        max_total_kept=args.max_total_kept,
+        min_class_samples=args.min_class_samples,
         report_dir=args.report_dir,
         report_prefix=args.report_prefix,
     )
