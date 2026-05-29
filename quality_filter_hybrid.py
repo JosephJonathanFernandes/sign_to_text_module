@@ -60,6 +60,7 @@ DEFAULT_EMBEDDING_BATCH_SIZE = 64
 DEFAULT_REPORT_DIR = os.path.join("logs", "quality_filter")
 DEFAULT_REPORT_PREFIX = "hybrid_quality_diversity"
 DEFAULT_CACHE_DIR = os.path.join("logs", "cache", "quality_filter")
+DEFAULT_CACHE_MAX_AGE_HOURS = 24
 EPS = 1e-6
 FRAME_FEAT_DIM = 253
 RAW_FRAME_FEAT_DIM = 126
@@ -135,9 +136,21 @@ class ClassSummary:
     fill_ratio: float
     avg_final_similarity: float
     effective_duplicate_threshold: float
+    novelty_weight: float
+    adaptive_relaxed: bool
+    # Removal breakdown
+    removed_by_quality: int
+    removed_by_duplicate: int
+    removed_by_novelty: int
+    # Collapse detection flags (lightweight)
+    collapse_signer: bool
+    collapse_motion: bool
+    collapse_overcompression: bool
+    collapse_reason: str
 
 
 class EmbeddingExtractor:
+    """Legacy extraction wrapper."""
     def __init__(self, checkpoint_path: str | None = None, batch_size: int = DEFAULT_EMBEDDING_BATCH_SIZE):
         self.batch_size = max(1, int(batch_size))
         self.checkpoint_path = checkpoint_path
@@ -356,6 +369,8 @@ def _median_and_mad(values: list[float]) -> tuple[float, float]:
     if not values:
         return 0.0, 1.0
     arr = np.asarray(values, dtype=np.float32)
+    if arr.size == 0:
+        return 0.0, 1.0
     median = float(np.median(arr))
     mad = float(np.median(np.abs(arr - median)))
     return median, max(mad, 1e-6)
@@ -461,10 +476,12 @@ def _normalize_embeddings(embeddings: np.ndarray) -> np.ndarray:
     embeddings = np.asarray(embeddings, dtype=np.float32)
     if embeddings.size == 0:
         return embeddings.reshape(0, 0)
-    embeddings = np.nan_to_num(embeddings, copy=False)
+    embeddings = np.nan_to_num(embeddings, nan=0.0, posinf=1.0, neginf=-1.0)
     norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
     norms = np.maximum(norms, 1e-12)
-    return embeddings / norms
+    normalized = embeddings / norms
+    normalized = np.nan_to_num(normalized, nan=0.0, posinf=1.0, neginf=-1.0)
+    return normalized.astype(np.float32)
 
 
 def _hash_paths_for_cache(paths: list[str], checkpoint_path: str | None, embedding_mode: str) -> str:
@@ -499,6 +516,26 @@ def _cache_file_paths(cache_root: str, class_name: str, cache_key: str) -> tuple
     )
 
 
+def _stale_cache(metadata: dict[str, Any], cache_key: str) -> bool:
+    """Check if cached data is too old or corrupted."""
+    if metadata.get("cache_key") != cache_key:
+        return True
+    generated_at = metadata.get("generated_at")
+    if generated_at:
+        try:
+            generated = datetime.fromisoformat(generated_at)
+            # Make comparison timezone-naive if the generated timestamp is naive
+            now = datetime.now()
+            if generated.tzinfo is not None:
+                generated = generated.replace(tzinfo=None)
+            age_hours = (now - generated).total_seconds() / 3600.0
+            if age_hours > DEFAULT_CACHE_MAX_AGE_HOURS:
+                return True
+        except (ValueError, TypeError):
+            return True
+    return False
+
+
 def _load_embedding_cache(cache_root: str, class_name: str, cache_key: str) -> dict[str, Any] | None:
     npz_path, json_path = _cache_file_paths(cache_root, class_name, cache_key)
     if not os.path.isfile(npz_path) or not os.path.isfile(json_path):
@@ -507,25 +544,47 @@ def _load_embedding_cache(cache_root: str, class_name: str, cache_key: str) -> d
     try:
         with open(json_path, "r", encoding="utf-8") as f:
             metadata = json.load(f)
-        if metadata.get("cache_key") != cache_key:
+        if _stale_cache(metadata, cache_key):
+            # Remove stale cache files silently
+            try:
+                os.remove(npz_path)
+                os.remove(json_path)
+            except OSError:
+                pass
             return None
         with np.load(npz_path, allow_pickle=False) as data:
             embeddings = data["embeddings"].astype(np.float32)
             paths = data["paths"].astype(object).tolist()
+
+        # Validate internal consistency
+        if embeddings.shape[0] != len(paths):
+            try:
+                os.remove(npz_path)
+                os.remove(json_path)
+            except OSError:
+                pass
+            return None
+
         return {"metadata": metadata, "embeddings": embeddings, "paths": paths}
     except Exception:
+        # Corrupted cache → remove and recompute
+        try:
+            os.remove(npz_path)
+            os.remove(json_path)
+        except OSError:
+            pass
         return None
 
 
 def _save_embedding_cache(
-    cache_root: str,
+    cache_dir: str,
     class_name: str,
     cache_key: str,
     paths: list[str],
     embeddings: np.ndarray,
     metadata: dict[str, Any],
 ) -> None:
-    npz_path, json_path = _cache_file_paths(cache_root, class_name, cache_key)
+    npz_path, json_path = _cache_file_paths(cache_dir, class_name, cache_key)
     os.makedirs(os.path.dirname(npz_path), exist_ok=True)
     np.savez_compressed(
         npz_path,
@@ -540,6 +599,8 @@ def _safe_similarity_matrix(embeddings: np.ndarray) -> np.ndarray:
     embeddings = _normalize_embeddings(embeddings)
     if embeddings.size == 0:
         return np.zeros((0, 0), dtype=np.float32)
+    if embeddings.ndim != 2 or embeddings.shape[0] < 2:
+        return np.eye(embeddings.shape[0], dtype=np.float32) if embeddings.ndim == 2 and embeddings.shape[0] == 1 else np.zeros((0, 0), dtype=np.float32)
     sim = embeddings @ embeddings.T
     sim = np.nan_to_num(sim, nan=0.0, posinf=1.0, neginf=-1.0)
     return np.clip(sim, -1.0, 1.0)
@@ -560,6 +621,8 @@ def _compute_novelty_distribution(novelty_scores: list[float]) -> dict[str, floa
     if not novelty_scores:
         return {"p10": 0.0, "p50": 0.0, "p90": 0.0, "std": 0.0}
     arr = np.asarray(novelty_scores, dtype=np.float32)
+    if arr.size == 0:
+        return {"p10": 0.0, "p50": 0.0, "p90": 0.0, "std": 0.0}
     return {
         "p10": float(np.percentile(arr, 10)),
         "p50": float(np.percentile(arr, 50)),
@@ -587,6 +650,11 @@ def _class_health_score(
     keep_ratio: float,
     novelty_spread: float,
 ) -> float:
+    # Guard against NaN / Inf degenerate inputs
+    vals = [average_quality, average_novelty, redundancy_ratio, keep_ratio, novelty_spread]
+    vals = [0.0 if not (isinstance(v, (int, float)) and math.isfinite(v)) else v for v in vals]
+    average_quality, average_novelty, redundancy_ratio, keep_ratio, novelty_spread = vals
+
     score = (
         34.0 * np.clip(average_quality, 0.0, 1.0)
         + 24.0 * np.clip(average_novelty, 0.0, 1.0)
@@ -749,6 +817,7 @@ def _select_hybrid_subset(
     budget: int,
     duplicate_threshold: float,
     quality_power: float,
+    min_fill_ratio: float = DEFAULT_MIN_FILL_RATIO,
 ) -> tuple[list[SelectedSampleRecord], dict[str, Any]]:
     shortlist_size = len(candidates)
     if not candidates or budget <= 0:
@@ -762,15 +831,25 @@ def _select_hybrid_subset(
             "effective_duplicate_threshold": duplicate_threshold,
             "selected_indices": [],
             "selected_embeddings": np.zeros((0, 0), dtype=np.float32),
+            "novelty_weight": 0.5,
+            "adaptive_relaxed": False,
         }
 
+    # Sanitize quality scores.
     qualities = np.asarray([candidate.quality_score for candidate in candidates], dtype=np.float32)
     qualities = np.clip(np.nan_to_num(qualities, nan=0.0, posinf=0.0, neginf=0.0), 0.0, 1.0)
-    sim = _safe_similarity_matrix(embeddings)
-    if sim.shape != (shortlist_size, shortlist_size):
-        sim = np.zeros((shortlist_size, shortlist_size), dtype=np.float32)
+    # If all qualities are degenerate, default to a uniform distribution.
+    if not np.any(np.isfinite(qualities)) or np.max(qualities) <= 0.0:
+        qualities = np.full(shortlist_size, 0.5, dtype=np.float32)
 
-    max_fill_target = max(1, min(budget, int(math.ceil(max(0.0, min_fill_ratio) * budget))))
+    # Compute similarity matrix; if too few candidates, skip similarity logic.
+    if shortlist_size < 2 or embeddings.size == 0 or embeddings.shape[0] < 2:
+        sim = np.eye(shortlist_size, dtype=np.float32) if shortlist_size > 0 else np.zeros((0, 0), dtype=np.float32)
+    else:
+        sim = _safe_similarity_matrix(embeddings)
+        if sim.shape != (shortlist_size, shortlist_size):
+            sim = np.zeros((shortlist_size, shortlist_size), dtype=np.float32)
+
     selected_indices: list[int] = []
     selected_mask = np.zeros(shortlist_size, dtype=bool)
     max_sim_to_selected = np.zeros(shortlist_size, dtype=np.float32)
@@ -779,10 +858,15 @@ def _select_hybrid_subset(
     final_scores = np.zeros(shortlist_size, dtype=np.float32)
     nearest_similarities = np.zeros(shortlist_size, dtype=np.float32)
     selected_duplicate_threshold = float(duplicate_threshold)
+    adaptive_relaxed = False
+    # Class-adaptive novelty weight: start at 0.5 (standard), reduce to 0.2 if
+    # the diversity pipeline is suppressing too aggressively for this class.
+    novelty_weight = 0.5
 
     def _score_all(current_mask: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         novelty = np.clip(1.0 - max_sim_to_selected, 0.0, 1.0)
-        scores = np.power(qualities, quality_power) * (0.5 + 0.5 * novelty)
+        # Use adaptive novelty_weight: lower weight = quality dominates more.
+        scores = np.power(qualities, quality_power) * (1.0 - novelty_weight + novelty_weight * novelty)
         scores[current_mask] = -np.inf
         return scores, novelty
 
@@ -791,21 +875,28 @@ def _select_hybrid_subset(
         eligible = (~current_mask) & (max_sim_to_selected <= threshold)
         if not np.any(eligible):
             return False
-        scores, novelty = _score_all(~eligible)
-        chosen = int(np.argmax(scores))
-        if chosen < 0 or not np.isfinite(scores[chosen]):
+        # Compute scores only for eligible candidates (incremental optimization).
+        eligible_scores = np.full(shortlist_size, -np.inf, dtype=np.float32)
+        eligible_scores[eligible] = (
+            np.power(qualities[eligible], quality_power)
+            * (1.0 - novelty_weight + novelty_weight * np.clip(1.0 - max_sim_to_selected[eligible], 0.0, 1.0))
+        )
+        chosen = int(np.argmax(eligible_scores))
+        if chosen < 0 or not np.isfinite(eligible_scores[chosen]):
             return False
 
         nearest_similarity = float(max_sim_to_selected[chosen]) if selected_indices else 0.0
         selected_indices.append(chosen)
         selected_mask[chosen] = True
-        novelty_scores[chosen] = float(novelty[chosen])
-        final_scores[chosen] = float(scores[chosen])
+        novelty_scores[chosen] = float(np.clip(1.0 - max_sim_to_selected[chosen], 0.0, 1.0))
+        final_scores[chosen] = float(eligible_scores[chosen])
         nearest_similarities[chosen] = nearest_similarity
 
-        suppress_mask = (~selected_mask) & (sim[chosen] > threshold)
+        # Incrementally update max-sim and suppression counts only for affected entries.
+        new_sims = sim[chosen]
+        suppress_mask = (~selected_mask) & (new_sims > threshold)
         suppression_counts[chosen] += int(np.count_nonzero(suppress_mask))
-        max_sim_to_selected[:] = np.maximum(max_sim_to_selected, sim[chosen])
+        max_sim_to_selected[:] = np.maximum(max_sim_to_selected, new_sims)
         max_sim_to_selected[selected_mask] = 1.0
         return True
 
@@ -815,8 +906,24 @@ def _select_hybrid_subset(
         if not _pick_next(selected_duplicate_threshold):
             break
 
-    # Gradually relax if the class underfills too much.
+    # -- Class-adaptive novelty reduction --
+    # If after the initial pass the fill ratio is below 0.70, reduce the novelty
+    # weight so that quality dominates the scoring. This retains more samples
+    # from repetitive classes without weakening the duplicate threshold globally.
     min_fill_target = max(1, min(budget, int(math.ceil(float(min_fill_ratio) * budget))))
+    current_fill = len(selected_indices) / max(1, budget)
+    if current_fill < 0.70 and budget > 10:
+        # Reduce novelty weight progressively: the worse the fill, the more we
+        # let quality drive. Range: 0.2 (very repetitive) to 0.45 (mild).
+        reduction = max(0.05, min(0.30, (0.70 - current_fill) * 0.6))
+        novelty_weight = max(0.20, 0.5 - reduction)
+        adaptive_relaxed = True
+        # Re-score remaining candidates with reduced novelty weight.
+        while len(selected_indices) < min_fill_target:
+            if not _pick_next(selected_duplicate_threshold):
+                break
+
+    # Gradually relax if the class still underfills too much.
     relax_step = 0.0025
     relax_cap = 0.9995
     while len(selected_indices) < min_fill_target and selected_duplicate_threshold < relax_cap:
@@ -828,6 +935,21 @@ def _select_hybrid_subset(
             progress = True
         if not progress:
             break
+
+    # Last resort: if still underfilled and no eligible candidates remain, pick best-quality regardless.
+    if len(selected_indices) < min_fill_target and shortlist_size > 0:
+        remaining = [i for i in range(shortlist_size) if not selected_mask[i]]
+        remaining_qualities = [qualities[i] for i in remaining]
+        while len(selected_indices) < min_fill_target and remaining:
+            best_i = int(np.argmax(remaining_qualities))
+            idx = remaining.pop(best_i)
+            remaining_qualities.pop(best_i)
+            if idx >= 0:
+                selected_indices.append(idx)
+                selected_mask[idx] = True
+                novelty_scores[idx] = 0.0
+                final_scores[idx] = float(qualities[idx])
+                nearest_similarities[idx] = float(max_sim_to_selected[idx])
 
     selected_embeddings = embeddings[np.asarray(selected_indices, dtype=np.int64)] if selected_indices else np.zeros((0, embeddings.shape[1] if embeddings.ndim == 2 else 0), dtype=np.float32)
     selected_records: list[SelectedSampleRecord] = []
@@ -876,7 +998,8 @@ def _select_hybrid_subset(
         "suppression_counts": suppression_counts,
         "nearest_similarities": nearest_similarities,
         "final_scores": final_scores,
-        "max_fill_target": max_fill_target,
+        "novelty_weight": novelty_weight,
+        "adaptive_relaxed": adaptive_relaxed,
     }
 
 
@@ -960,9 +1083,15 @@ def filter_quality_class_folder(
         cached = _load_embedding_cache(cache_dir, class_name, cache_key)
         if cached is not None and cached.get("embeddings") is not None:
             embeddings = np.asarray(cached["embeddings"], dtype=np.float32)
+            # Validate lazy reload: if shape doesn't match shortlisted count, recompute.
+            if embeddings.shape[0] != len(shortlisted):
+                embeddings = None
     if embeddings is None:
-        embeddings = embedder.encode(np.stack([candidate.sequence for candidate in shortlisted], axis=0).astype(np.float32))
-        if embedding_cache:
+        if len(shortlisted) == 0:
+            embeddings = np.zeros((0, 0), dtype=np.float32)
+        else:
+            embeddings = embedder.encode(np.stack([candidate.sequence for candidate in shortlisted], axis=0).astype(np.float32))
+        if embedding_cache and embeddings.size > 0:
             _save_embedding_cache(
                 cache_dir=cache_dir,
                 class_name=class_name,
@@ -995,7 +1124,7 @@ def filter_quality_class_folder(
         record.embedding_cache_key = cache_key
 
     selected_indices = analytics.get("selected_indices", [])
-    pca_coords = _pca_coordinates(embeddings, dims=viz_pca_dims) if export_viz_data and viz_pca_dims > 0 else None
+    pca_coords = _pca_coordinates(embeddings, dims=viz_pca_dims) if export_viz_data and viz_pca_dims > 0 and embeddings.size > 0 else None
     viz_rows: list[dict[str, Any]] = []
     if export_viz_data:
         selected_index_set = set(selected_indices)
@@ -1043,6 +1172,37 @@ def filter_quality_class_folder(
     )
     effective_threshold = float(min((record.final_score for record in selected_records), default=0.0))
 
+    novelty_weight = float(analytics.get("novelty_weight", 0.5))
+    adaptive_relaxed = bool(analytics.get("adaptive_relaxed", False))
+
+    # --- Removal breakdown ---
+    # removed_by_quality: candidates below quality threshold or min_score filter
+    removed_by_quality = total - len(candidates) + sum(1 for c in candidates if c.quality_score < curve_threshold) if curve_threshold else 0
+    # removed_by_duplicate: duplicates suppressed during selection
+    removed_by_duplicate = int(analytics.get("duplicates_removed", 0))
+    # removed_by_novelty: remaining deletions = total - kept - quality_removed - duplicate_removed
+    removed_by_novelty = max(0, total - final_kept - removed_by_quality - removed_by_duplicate)
+
+    # --- Lightweight embedding collapse detection ---
+    collapse_reason = ""
+    collapse_signer = False
+    collapse_motion = False
+    collapse_overcompression = False
+    # Signer collapse: very low novelty_std (< 0.01) suggests samples produce nearly identical embeddings
+    if novelty_stats.get("std", 0.0) < 0.01:
+        collapse_signer = True
+        collapse_reason += "signer-collapse "
+    # Motion collapse: very high pairwise similarity (> 0.92) suggests near-identical trajectories
+    if avg_pairwise_similarity > 0.92:
+        collapse_motion = True
+        collapse_reason += "motion-collapse "
+    # Over-compression: high redundancy (> 1.0) AND low novelty_p10 (< 0.01) means embeddings are too compressed
+    if redundancy_ratio > 1.0 and novelty_stats.get("p10", 0.0) < 0.01:
+        collapse_overcompression = True
+        collapse_reason += "over-compression "
+    if not collapse_reason:
+        collapse_reason = "none"
+
     summary = ClassSummary(
         class_name=class_name,
         total_samples=total,
@@ -1070,8 +1230,19 @@ def filter_quality_class_folder(
         fill_ratio=fill_ratio,
         avg_final_similarity=avg_pairwise_similarity,
         effective_duplicate_threshold=effective_duplicate_threshold,
+        novelty_weight=novelty_weight,
+        adaptive_relaxed=adaptive_relaxed,
+        removed_by_quality=removed_by_quality,
+        removed_by_duplicate=removed_by_duplicate,
+        removed_by_novelty=removed_by_novelty,
+        collapse_signer=collapse_signer,
+        collapse_motion=collapse_motion,
+        collapse_overcompression=collapse_overcompression,
+        collapse_reason=collapse_reason,
     )
 
+    relax_tag = f"novelty_w={novelty_weight:.2f}" + (" ADAPT" if adaptive_relaxed else "")
+    collapse_tag = f"[{collapse_reason.strip()}]" if collapse_reason != "none" else ""
     print(
         f"[{class_name}] total={total} budget={budget} shortlist={shortlist_size} "
         f"duplicate_mode={duplicate_mode} eff_dup_thr={effective_duplicate_threshold:.3f} "
@@ -1079,7 +1250,7 @@ def filter_quality_class_folder(
         f"avg_quality={summary.average_quality:.3f} avg_novelty={summary.average_novelty:.3f} "
         f"avg_pairwise_similarity={avg_pairwise_similarity:.3f} health={health_score:.1f} "
         f"effective_threshold={effective_threshold:.4f} redundancy_ratio={redundancy_ratio:.3f} "
-        f"({'dry-run' if dry_run else 'applied'})"
+        f"{relax_tag} {collapse_tag} ({'dry-run' if dry_run else 'applied'})"
     )
 
     viz_bundle = {
@@ -1125,6 +1296,9 @@ def filter_quality_processed(
         raise ValueError("quality_power must be > 0")
     if viz_pca_dims < 0:
         raise ValueError("viz_pca_dims must be >= 0")
+    if duplicate_mode not in DEFAULT_DUPLICATE_THRESHOLDS:
+        available = ", ".join(DEFAULT_DUPLICATE_THRESHOLDS)
+        raise ValueError(f"duplicate_mode must be one of {available}, got '{duplicate_mode}'")
 
     rng = random.Random(DEFAULT_SEED)
     class_dirs = _list_class_dirs(root_dir)
@@ -1168,36 +1342,43 @@ def filter_quality_processed(
     grand_budget = 0
 
     for class_dir in class_dirs:
-        summary, records, viz_bundle = filter_quality_class_folder(
-            class_dir=class_dir,
-            auto_keep=auto_keep,
-            keep_limit=keep_limit,
-            quality_coverage=quality_coverage,
-            shortlist_multiplier=shortlist_multiplier,
-            duplicate_mode=duplicate_mode,
-            duplicate_threshold=duplicate_threshold,
-            quality_power=quality_power,
-            embedder=embedder,
-            min_fill_ratio=min_fill_ratio,
-            embedding_cache=embedding_cache,
-            cache_dir=cache_dir,
-            export_viz_data=export_viz_data,
-            viz_pca_dims=viz_pca_dims,
-            dry_run=dry_run,
-            min_score=min_score,
-        )
-        summaries.append(summary)
-        all_records.extend(records)
-        if export_viz_data and viz_bundle:
-            viz_rows.extend(viz_bundle.get("rows", []))
-            if isinstance(viz_bundle.get("embeddings"), np.ndarray) and viz_bundle["embeddings"].size:
-                viz_embeddings.append(viz_bundle["embeddings"])
-            if isinstance(viz_bundle.get("pca_coords"), np.ndarray) and viz_bundle["pca_coords"].size:
-                viz_pca_coords.append(viz_bundle["pca_coords"])
-        grand_total += summary.total_samples
-        grand_kept += summary.final_kept
-        grand_deleted += summary.total_samples - summary.final_kept
-        grand_budget += summary.adaptive_budget
+        # Wrap per-class processing: a single corrupt class should never crash the
+        # entire filtering pipeline.
+        try:
+            summary, records, viz_bundle = filter_quality_class_folder(
+                class_dir=class_dir,
+                auto_keep=auto_keep,
+                keep_limit=keep_limit,
+                quality_coverage=quality_coverage,
+                shortlist_multiplier=shortlist_multiplier,
+                duplicate_mode=duplicate_mode,
+                duplicate_threshold=duplicate_threshold,
+                quality_power=quality_power,
+                embedder=embedder,
+                min_fill_ratio=min_fill_ratio,
+                embedding_cache=embedding_cache,
+                cache_dir=cache_dir,
+                export_viz_data=export_viz_data,
+                viz_pca_dims=viz_pca_dims,
+                dry_run=dry_run,
+                min_score=min_score,
+            )
+            summaries.append(summary)
+            all_records.extend(records)
+            if export_viz_data and viz_bundle:
+                viz_rows.extend(viz_bundle.get("rows", []))
+                if isinstance(viz_bundle.get("embeddings"), np.ndarray) and viz_bundle["embeddings"].size:
+                    viz_embeddings.append(viz_bundle["embeddings"])
+                if isinstance(viz_bundle.get("pca_coords"), np.ndarray) and viz_bundle["pca_coords"].size:
+                    viz_pca_coords.append(viz_bundle["pca_coords"])
+            grand_total += summary.total_samples
+            grand_kept += summary.final_kept
+            grand_deleted += summary.total_samples - summary.final_kept
+            grand_budget += summary.adaptive_budget
+        except Exception as exc:
+            class_name = os.path.basename(class_dir)
+            print(f"[{class_name}] SKIPPED due to error: {exc}")
+            print(f"    Continuing pipeline with remaining classes...")
 
     print("-" * 100)
     print(f"TOTAL: total={grand_total} adaptive_budget={grand_budget} kept={grand_kept} deleted={grand_deleted}")
@@ -1205,9 +1386,11 @@ def filter_quality_processed(
         print("NOTE: DRY_RUN=True, no files were actually deleted.")
     print("=" * 100)
 
+    # Class rankings: most redundant, most diverse, healthiest, and least healthy.
+    health_sorted = sorted(summaries, key=lambda s: s.health_score, reverse=True)
     class_rankings = {
         "most_redundant": [
-            {"class_name": item.class_name, "redundancy_ratio": item.redundancy_ratio, "health_score": item.health_score}
+            {"class_name": item.class_name, "redundancy_ratio": item.redundancy_ratio, "health_score": item.health_score, "average_pairwise_similarity": item.average_pairwise_similarity}
             for item in sorted(summaries, key=lambda s: (s.redundancy_ratio, -s.average_pairwise_similarity), reverse=True)[:10]
         ],
         "most_diverse": [
@@ -1216,9 +1399,15 @@ def filter_quality_processed(
         ],
         "healthiest": [
             {"class_name": item.class_name, "health_score": item.health_score, "fill_ratio": item.fill_ratio}
-            for item in sorted(summaries, key=lambda s: s.health_score, reverse=True)[:10]
+            for item in health_sorted[:10]
+        ],
+        "least_healthy": [
+            {"class_name": item.class_name, "health_score": item.health_score, "redundancy_ratio": item.redundancy_ratio}
+            for item in health_sorted[-10:] if item.health_score < 100.0
         ],
     }
+
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     if export_viz_data:
         viz_npz_path = os.path.join(report_dir, f"{report_prefix}_{stamp}_viz.npz")
@@ -1245,7 +1434,6 @@ def filter_quality_processed(
         print(f"Saved visualization metadata: {viz_json_path}")
 
     os.makedirs(report_dir, exist_ok=True)
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     json_path = os.path.join(report_dir, f"{report_prefix}_{stamp}.json")
     csv_path = os.path.join(report_dir, f"{report_prefix}_{stamp}.csv")
 
@@ -1310,11 +1498,28 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--keep-per-class", type=int, default=500, help="Fixed keep count when --fixed-keep is used")
     parser.add_argument("--quality-coverage", type=float, default=DEFAULT_QUALITY_COVERAGE, help="Fraction of cumulative quality to preserve")
     parser.add_argument("--shortlist-multiplier", type=float, default=DEFAULT_SHORTLIST_MULTIPLIER, help="Top-K multiplier for shortlist size")
-    parser.add_argument("--duplicate-threshold", type=float, default=DEFAULT_DUPLICATE_THRESHOLD, help="Cosine similarity threshold for near-duplicates")
+    parser.add_argument(
+        "--duplicate-mode",
+        choices=list(DEFAULT_DUPLICATE_THRESHOLDS.keys()),
+        default=DEFAULT_DUPLICATE_MODE,
+        help=f"Duplicate suppression aggressiveness: {', '.join(DEFAULT_DUPLICATE_THRESHOLDS.keys())} "
+             f"(thresholds: {', '.join(f'{k}={v}' for k, v in DEFAULT_DUPLICATE_THRESHOLDS.items())})",
+    )
+    parser.add_argument(
+        "--duplicate-threshold", type=float, default=None,
+        help="Override cosine similarity threshold. When set, overrides --duplicate-mode.",
+    )
+    parser.add_argument(
+        "--min-fill-ratio", type=float, default=DEFAULT_MIN_FILL_RATIO,
+        help=f"Minimum fraction of adaptive budget to fill even if duplicates are suppressed (default: {DEFAULT_MIN_FILL_RATIO})",
+    )
     parser.add_argument("--quality-power", type=float, default=DEFAULT_QUALITY_POWER, help="Exponent applied to quality score in final ranking")
     parser.add_argument("--embedding-checkpoint", default=None, help="Optional trained classifier checkpoint for penultimate-layer embeddings")
     parser.add_argument("--embedding-batch-size", type=int, default=DEFAULT_EMBEDDING_BATCH_SIZE, help="Batch size for embedding extraction")
     parser.add_argument("--min-score", type=float, default=DEFAULT_MIN_SCORE, help="Optional safety floor for quality scores")
+    parser.add_argument("--export-viz-data", action="store_true", help="Export PCA-ready embeddings and t-SNE-ready sample metadata")
+    parser.add_argument("--viz-pca-dims", type=int, default=2, help="PCA reduction dimensions for visualization data (default: 2)")
+    parser.add_argument("--no-embedding-cache", dest="embedding_cache", action="store_false", default=True, help="Disable embedding cache")
     parser.add_argument("--report-dir", default=DEFAULT_REPORT_DIR, help="Directory for JSON and CSV reports")
     parser.add_argument("--report-prefix", default=DEFAULT_REPORT_PREFIX, help="Report filename prefix")
     parser.add_argument("--dry-run", action="store_true", help="Print what would be deleted without changing files")
@@ -1330,10 +1535,15 @@ def main() -> None:
         keep_limit=args.keep_per_class,
         quality_coverage=args.quality_coverage,
         shortlist_multiplier=args.shortlist_multiplier,
+        duplicate_mode=args.duplicate_mode,
         duplicate_threshold=args.duplicate_threshold,
         quality_power=args.quality_power,
+        min_fill_ratio=args.min_fill_ratio,
         embedding_checkpoint=args.embedding_checkpoint,
         embedding_batch_size=args.embedding_batch_size,
+        embedding_cache=args.embedding_cache,
+        export_viz_data=args.export_viz_data,
+        viz_pca_dims=args.viz_pca_dims,
         dry_run=args.dry_run,
         class_only=args.class_only,
         min_score=args.min_score,
