@@ -9,8 +9,11 @@ This repository currently implements a strong isolated-word recognition pipeline
 - **Landmark-based pipeline:** MediaPipe hand + face-relative keypoints stored as compact `.npy` sequences
 - **BiGRU + Attention classifier:** temporal sequence model for isolated sign recognition
 - **K-fold ensemble inference:** more robust prediction by averaging multiple checkpoints
-- **Real-time webcam mode:** sliding-window recognition with signer validation, confidence gating, periodic full hand re-detection, and drift-triggered cache refresh
-- **Sentence builder:** accumulates recognized signs into continuous text
+- **Real-time webcam mode:** sliding-window recognition with signer validation, transition suppression, confidence gating, periodic full hand re-detection, and drift-triggered cache refresh
+- **Sentence builder:** accumulates recognized signs into continuous text with ambiguity delay when top predictions are too close
+- **Similar sign pairs config:** editable [similar_signs.json](similar_signs.json) file for confusable-sign rules
+- **Sign category config:** editable [sign_categories.json](sign_categories.json) file for high-level class groups
+- **Hand sign classification config:** editable [hand_sign_classification.json](hand_sign_classification.json) file for hand-count, motion, and location hints
 - **Rule-based NLP post-processing:** grammar cleanup, punctuation insertion, text normalization
 - **Data collection utilities:** webcam capture for new training samples
 - **Raw-video augmentation:** controlled dataset expansion before preprocessing
@@ -24,6 +27,7 @@ This repository currently implements a strong isolated-word recognition pipeline
 - **ONNX export and quantization:** convert PyTorch models to optimized ONNX Runtime format
 - **INT8 quantization:** 75% model size reduction with 2-3x faster inference
 - **Mixed ensemble support:** seamless inference with combined ONNX + PyTorch models
+- **Negative-sample training:** optional `processed_negatives/` reject class support via `--neg-root`
 
 ## Sign Classes (78)
 
@@ -53,6 +57,11 @@ Minimal packages in requirements:
 - numpy
 - opencv-python
 - mediapipe
+- onnxruntime
+- onnx
+- onnxscript
+
+For ONNX quantization, `onnxruntime` must be installed in the active environment. The current quantizer uses dynamic INT8 quantization and writes a `*_quantization_metadata.json` file alongside the output model.
 
 ## Project Layout
 
@@ -83,15 +92,11 @@ Minimal packages in requirements:
 - **visualize_quality_scores.py** — Histogram and PCA visualization of discriminator scores
 
 **ONNX Utilities (New):**
-- **export_onnx.py** — Export PyTorch checkpoints to ONNX format (opset 17, dynamic batch)
+- **export_onnx.py** — Export PyTorch checkpoints to ONNX format (opset 18, dynamic batch)
 - **onnx_inference.py** — Inference wrapper with automatic PyTorch fallback and profiling
 - **onnx_ensemble.py** — Mixed ONNX/PyTorch ensemble loading and inference
 - **quantize_onnx.py** — Convert ONNX FP32 to INT8 quantized format
-- **benchmark_onnx.py** — Performance comparison across all backends
-- **validate_onnx.py** — Numeric validation and parity checks
 - **onnx_ensemble_integration.py** — Drop-in replacement functions for existing ensemble
-- **onnx_examples.py** — Interactive menu with 7 complete workflow examples
-- **test_onnx_integration.py** — Comprehensive test suite with 6 validation tests
 - **model.pth** — Trained single-model checkpoint
 - **ensemble/** — K-fold ensemble checkpoints
 - **Dataset/** — Raw video files organized by class
@@ -115,6 +120,47 @@ python balance_processed_dataset.py --target 850
 
 Use `--dry-run` first if you want to inspect the planned additions and removals without changing files.
 
+To keep only the highest-quality and least-redundant samples per class, run:
+
+```bash
+python quality_filter_npy.py --dry-run
+python quality_filter_npy.py --class hello --dry-run
+```
+
+This filter now uses a hybrid quality + diversity pass: it keeps the adaptive quality-curve budget, builds diversity embeddings, suppresses near-duplicates, and greedily selects a diverse high-quality subset per class.
+
+Dry-run and cleanup reports are written to `logs/quality_filter/` as JSON and CSV files.
+
+## Training And ONNX
+
+Train the main classifier with a plain disjoint split:
+
+```bash
+python main.py --train
+```
+
+Include negatives from `processed_negatives/` as the reject class:
+
+```bash
+python main.py --train --neg-root processed_negatives
+```
+
+Run K-fold training with the same negative root:
+
+```bash
+python main.py --kfold --neg-root processed_negatives
+```
+
+Export the trained checkpoint to ONNX with the repo's current model class:
+
+```bash
+python export_onnx.py --checkpoint model.pth --output model_fp32.onnx
+```
+
+The exporter now infers `num_classes` from the checkpoint, writes `model_fp32_metadata.json`, and uses opset 18 by default.
+
+Note: dynamic INT8 quantization is supported, but on small models it may not always reduce file size. Check the reported size after running `quantize_onnx.py`.
+
 
 ## Synthetic Data Generation & Filtering
 
@@ -128,72 +174,80 @@ python train_cvae.py \
   --processed-root processed \
   --epochs 20 \
   --batch-size 64 \
-  --output-dir models/cvae
+  --checkpoints-dir checkpoints/cvae_landmarks \
+  --models-dir models
 
 # Quick smoke test (1 class, 1 epoch)
 python train_cvae.py --processed-root processed --epochs 1 --include-class alive
 ```
 
-**Output:** `models/cvae/cvae_landmarks.pt` + metadata file
+**Output:** `models/cvae_landmarks.pt` + `models/cvae_metadata.json`
 
 ### 2) Generate Synthetic Samples
 
 ```bash
 # Generate synthetic samples (30% ratio by default, produces dry-run report first)
 python generate_cvae_samples.py \
-  --cvae-checkpoint models/cvae/cvae_landmarks.pt \
+  --checkpoint models/cvae_landmarks.pt \
   --processed-root processed \
-  --output-root processed \
-  --synthetic-ratio 0.30 \
+  --output-root generated \
+  --max-ratio-synthetic 0.30 \
   --dry-run  # Test without writing files
 
 # Actually create the files (remove --dry-run)
 python generate_cvae_samples.py \
-  --cvae-checkpoint models/cvae/cvae_landmarks.pt \
+  --checkpoint models/cvae_landmarks.pt \
   --processed-root processed \
-  --output-root processed \
-  --synthetic-ratio 0.30
+  --output-root generated \
+  --max-ratio-synthetic 0.30
 ```
 
-**Output:** Synthetic samples as `processed/<class>/cvae_*.npy` files (appended to existing data)
+**Output:** Synthetic samples as `generated/<class>/cvae_*.npy` files. Keeping synthetic files in a separate root prevents label leakage when training the quality discriminator.
 
 ### 3) Train Quality Discriminator
 
 ```bash
 # Train discriminator to score real vs synthetic samples
 python train_quality_discriminator.py \
-  --processed-root processed \
+  --real-root processed \
+  --synthetic-root generated \
   --epochs 20 \
   --batch-size 64 \
-  --output-dir models/discriminator
+  --checkpoints-dir checkpoints/quality_discriminator \
+  --models-dir models/discriminator
 
 # Finetune with hard-negative mining (refine after initial training)
 python train_quality_discriminator.py \
-  --processed-root processed \
+  --real-root processed \
+  --synthetic-root generated \
   --epochs 5 \
-  --finetune \
-  --output-dir models/discriminator
+  --hard-negative-mining \
+  --hard-negative-finetune-epochs 5 \
+  --checkpoints-dir checkpoints/quality_discriminator \
+  --models-dir models/discriminator
 ```
 
-**Output:** `models/discriminator/best.pt` + validation metrics
+**Output:** `checkpoints/quality_discriminator/best.pt` and exported model `models/discriminator/quality_discriminator.pt` + validation metrics
 
 ### 4) Filter Synthetic Samples
 
 ```bash
 # Test filtering without modifying files
 python filter_synthetic_samples.py \
+  --source-root generated \
   --processed-root processed \
-  --discriminator-checkpoint models/discriminator/best.pt \
+  --checkpoint models/discriminator/quality_discriminator.pt \
   --output-root filtered_synthetic \
-  --quality-threshold 0.80 \
+  --threshold 0.80 \
   --dry-run
 
 # Actually filter and organize samples
 python filter_synthetic_samples.py \
+  --source-root generated \
   --processed-root processed \
-  --discriminator-checkpoint models/discriminator/best.pt \
+  --checkpoint models/discriminator/quality_discriminator.pt \
   --output-root filtered_synthetic \
-  --quality-threshold 0.80
+  --threshold 0.80
 ```
 
 **Output:** Organized high-quality samples in `filtered_synthetic/<class>/`
@@ -203,14 +257,15 @@ python filter_synthetic_samples.py \
 ```bash
 # Explore CVAE latent space
 python visualize_latent_space.py \
-  --cvae-checkpoint models/cvae/cvae_landmarks.pt \
+  --checkpoint models/cvae_landmarks.pt \
   --processed-root processed \
-  --output-dir visualization
+  --output logs/cvae_landmarks/latent_pca.png
 
 # Inspect discriminator quality scores
 python visualize_quality_scores.py \
-  --processed-root processed \
-  --discriminator-checkpoint models/discriminator/best.pt \
+  --real-root processed \
+  --synthetic-root generated \
+  --checkpoint models/discriminator/quality_discriminator.pt \
   --output-dir visualization
 ```
 
@@ -222,23 +277,28 @@ python train_cvae.py --processed-root processed --epochs 20
 
 # 2. Generate synthetic samples
 python generate_cvae_samples.py \
-  --cvae-checkpoint models/cvae/cvae_landmarks.pt \
-  --processed-root processed
+  --checkpoint models/cvae_landmarks.pt \
+  --processed-root processed \
+  --output-root generated
 
 # 3. Train quality discriminator
 python train_quality_discriminator.py \
-  --processed-root processed \
-  --epochs 20
+  --real-root processed \
+  --synthetic-root generated \
+  --epochs 20 \
+  --checkpoints-dir checkpoints/quality_discriminator \
+  --models-dir models/discriminator
 
 # 4. Filter synthetic samples by quality
 python filter_synthetic_samples.py \
+  --source-root generated \
   --processed-root processed \
-  --discriminator-checkpoint models/discriminator/best.pt \
+  --checkpoint models/discriminator/quality_discriminator.pt \
   --output-root filtered_synthetic \
-  --quality-threshold 0.80
+  --threshold 0.80
 
 # 5. Retrain main classifier on real + filtered synthetic data
-python main.py --train --epochs 15
+python main.py --train --neg-root processed_negatives
 ```
 
 **Why this matters:** CVAE generates balanced samples for underrepresented classes, quality discriminator filters unrealistic ones, and retraining on mixed real+synthetic data typically improves generalization by 2-4%.
@@ -399,40 +459,6 @@ python quantize_onnx.py \
 
 **Output:** INT8 quantized models (~25 MB each, 75% size reduction)
 
-### Validate Numeric Parity
-
-Ensure ONNX outputs match PyTorch numerically:
-
-```bash
-python validate_onnx.py \
-  --pytorch-checkpoint model.pth \
-  --onnx-model model_int8.onnx \
-  --test-samples 100
-```
-
-**Expected:** >99% prediction agreement, <0.01 L2 distance on logits
-
-### Benchmark All Backends
-
-Compare performance across PyTorch FP32, quantized PyTorch, ONNX FP32, and ONNX INT8:
-
-```bash
-python benchmark_onnx.py \
-  --pytorch-checkpoint model.pth \
-  --onnx-fp32 model_fp32.onnx \
-  --onnx-int8 model_int8.onnx \
-  --batch-sizes 1 8 16 \
-  --num-iterations 100
-```
-
-**Typical Results (CPU):**
-| Backend | Latency (ms) | FPS | Model Size | Memory |
-|---------|--------------|-----|------------|--------|
-| PyTorch FP32 | 4.5 | 222 | 100 MB | 450 MB |
-| PyTorch Quantized | 2.8 | 357 | 25 MB | 280 MB |
-| ONNX FP32 | 2.5 | 400 | 100 MB | 420 MB |
-| ONNX INT8 | 1.8 | 556 | 25 MB | 150 MB |
-
 ### Use ONNX in Your Code
 
 **Option 1: Drop-in wrapper (simplest)**
@@ -465,23 +491,6 @@ from config import cfg
 
 models = load_ensemble_with_onnx('ensemble_quantized', cfg)
 output = ensemble_predict_with_onnx(models, input_tensor, cfg)
-```
-
-### Run Integration Tests
-
-```bash
-# Test all ONNX functionality
-python test_onnx_integration.py
-
-# Run specific test
-python test_onnx_integration.py --test export
-```
-
-### Interactive Example Workflows
-
-```bash
-# Menu-driven examples (export, quantize, benchmark, validate, etc.)
-python onnx_examples.py
 ```
 
 **Why ONNX?**
@@ -580,6 +589,8 @@ This keeps the system lightweight and deployable while adding incremental intell
   - Improve lighting
   - Keep hand signs centered and steady
   - Collect more balanced samples per class
+
+The live sentence builder now adds an ambiguity-delay gate: when the top two class probabilities are too close, it waits a few more frames before committing the sign. That reduces borderline mis-commits during fast motion, transitions, and noisy webcam input.
 
 ## License
 

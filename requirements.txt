@@ -7,5 +7,6 @@ opencv-python
 mediapipe
 onnxruntime 
 onnx 
+onnxscript
 scipy 
 tqdm

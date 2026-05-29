@@ -15,18 +15,25 @@ hand_landmarker.task
 face_landmarker.task
 *.pth
 *.pt
+*.onnx
+*_metadata.json
+*_quantization_metadata.json
+model_fp32.onnx.data
 
 # Dataset videos (too large for git)
 Dataset/
 augmented_dataset/
 processed/
 pseudo_data/
+processed_negatives/
 
 # Model weights & checkpoints
 adapter_weights/
 ensemble/
 models/
 checkpoints/
+generated/
+filtered_synthetic/
 
 # Logs
 logs/

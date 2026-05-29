@@ -38,7 +38,7 @@ class GenerateConfig:
     seq_len: int = 20
     feature_dim: int = 506
 
-    target_per_class: int = 850
+    target_per_class: int = 950
     max_ratio_synthetic: float = 0.30
     max_generate_per_class: int = 500
     batch_size: int = 128
@@ -59,7 +59,7 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Generate CVAE synthetic samples for low-count classes")
     p.add_argument("--processed-root", default="processed")
     p.add_argument("--checkpoint", default="models/cvae_landmarks.pt")
-    p.add_argument("--target-per-class", type=int, default=850)
+    p.add_argument("--target-per-class", type=int, default=950)
     p.add_argument("--max-ratio-synthetic", type=float, default=0.30)
     p.add_argument("--max-generate-per-class", type=int, default=500)
     p.add_argument("--batch-size", type=int, default=128)

@@ -31,6 +31,11 @@ from config import get_config
 from pseudo_buffer import PseudoLabelBuffer
 from adapter_model import AdapterModel, AdapterTrainer
 from adapter_training import AdapterTrainingManager
+from onnx_ensemble_integration import (
+    load_ensemble_with_onnx,
+    ensemble_predict_with_onnx,
+    check_onnx_models_available,
+)
 
 cfg = get_config()
 
@@ -50,6 +55,10 @@ MOTION_BOOST_FACTOR = cfg.motion.motion_boost_factor
 STABILITY_BOOST_FACTOR = cfg.motion.stability_boost_factor
 DYNAMIC_THRESHOLD_MIN = cfg.motion.dynamic_threshold_min
 TRANSITION_HYSTERESIS = cfg.inference.transition_hysteresis
+AMBIGUITY_MARGIN_THRESHOLD = cfg.inference.ambiguity_margin_threshold
+AMBIGUITY_DELAY_FRAMES = cfg.inference.ambiguity_delay_frames
+TRANSITION_MOVEMENT_THRESHOLD = 0.015
+TRANSITION_STABLE_FRAMES = 2
 
 # ════════════════════════════════════════════════════════════════════════════════════
 # PHASE 3: Live inference optimization configuration
@@ -283,6 +292,13 @@ def _is_motion_gating_active(motion_magnitude, frames_in_motion):
     
     # Gate (suppress) when NO motion at all
     return not (has_current_motion or has_recent_motion)
+
+
+def _compute_transition_movement(current_landmarks, previous_landmarks):
+    """Compute mean absolute frame-to-frame landmark movement."""
+    if previous_landmarks is None:
+        return 0.0
+    return float(np.mean(np.abs(current_landmarks - previous_landmarks)))
 
 
 def _log_adapter_skip(pipeline_log, trigger_label: str, reason: str, **details):
@@ -570,6 +586,7 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
 
     # ── Lazy model loading ──
     word_models = word_models_fallback = word_classes = None
+    word_use_onnx = False
 
     def ensure_word_models():
         nonlocal word_models, word_models_fallback, word_classes
@@ -581,10 +598,24 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
                 word_models, word_classes, _ = load_ensemble(model_artifact_path=model_artifact_path)
                 word_models_fallback = []
             else:
-                print("Loading merged 10+2 ensemble...")
-                from ensemble import load_merged_ensemble_10_2
-
-                word_models, word_models_fallback, word_classes, _ = load_merged_ensemble_10_2()
+                # Prefer ONNX ensemble if available
+                try:
+                    if check_onnx_models_available([cfg.paths.ensemble_dir, cfg.paths.base_dir]):
+                        print("Loading ONNX ensemble...")
+                        word_models, word_classes, _ = load_ensemble_with_onnx()
+                        word_models_fallback = []
+                        word_use_onnx = True
+                    else:
+                        print("Loading merged 10+2 ensemble...")
+                        from ensemble import load_merged_ensemble_10_2
+                        word_models, word_models_fallback, word_classes, _ = load_merged_ensemble_10_2()
+                        word_use_onnx = False
+                except Exception:
+                    # Fallback to PyTorch ensemble loader
+                    print("ONNX ensemble load failed, falling back to PyTorch ensemble")
+                    from ensemble import load_merged_ensemble_10_2
+                    word_models, word_models_fallback, word_classes, _ = load_merged_ensemble_10_2()
+                    word_use_onnx = False
             if pipeline_log is not None:
                 pipeline_log.event(
                     "ensemble_loaded",
@@ -689,11 +720,17 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
     effective_threshold = CONFIDENCE_THRESHOLD  # Dynamically adjusted threshold
     last_output_prediction = None  # For transition hysteresis
     prediction_stability_counter = 0  # Frames with stable prediction
+    previous_landmarks_vec = None
+    transition_state = "STABLE"
+    transition_stable_frames = 0
+    transition_movement = 0.0
     
     # ── Sentence Builder (continuous translation) ──
     sentence_builder = SentenceBuilder(
         confidence_threshold=CONFIDENCE_THRESHOLD,
         stability_frames=6,  # Reduced from 12 for faster response (~0.2s at 30fps)
+        ambiguity_margin_threshold=AMBIGUITY_MARGIN_THRESHOLD,
+        ambiguity_delay_frames=AMBIGUITY_DELAY_FRAMES,
         auto_sentence_timeout=75  # ~2.5 seconds at 30fps
     )
     last_displayed_word = None
@@ -1351,6 +1388,36 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
                 prediction_text = "Show a sign"
                 confidence_text = ""
                 prob_lines = []
+            else:
+                prediction_history.clear()
+                prediction_text = "MOVING"
+                confidence_text = "Transition suppressed"
+            previous_landmarks_vec = None
+            transition_state = "MOVING"
+            transition_stable_frames = 0
+
+        if valid_for_prediction:
+            transition_movement = _compute_transition_movement(landmarks_vec, previous_landmarks_vec)
+            if previous_landmarks_vec is None:
+                if transition_state == "MOVING":
+                    transition_stable_frames = min(transition_stable_frames + 1, TRANSITION_STABLE_FRAMES)
+                    if transition_stable_frames >= TRANSITION_STABLE_FRAMES:
+                        transition_state = "STABLE"
+                else:
+                    transition_state = "STABLE"
+                    transition_stable_frames = TRANSITION_STABLE_FRAMES
+            elif transition_movement > TRANSITION_MOVEMENT_THRESHOLD:
+                if transition_state != "MOVING":
+                    prediction_momentum.clear()
+                    prediction_history.clear()
+                transition_state = "MOVING"
+                transition_stable_frames = 0
+            else:
+                transition_stable_frames += 1
+                if transition_stable_frames >= TRANSITION_STABLE_FRAMES:
+                    transition_state = "STABLE"
+
+            previous_landmarks_vec = landmarks_vec.copy()
 
         # ─────────────────────────────────────────────────────────────────────────
         # [SECTION 4] Model Inference (triggered when buffer is full)
@@ -1369,16 +1436,28 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
 
             with profile_section("model_inference"):
                 try:
-                    from ensemble import merged_ensemble_predict
                     main_models, fallback_models, classes = ensure_word_models()
-                    # PHASE 3: Use config-driven TTA setting (disabled by default for live inference)
-                    result = merged_ensemble_predict(
-                        main_models, fallback_models, seq, use_tta=LIVE_USE_TTA,
-                    )
-                    idx = result['pred_idx']
-                    conf = result['confidence']
-                    probs = result['probs']
-                    predicted = classes[idx] if idx < len(classes) else "?"
+                    # PHASE 3: Use ONNX ensemble if available, else existing PyTorch merged ensemble
+                    if word_use_onnx:
+                        idx, conf, probs = ensemble_predict_with_onnx(main_models, seq, use_tta=LIVE_USE_TTA)
+                        result = {
+                            "main": (int(idx), float(conf), probs),
+                            "fallback": None,
+                            "pred_idx": int(idx),
+                            "confidence": float(conf),
+                            "probs": probs,
+                        }
+                        predicted = classes[idx] if idx < len(classes) else "?"
+                    else:
+                        from ensemble import merged_ensemble_predict
+                        # PHASE 3: Use config-driven TTA setting (disabled by default for live inference)
+                        result = merged_ensemble_predict(
+                            main_models, fallback_models, seq, use_tta=LIVE_USE_TTA,
+                        )
+                        idx = result['pred_idx']
+                        conf = result['confidence']
+                        probs = result['probs']
+                        predicted = classes[idx] if idx < len(classes) else "?"
                     
                 except Exception as e:
                     print(f"[ERROR] Inference failed: {e}")
@@ -1393,6 +1472,10 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
             
             # Convert probabilities to numpy array if not already
             probs_array = np.array(probs) if not isinstance(probs, np.ndarray) else probs
+            confidence_gap = None
+            if probs_array is not None and len(probs_array) >= 2:
+                top_two = np.sort(np.asarray(probs_array, dtype=np.float32))[-2:]
+                confidence_gap = float(top_two[1] - top_two[0])
             
             with profile_section("temporal_smoothing"):
                 if temporal_postprocessor_enabled:
@@ -1444,7 +1527,21 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
                 # Require extra confidence to switch predictions
                 meets_threshold = conf >= (effective_threshold + TRANSITION_HYSTERESIS)
 
-            if meets_threshold and not motion_gated:
+            if transition_state != "STABLE":
+                prediction_momentum.clear()
+                prediction_text = "MOVING"
+                confidence_text = (
+                    f"Suppressed: {transition_movement:.4f} | State: {transition_state}"
+                )
+                if pipeline_log is not None:
+                    pipeline_log.event(
+                        "prediction_suppressed",
+                        reason="transition_movement",
+                        transition_state=transition_state,
+                        transition_movement=round(float(transition_movement), 4),
+                        stable_frames=int(transition_stable_frames),
+                    )
+            elif meets_threshold and not motion_gated:
                 # ─────────────────────────────────────────────────────────────
                 # [SECTION 6] Prediction Momentum (Majority Voting)
                 # ─────────────────────────────────────────────────────────────
@@ -1504,6 +1601,8 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
                             motion=round(float(motion_magnitude), 2),
                             stable_frames=prediction_stability_counter,
                             transition=bool(is_transition),
+                            transition_state=transition_state,
+                            transition_movement=round(float(transition_movement), 4),
                         )
                     
                     # ── PART A: Pseudo-Label Collection ──
@@ -1593,7 +1692,11 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
                 # [SECTION 7] Sentence Builder (Continuous Translation)
                 # ─────────────────────────────────────────────────────────────
                 with profile_section("sentence_builder"):
-                    result = sentence_builder.update(prediction_text, conf)
+                    result = sentence_builder.update(
+                        prediction_text,
+                        conf,
+                        confidence_gap=confidence_gap,
+                    )
                 
                 added_word = result.get('added_word')
                 completed_sentence = result.get('completed_sentence')

@@ -20,7 +20,7 @@ import numpy as np
 import torch
 import torch.onnx
 
-from model import ISLModel
+from model import SignLanguageGRU
 
 
 @dataclass
@@ -29,7 +29,7 @@ class ExportConfig:
     output_path: str
     seq_len: int = 20
     feature_dim: int = 506
-    opset_version: int = 17
+    opset_version: int = 18
     device: str = "cpu"
     verbose: bool = False
 
@@ -40,13 +40,25 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", required=True, help="Output path for ONNX model (.onnx)")
     parser.add_argument("--seq-len", type=int, default=20, help="Sequence length")
     parser.add_argument("--feature-dim", type=int, default=506, help="Feature dimension per frame")
-    parser.add_argument("--opset-version", type=int, default=17, help="ONNX opset version")
+    parser.add_argument("--opset-version", type=int, default=18, help="ONNX opset version")
     parser.add_argument("--device", default="cpu", help="Device for export (cpu or cuda)")
     parser.add_argument("--verbose", action="store_true", help="Verbose output")
     return parser.parse_args()
 
 
-def load_pytorch_model(checkpoint_path: str, device: str) -> tuple[ISLModel, dict[str, Any]]:
+def _infer_num_classes(model_dict: dict[str, Any], ckpt_meta: dict[str, Any]) -> int:
+    """Infer the classification head size from checkpoint metadata/state dict."""
+    if isinstance(ckpt_meta.get("num_classes"), int):
+        return int(ckpt_meta["num_classes"])
+
+    for key in ("fc.3.weight", "classifier.weight", "head.weight"):
+        if key in model_dict and hasattr(model_dict[key], "shape"):
+            return int(model_dict[key].shape[0])
+
+    raise ValueError("Unable to infer num_classes from checkpoint")
+
+
+def load_pytorch_model(checkpoint_path: str, device: str) -> tuple[SignLanguageGRU, dict[str, Any]]:
     """Load a PyTorch ISL model checkpoint."""
     if not os.path.isfile(checkpoint_path):
         raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
@@ -55,7 +67,8 @@ def load_pytorch_model(checkpoint_path: str, device: str) -> tuple[ISLModel, dic
     model_dict = ckpt.get("model_state_dict", ckpt)
     ckpt_meta = ckpt if isinstance(ckpt, dict) and "model_state_dict" in ckpt else {}
 
-    model = ISLModel()
+    num_classes = _infer_num_classes(model_dict, ckpt_meta)
+    model = SignLanguageGRU(num_classes=num_classes)
     if isinstance(model_dict, dict):
         model.load_state_dict(model_dict, strict=False)
     model = model.to(device)
@@ -66,17 +79,21 @@ def load_pytorch_model(checkpoint_path: str, device: str) -> tuple[ISLModel, dic
 
 @torch.no_grad()
 def export_to_onnx(
-    model: ISLModel,
+    model: SignLanguageGRU,
     output_path: str,
     *,
     seq_len: int = 20,
     feature_dim: int = 506,
-    opset_version: int = 17,
+    opset_version: int = 18,
     device: str = "cpu",
     verbose: bool = False,
 ) -> dict[str, Any]:
     """Export PyTorch model to ONNX with dynamic axes."""
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+
+    if opset_version < 18:
+        print(f"[WARN] opset_version={opset_version} is too low for the installed exporter; using 18 instead.")
+        opset_version = 18
 
     dummy_input = torch.randn(1, seq_len, feature_dim, dtype=torch.float32, device=device)
     dummy_proximity = torch.randn(1, seq_len, dtype=torch.float32, device=device)
@@ -115,6 +132,28 @@ def export_to_onnx(
     }
 
 
+def _json_safe(value: Any) -> Any:
+    """Convert tensors/arrays and nested containers into JSON-serializable values."""
+    if isinstance(value, torch.Tensor):
+        if value.numel() == 1:
+            return value.detach().cpu().item()
+        return value.detach().cpu().tolist()
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, dict):
+        return {str(k): _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(v) for v in value]
+    if isinstance(value, set):
+        return [_json_safe(v) for v in sorted(value, key=lambda item: str(item))]
+    if hasattr(value, "item") and callable(value.item):
+        try:
+            return value.item()
+        except Exception:
+            pass
+    return value
+
+
 def save_metadata(output_path: str, metadata: dict[str, Any], checkpoint_meta: dict[str, Any]) -> None:
     """Save export metadata alongside the ONNX model."""
     meta_path = output_path.replace(".onnx", "_metadata.json")
@@ -123,7 +162,7 @@ def save_metadata(output_path: str, metadata: dict[str, Any], checkpoint_meta: d
         "checkpoint": checkpoint_meta,
     }
     with open(meta_path, "w", encoding="utf-8") as f:
-        json.dump(combined_meta, f, indent=2)
+        json.dump(_json_safe(combined_meta), f, indent=2)
     print(f"Saved metadata: {meta_path}")
 
 

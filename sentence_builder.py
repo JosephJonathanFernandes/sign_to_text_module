@@ -7,8 +7,39 @@ Includes NLP post-processing (grammar, punctuation, normalization).
 """
 
 from collections import deque
+import json
+from pathlib import Path
 from typing import Optional, List, Tuple
 from nlp_postprocessor import NLPPostProcessor
+
+
+SIMILAR_SIGN_PAIRS_PATH = Path(__file__).with_name("similar_signs.json")
+
+
+def _load_similar_sign_pairs() -> set[tuple[str, str]]:
+    """Load similar-sign pairs from JSON."""
+    try:
+        with SIMILAR_SIGN_PAIRS_PATH.open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except FileNotFoundError:
+        return set()
+    except (json.JSONDecodeError, OSError):
+        return set()
+
+    raw_pairs = payload.get("pairs", []) if isinstance(payload, dict) else []
+    parsed_pairs: set[tuple[str, str]] = set()
+
+    for pair in raw_pairs:
+        if not isinstance(pair, (list, tuple)) or len(pair) != 2:
+            continue
+
+        left = str(pair[0]).strip().lower()
+        right = str(pair[1]).strip().lower()
+        if left and right and left != right:
+            parsed_pairs.add((left, right))
+            parsed_pairs.add((right, left))
+
+    return parsed_pairs
 
 
 class SentenceBuilder:
@@ -22,15 +53,22 @@ class SentenceBuilder:
     def __init__(self, 
                  confidence_threshold: float = 0.60,
                  stability_frames: int = 8,
+                 ambiguity_margin_threshold: float = 0.05,
+                 ambiguity_delay_frames: int = 4,
                  auto_sentence_timeout: int = 60):
         """
         Args:
             confidence_threshold: Min confidence to consider adding a word (0-1)
             stability_frames: Frames needed to confirm sign before transition
+            ambiguity_margin_threshold: Minimum top1-top2 confidence gap required
+                before committing immediately
+            ambiguity_delay_frames: Extra frames to wait when predictions are ambiguous
             auto_sentence_timeout: Frames before auto-completing sentence (30 frames ~= 1 sec @ 30fps)
         """
         self.confidence_threshold = confidence_threshold
         self.stability_frames = stability_frames
+        self.ambiguity_margin_threshold = ambiguity_margin_threshold
+        self.ambiguity_delay_frames = ambiguity_delay_frames
         self.auto_sentence_timeout = auto_sentence_timeout
         
         # Current sign tracking
@@ -38,6 +76,8 @@ class SentenceBuilder:
         self.current_confidence: float = 0.0
         self.stability_counter = 0
         self.last_added_word: Optional[str] = None
+        self.pending_ambiguity_prediction: Optional[str] = None
+        self.ambiguity_delay_counter = 0
         
         # Sentence storage
         self.words: List[str] = []
@@ -51,6 +91,7 @@ class SentenceBuilder:
         self.transition_ready = False
         self.last_word_added_frame = 0
         self.total_frames = 0
+        self.confusable_pairs = _load_similar_sign_pairs()
         
         # Auto-complete tracking
         self.frames_since_last_word = 0
@@ -70,7 +111,8 @@ class SentenceBuilder:
         
     def update(self, 
                prediction: str, 
-               confidence: float) -> dict:
+                             confidence: float,
+                             confidence_gap: Optional[float] = None) -> dict:
         """
         Update with new frame prediction with improved transition logic.
         
@@ -109,6 +151,14 @@ class SentenceBuilder:
             smoothed_pred = Counter(recent_preds).most_common(1)[0][0]
         else:
             smoothed_pred = prediction
+
+        if (
+            confidence_gap is None or
+            confidence_gap >= self.ambiguity_margin_threshold or
+            self.ambiguity_delay_frames == 0
+        ):
+            self.pending_ambiguity_prediction = None
+            self.ambiguity_delay_counter = 0
         
         # Check for auto-sentence completion (timeout after no new words)
         if self.words:
@@ -133,12 +183,32 @@ class SentenceBuilder:
             else:
                 # Word-to-word transition: normal stability
                 min_stability = self.stability_frames
+
+            is_ambiguous_transition = (
+                confidence_gap is not None and
+                confidence_gap < self.ambiguity_margin_threshold and
+                self.ambiguity_delay_frames > 0
+            )
             
             # Finalize previous sign if stable and genuinely different
             if (self.current_word is not None and 
                 self.current_word != "..." and 
                 self.stability_counter >= min_stability and
                 self.current_word != self.last_added_word):
+
+                if is_ambiguous_transition:
+                    if self.pending_ambiguity_prediction != smoothed_pred:
+                        self.pending_ambiguity_prediction = smoothed_pred
+                        self.ambiguity_delay_counter = 0
+
+                    self.ambiguity_delay_counter += 1
+                    if self.ambiguity_delay_counter < self.ambiguity_delay_frames:
+                        self.transition_ready = False
+                        self.current_confidence = max(self.current_confidence, confidence)
+                        return {
+                            'added_word': added_word,
+                            'completed_sentence': completed_sentence,
+                        }
                 
                 # Enforce minimum frame gap between words
                 frames_since_last = self.total_frames - self.last_word_added_frame
@@ -155,6 +225,8 @@ class SentenceBuilder:
             self.current_confidence = confidence
             self.stability_counter = 1
             self.transition_ready = False
+            self.pending_ambiguity_prediction = None
+            self.ambiguity_delay_counter = 0
             
         else:
             # Same prediction, increase stability
@@ -162,6 +234,8 @@ class SentenceBuilder:
             self.current_confidence = max(
                 self.current_confidence, confidence
             )
+            self.pending_ambiguity_prediction = None
+            self.ambiguity_delay_counter = 0
             
             # Mark as ready to transition when stable enough
             if self.stability_counter >= self.stability_frames:
@@ -199,16 +273,8 @@ class SentenceBuilder:
         if not word1 or not word2 or word1 == word2:
             return False
         
-        # Define similar/confusing word pairs
-        confusable = {
-            ("idle", "i"), ("i", "idle"),
-            ("good", "beautiful"), ("beautiful", "good"),
-            ("sad", "deaf"), ("deaf", "sad"),
-            ("loud", "you"), ("you", "loud"), ("ugly", "beautiful"), ("beautiful", "ugly"), ("thankyou", "happy"), ("happy", "thankyou")
-        }
-        
         pair = (word1.lower(), word2.lower())
-        return pair in confusable
+        return pair in self.confusable_pairs
     
     def get_transition_requirement(self, prev_word: Optional[str], next_word: Optional[str]) -> float:
         """
@@ -299,6 +365,7 @@ class SentenceBuilder:
             'current_word': self.current_word,
             'stability': f"{self.stability_counter}/{self.stability_frames}",
             'confidence': f"{self.current_confidence:.1%}",
+            'ambiguity_delay': f"{self.ambiguity_delay_counter}/{self.ambiguity_delay_frames}",
             'word_count': len(self.words),
             'sentence_length': len(self.current_sentence),
             'ready_to_transition': self.transition_ready,
@@ -320,6 +387,8 @@ class SentenceBuilder:
             'stability': self.stability_counter,
             'stability_max': self.stability_frames,
             'confidence': f"{self.current_confidence:.0%}",
+            'ambiguity_delay': self.ambiguity_delay_counter,
+            'ambiguity_delay_max': self.ambiguity_delay_frames,
             'ready': self.transition_ready,
         }
     

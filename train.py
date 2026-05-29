@@ -158,65 +158,17 @@ def _is_augmented_sample(name: str) -> bool:
     return any(tag in name for tag in ("_aug", "_merge", "_mrg"))
 
 
-def _validation_priority(file_path: str) -> tuple[int, str]:
-    """Rank samples so validation prefers MVI and minimizes webcam originals."""
-    name = os.path.basename(file_path).lower()
-    is_mvi = name.startswith("mvi")
-    is_webcam = "webcam" in name
-    is_aug = _is_augmented_sample(name)
-
-    if is_mvi and is_aug:
-        return (0, name)
-    if is_mvi:
-        return (1, name)
-    if not is_webcam:
-        return (2, name)
-    if is_webcam and is_aug:
-        return (3, name)
-    if is_webcam:
-        return (4, name)
-    return (5, name)
-
-
-def _training_priority(file_path: str) -> tuple[int, str]:
-    """Rank samples so training prefers webcam, then other, then MVI."""
-    name = os.path.basename(file_path).lower()
-    is_mvi = name.startswith("mvi")
-    is_webcam = "webcam" in name
-    is_aug = _is_augmented_sample(name)
-
-    if is_webcam and is_aug:
-        return (0, name)
-    if is_webcam:
-        return (1, name)
-    if not is_mvi:
-        return (2, name)
-    if is_mvi and is_aug:
-        return (3, name)
-    if is_mvi:
-        return (4, name)
-    return (5, name)
-
-
-def _source_aware_split(
+def _disjoint_stratified_split(
     samples: list[tuple[str, int]],
     labels: np.ndarray,
     val_split: float,
     random_seed: int,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
-        Split indices per class while biasing training toward webcam-derived files.
+    Split indices per class into disjoint train/val sets.
 
-        The goal is to keep class coverage from stratification while selecting the
-        training subset in this priority order:
-            1. Webcam augmented
-            2. Webcam original
-            3. Other (non-webcam) files
-            4. MVI augmented
-            5. MVI original
-
-        Validation receives the complement of the selected training indices, so
-        the final train/val split remains strictly disjoint.
+    This keeps the split stratified by class, but otherwise random within each
+    class. Train and validation remain strictly disjoint; no source bias is used.
     """
     rng = np.random.default_rng(random_seed)
     train_indices: list[int] = []
@@ -232,21 +184,9 @@ def _source_aware_split(
         target_val = max(1, min(len(cls_indices) - 1, target_val))
         target_train = len(cls_indices) - target_val
 
-        grouped: dict[int, list[int]] = defaultdict(list)
-        for idx in cls_indices:
-            grouped[_training_priority(samples[idx][0])[0]].append(idx)
+        rng.shuffle(cls_indices)
 
-        for bucket in grouped.values():
-            rng.shuffle(bucket)
-
-        chosen_train: list[int] = []
-        for priority in range(5):
-            if len(chosen_train) >= target_train:
-                break
-            bucket = grouped.get(priority, [])
-            remaining = target_train - len(chosen_train)
-            chosen_train.extend(bucket[:remaining])
-
+        chosen_train = cls_indices[:target_train]
         chosen_set = set(chosen_train)
         train_indices.extend(chosen_train)
         val_indices.extend(idx for idx in cls_indices if idx not in chosen_set)
@@ -256,19 +196,17 @@ def _source_aware_split(
     return np.asarray(train_indices, dtype=np.int64), np.asarray(val_indices, dtype=np.int64)
 
 
-def _build_source_aware_folds(
+def _build_disjoint_folds(
     samples: list[tuple[str, int]],
     labels: np.ndarray,
     num_folds: int,
     random_seed: int,
 ) -> list[np.ndarray]:
     """
-    Build K disjoint validation folds by partitioning each class into
-    priority-ordered chunks.
+    Build K disjoint validation folds by partitioning each class randomly.
 
-    Validation folds are disjoint, each class stays approximately balanced
-    across folds, and higher-priority MVI samples are assigned earlier in the
-    fold order so the training complement naturally keeps more webcam data.
+    Validation folds are disjoint and each class stays approximately balanced
+    across folds, but there is no source-based priority ordering.
     Returns a list of `num_folds` arrays containing validation indices.
     """
     rng = np.random.default_rng(random_seed)
@@ -279,25 +217,15 @@ def _build_source_aware_folds(
         if not cls_indices:
             continue
 
-        buckets: dict[int, list[int]] = defaultdict(list)
-        for idx in cls_indices:
-            priority = _validation_priority(samples[idx][0])[0]
-            buckets[priority].append(idx)
+        rng.shuffle(cls_indices)
 
-        ordered: list[int] = []
-        for priority in range(6):
-            bucket = buckets.get(priority, [])
-            if bucket:
-                rng.shuffle(bucket)
-                ordered.extend(bucket)
-
-        base = len(ordered) // num_folds
-        remainder = len(ordered) % num_folds
+        base = len(cls_indices) // num_folds
+        remainder = len(cls_indices) % num_folds
         cursor = 0
         for fold in range(num_folds):
             fold_size = base + (1 if fold < remainder else 0)
             if fold_size:
-                folds[fold].extend(ordered[cursor:cursor + fold_size])
+                folds[fold].extend(cls_indices[cursor:cursor + fold_size])
             cursor += fold_size
 
     return [np.asarray(fold, dtype=np.int64) for fold in folds]
@@ -355,7 +283,7 @@ class FocalLoss(nn.Module):
             return focal_loss
 
 
-def create_data_loaders() -> tuple:
+def create_data_loaders(neg_root: str | None = None) -> tuple:
     """
     Create train (with augmentation + oversampling) and val datasets
     using a class-aware split that keeps validation MVI-heavy.
@@ -364,13 +292,13 @@ def create_data_loaders() -> tuple:
         (train_loader, val_loader, num_classes, class_weights, full_ds)
     """
     # Load without oversampling first for splitting
-    full_ds = ISLDataset(augment=False, min_samples=2, oversample=False)
+    full_ds = ISLDataset(augment=False, min_samples=2, oversample=False, neg_root=neg_root)
     total = len(full_ds)
 
-    # Extract labels for source-aware stratified splitting
+    # Extract labels for stratified splitting
     labels = np.array([lbl for _, lbl in full_ds.samples])
 
-    train_idx, val_idx = _source_aware_split(
+    train_idx, val_idx = _disjoint_stratified_split(
         full_ds.samples,
         labels,
         VAL_SPLIT,
@@ -895,7 +823,7 @@ def train_kfold(
     learning_rate: float = LEARNING_RATE,
 ) -> list:
     """
-    Train NUM_FOLDS models using disjoint source-aware K-fold CV.
+    Train NUM_FOLDS models using disjoint K-fold CV.
     Saves each fold model to ENSEMBLE_DIR/fold_N.pth.
     Returns list of per-fold best validation accuracies.
     
@@ -905,7 +833,7 @@ def train_kfold(
     """
     os.makedirs(ENSEMBLE_DIR, exist_ok=True)
 
-    full_ds = ISLDataset(augment=False, min_samples=2)
+    full_ds = ISLDataset(augment=False, min_samples=2, neg_root=neg_root)
     num_classes = full_ds.num_classes
     labels = np.array([lbl for _, lbl in full_ds.samples])
     manifest = _init_kfold_manifest(
@@ -915,9 +843,8 @@ def train_kfold(
         num_classes=num_classes,
     )
 
-    # Build source-aware folds that spread high-priority (MVI) samples across
-    # every fold so each fold's validation set is MVI-heavy.
-    folds = _build_source_aware_folds(
+    # Build disjoint folds with class-balanced random partitioning.
+    folds = _build_disjoint_folds(
         full_ds.samples, labels, NUM_FOLDS, RANDOM_SEED
     )
     split_iter = []
@@ -925,7 +852,7 @@ def train_kfold(
         val_idx = folds[fold]
         train_idx = np.setdiff1d(np.arange(len(labels)), val_idx)
         split_iter.append((train_idx, val_idx))
-    print(f"[KFold] Using source-aware K-fold (num_folds={NUM_FOLDS})")
+    print(f"[KFold] Using disjoint K-fold (num_folds={NUM_FOLDS})")
 
     fold_accs = []
     all_val_correct = 0
@@ -1001,6 +928,7 @@ if __name__ == '__main__':
     parser.add_argument('--kfold', type=int, default=0, help='Run K-fold cross-validation with this many folds (overrides config)')
     parser.add_argument('--epochs', type=int, default=NUM_EPOCHS, help='Number of training epochs')
     parser.add_argument('--lr', type=float, default=LEARNING_RATE, help='Learning rate')
+    parser.add_argument('--neg-root', type=str, default=None, help='Path to processed_negatives root to include as reject class')
     args = parser.parse_args()
 
     globals()['NUM_EPOCHS'] = int(args.epochs)
@@ -1014,6 +942,7 @@ if __name__ == '__main__':
         fold_accs = train_kfold(
             pipeline_log=None,
             start_fold=0,
+            neg_root=args.neg_root,
             epochs=args.epochs,
             learning_rate=args.lr,
         )
@@ -1025,6 +954,6 @@ if __name__ == '__main__':
         raise SystemExit(0)
 
     # Single-run training
-    train_loader, val_loader, num_classes, class_weights, full_ds = create_data_loaders()
-    model = train(train_loader, val_loader, num_classes, class_weights)
+    train_loader, val_loader, num_classes, class_weights, full_ds = create_data_loaders(neg_root=args.neg_root)
+    model = train(train_loader, val_loader, num_classes, class_weights, classes_list=full_ds.classes)
     print(f"[Done] Training complete. Model saved to {MODEL_SAVE_PATH}")

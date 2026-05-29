@@ -9,10 +9,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import tempfile
 from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+import onnx
 
 
 @dataclass
@@ -52,19 +54,42 @@ def quantize_onnx(
 
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
 
+    def _clear_shape_info(model: onnx.ModelProto) -> onnx.ModelProto:
+        """Strip shape metadata so ONNX Runtime can re-infer shapes cleanly."""
+        for value_info in list(model.graph.input) + list(model.graph.output) + list(model.graph.value_info):
+            tensor_type = value_info.type.tensor_type
+            if tensor_type.HasField("shape"):
+                tensor_type.ClearField("shape")
+        model.graph.ClearField("value_info")
+        return model
+
+    with tempfile.NamedTemporaryFile(suffix=".onnx", delete=False) as tmp_file:
+        temp_model_path = tmp_file.name
+
+    try:
+        sanitized_model = _clear_shape_info(onnx.load(model_path))
+        onnx.save(sanitized_model, temp_model_path)
+    finally:
+        pass
+
     quant_type = QuantType.QInt8 if quant_format == "QInt8" else QuantType.QUInt8
 
     try:
         quantize_dynamic(
-            model_path,
+            temp_model_path,
             output_path,
             per_channel=per_channel,
             reduce_range=reduce_range,
             weight_type=quant_type,
-            optimize_model=True,
         )
     except Exception as e:
         raise RuntimeError(f"Quantization failed: {str(e)}") from e
+    finally:
+        if os.path.exists(temp_model_path):
+            try:
+                os.remove(temp_model_path)
+            except OSError:
+                pass
 
     if not os.path.isfile(output_path):
         raise RuntimeError(f"Quantization completed but output file not found: {output_path}")

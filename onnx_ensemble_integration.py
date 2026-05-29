@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Sequence
 from typing import Any, Optional
 
 import numpy as np
@@ -37,6 +38,7 @@ cfg = get_config()
 ENSEMBLE_DIR = cfg.paths.ensemble_dir
 PROCESSED_DIR = cfg.paths.processed_dir
 DEVICE = cfg.hardware.torch_device
+_SKIP_DIR_NAMES = {"venv", ".git", "__pycache__", ".pytest_cache", ".mypy_cache", ".idea", ".vscode"}
 
 
 def load_ensemble_with_onnx(
@@ -65,8 +67,20 @@ def load_ensemble_with_onnx(
         if os.path.isdir(os.path.join(PROCESSED_DIR, d))
     ])
 
+    search_roots = [ENSEMBLE_DIR, cfg.paths.base_dir]
+    print("[ONNX Ensemble] Scanning roots:")
+    for root in search_roots:
+        print(f"  - {root}")
+        onnx_count = 0
+        pth_count = 0
+        for current_root, dirs, files in os.walk(root):
+            dirs[:] = [d for d in dirs if d not in _SKIP_DIR_NAMES and not d.startswith(".")]
+            onnx_count += sum(1 for fname in files if fname.endswith(".onnx"))
+            pth_count += sum(1 for fname in files if fname.endswith(".pth"))
+        print(f"    found: {onnx_count} .onnx, {pth_count} .pth")
+
     models, meta = detect_and_load_models(
-        ENSEMBLE_DIR,
+        search_roots,
         max_models=max_models,
         device=str(DEVICE),
     )
@@ -79,6 +93,19 @@ def load_ensemble_with_onnx(
         f"[ONNX Ensemble] Loaded {meta['pytorch_models']} PyTorch + "
         f"{meta['onnx_models']} ONNX models"
     )
+
+    selected_artifacts = meta.get("selected_artifacts", [])
+    if selected_artifacts:
+        print("[ONNX Ensemble] Selected artifacts:")
+        for item in selected_artifacts:
+            fallback = f" | fallback={os.path.basename(item['fallback_pth'])}" if item.get("fallback_pth") else ""
+            print(f"  - {item['family']}: {item['kind']} -> {os.path.basename(item['path'])}{fallback}")
+
+    if models:
+        print("[ONNX Ensemble] Final model order:")
+        for idx, model in enumerate(models, start=1):
+            model_name = getattr(model, "name", None) or getattr(getattr(model, "model", None), "onnx_path", None) or "unknown"
+            print(f"  {idx}. {os.path.basename(str(model_name))}")
 
     return models, current_classes, len(current_classes)
 
@@ -117,13 +144,19 @@ def ensemble_predict_with_onnx(
         raise
 
 
-def check_onnx_models_available(ensemble_dir: str) -> bool:
-    """Check if ONNX models are available in ensemble directory."""
-    if not os.path.isdir(ensemble_dir):
-        return False
+def check_onnx_models_available(ensemble_dirs: str | Sequence[str]) -> bool:
+    """Check if ONNX models are available in one or more model directories."""
+    if isinstance(ensemble_dirs, str):
+        ensemble_dirs = [ensemble_dirs]
 
-    onnx_files = [f for f in os.listdir(ensemble_dir) if f.endswith(".onnx")]
-    return len(onnx_files) > 0
+    for ensemble_dir in ensemble_dirs:
+        if not os.path.isdir(ensemble_dir):
+            continue
+        for root, dirs, files in os.walk(ensemble_dir):
+            dirs[:] = [d for d in dirs if d not in _SKIP_DIR_NAMES and not d.startswith(".")]
+            if any(f.endswith(".onnx") for f in files):
+                return True
+    return False
 
 
 def get_ensemble_status(ensemble_dir: str | None = None) -> dict[str, Any]:

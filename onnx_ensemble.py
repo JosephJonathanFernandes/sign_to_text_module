@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Sequence
 from typing import Any, Optional
 
 import numpy as np
@@ -18,6 +19,11 @@ import torch.nn.functional as F
 from onnx_inference import ONNXModelWrapper
 
 logger = logging.getLogger(__name__)
+
+
+_ONNX_FP32_SUFFIXES = ("_fp32", "_float32", "_fp")
+_ONNX_INT8_SUFFIXES = ("_int8", "_quantized", "_int8_quantized")
+_SKIP_DIR_NAMES = {"venv", ".git", "__pycache__", ".pytest_cache", ".mypy_cache", ".idea", ".vscode"}
 
 
 class EnsembleModel:
@@ -83,15 +89,52 @@ def load_onnx_model(
         raise
 
 
+def _normalize_model_family(filename: str) -> str:
+    """Collapse format-specific filenames to a shared family stem."""
+    stem = os.path.splitext(os.path.basename(filename))[0].lower()
+    for suffix in _ONNX_FP32_SUFFIXES + _ONNX_INT8_SUFFIXES:
+        if stem.endswith(suffix):
+            stem = stem[: -len(suffix)]
+            break
+    return stem
+
+
+def _artifact_priority(filename: str) -> tuple[int, str]:
+    """Lower is better: ONNX FP32 -> ONNX INT8 -> PyTorch."""
+    lower = filename.lower()
+    if lower.endswith(".onnx"):
+        if any(lower.endswith(f"{suffix}.onnx") for suffix in _ONNX_INT8_SUFFIXES):
+            return (1, lower)
+        return (0, lower)
+    if lower.endswith(".pth"):
+        return (2, lower)
+    return (99, lower)
+
+
+def _coerce_search_dirs(model_dirs: str | Sequence[str]) -> list[str]:
+    if isinstance(model_dirs, str):
+        return [model_dirs]
+    return [d for d in model_dirs if d]
+
+
+def _iter_model_files(search_dir: str):
+    """Yield model artifact files recursively under a search directory."""
+    for root, dirs, files in os.walk(search_dir):
+        dirs[:] = [d for d in dirs if d not in _SKIP_DIR_NAMES and not d.startswith(".")]
+        for fname in sorted(files):
+            if fname.endswith((".onnx", ".pth")):
+                yield root, fname
+
+
 def detect_and_load_models(
-    ensemble_dir: str,
+    ensemble_dir: str | Sequence[str],
     max_models: int = 5,
     device: str = "cpu",
 ) -> tuple[list[EnsembleModel], dict[str, Any]]:
-    """Auto-detect and load .pth and .onnx models from ensemble directory.
+    """Auto-detect and load .pth and .onnx models from one or more directories.
 
     Args:
-        ensemble_dir: directory containing model files
+        ensemble_dir: directory or list of directories containing model files
         max_models: maximum number of models to load
         device: device for PyTorch models
 
@@ -104,22 +147,75 @@ def detect_and_load_models(
         "pytorch_models": 0,
         "onnx_models": 0,
         "total_models": 0,
+        "selected_artifacts": [],
     }
 
-    if not os.path.isdir(ensemble_dir):
+    search_dirs = [d for d in _coerce_search_dirs(ensemble_dir) if os.path.isdir(d)]
+    if not search_dirs:
         return models, metadata
 
-    pth_files = sorted([f for f in os.listdir(ensemble_dir) if f.endswith(".pth")])
-    onnx_files = sorted([f for f in os.listdir(ensemble_dir) if f.endswith(".onnx")])
+    candidates: dict[str, dict[str, Any]] = {}
+    pth_fallbacks: dict[str, str] = {}
 
+    for dir_index, search_dir in enumerate(search_dirs):
+        for root, fname in _iter_model_files(search_dir):
+            if not (fname.endswith(".onnx") or fname.endswith(".pth")):
+                continue
+
+            family = _normalize_model_family(fname)
+            full_path = os.path.join(root, fname)
+            priority = _artifact_priority(fname)
+            candidate_key = (priority[0], dir_index, priority[1], fname)
+
+            if fname.endswith(".pth"):
+                current_fallback = pth_fallbacks.get(family)
+                if current_fallback is None or candidate_key < candidates.get(f"pth::{family}", {}).get("sort_key", (99, 99, "", "")):
+                    pth_fallbacks[family] = full_path
+                candidates.setdefault(f"pth::{family}", {"sort_key": candidate_key, "path": full_path})
+                continue
+
+            current = candidates.get(family)
+            if current is None or candidate_key < current["sort_key"]:
+                candidates[family] = {
+                    "sort_key": candidate_key,
+                    "path": full_path,
+                    "family": family,
+                    "filename": fname,
+                    "priority": priority[0],
+                    "dir_index": dir_index,
+                }
+
+    ordered = sorted(candidates.values(), key=lambda item: item["sort_key"])
     remaining = max_models
     loaded_pth = 0
     loaded_onnx = 0
 
-    for fname in pth_files:
+    for item in ordered:
         if remaining <= 0:
             break
-        fpath = os.path.join(ensemble_dir, fname)
+
+        fname = item["filename"]
+        fpath = item["path"]
+        family = item["family"]
+        if fname.endswith(".onnx"):
+            fallback_pth = pth_fallbacks.get(family)
+            try:
+                model = load_onnx_model(fpath, pytorch_fallback_path=fallback_pth, device=device)
+                models.append(model)
+                loaded_onnx += 1
+                remaining -= 1
+                metadata["selected_artifacts"].append(
+                    {
+                        "family": family,
+                        "kind": "onnx",
+                        "path": fpath,
+                        "fallback_pth": fallback_pth,
+                    }
+                )
+            except Exception as e:
+                logger.warning(f"Failed to load ONNX model {fname}: {str(e)}")
+            continue
+
         try:
             from quantization_utils import load_model_artifact
 
@@ -127,20 +223,16 @@ def detect_and_load_models(
             models.append(EnsembleModel(model, model_type="pytorch", name=fname))
             loaded_pth += 1
             remaining -= 1
+            metadata["selected_artifacts"].append(
+                {
+                    "family": family,
+                    "kind": "pytorch",
+                    "path": fpath,
+                    "fallback_pth": None,
+                }
+            )
         except Exception as e:
             logger.warning(f"Failed to load PyTorch model {fname}: {str(e)}")
-
-    for fname in onnx_files:
-        if remaining <= 0:
-            break
-        fpath = os.path.join(ensemble_dir, fname)
-        try:
-            model = load_onnx_model(fpath, device=device)
-            models.append(model)
-            loaded_onnx += 1
-            remaining -= 1
-        except Exception as e:
-            logger.warning(f"Failed to load ONNX model {fname}: {str(e)}")
 
     metadata["pytorch_models"] = loaded_pth
     metadata["onnx_models"] = loaded_onnx

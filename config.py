@@ -389,6 +389,12 @@ class InferenceConfig:
     transition_hysteresis: float = 0.12
     """Minimum confidence delta to trigger prediction switch (prevents jitter)."""
 
+    ambiguity_margin_threshold: float = 0.05
+    """Minimum top1-top2 confidence gap required to commit a sign immediately."""
+
+    ambiguity_delay_frames: int = 4
+    """Extra frames to wait when the top predictions are too close."""
+
     sign_idle_timeout: int = 30
     """Frames before considering hands idle (≈ 1 second @ 30fps)."""
 
@@ -400,6 +406,8 @@ class InferenceConfig:
         assert 0 < self.confidence_threshold < 1.0, "Confidence threshold must be in (0, 1)"
         assert self.prediction_smoothing_window > 0, "Smoothing window must be positive"
         assert 0 < self.transition_hysteresis < 1.0, "Hysteresis must be in (0, 1)"
+        assert 0 < self.ambiguity_margin_threshold < 1.0, "Ambiguity margin must be in (0, 1)"
+        assert self.ambiguity_delay_frames >= 0, "Ambiguity delay frames must be non-negative"
 
 
 # ========================================================================================

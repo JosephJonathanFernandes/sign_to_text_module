@@ -38,6 +38,8 @@ class ISLDataset(Dataset):
         augment: bool = False,
         min_samples: int = 1,
         oversample: bool = False,
+        neg_root: str | None = None,
+        neg_label: str = "__reject__",
     ):
         """
         Args:
@@ -91,25 +93,58 @@ class ISLDataset(Dataset):
             cls: i for i, cls in enumerate(filtered_dirs)
         }
 
+        # Optionally include negatives root as a single reject class
+        self.neg_root = None
+        self.neg_label = neg_label
+        if neg_root and os.path.isdir(neg_root):
+            # Count .npy files under neg_root (recursive)
+            neg_count = 0
+            for _root, _dirs, files in os.walk(neg_root):
+                for fn in files:
+                    if fn.endswith(".npy"):
+                        neg_count += 1
+            if neg_count >= min_samples:
+                # Append reject class at the end
+                self.neg_root = neg_root
+                if neg_label not in self.classes:
+                    self.class_to_idx[neg_label] = len(self.classes)
+                    self.classes.append(neg_label)
+
         # Collect all .npy file paths with labels, grouped by class
         # Validate files during collection to skip corrupt ones
-        class_samples = {i: [] for i in range(len(filtered_dirs))}
+        class_samples = {i: [] for i in range(len(self.classes))}
         corrupt_files = []
-        for cls_name in filtered_dirs:
-            cls_dir = os.path.join(root_dir, cls_name)
-            cls_idx = self.class_to_idx[cls_name]
-            for fname in os.listdir(cls_dir):
-                if fname.endswith(".npy"):
-                    fpath = os.path.join(cls_dir, fname)
-                    # Quick validation: try to load file
-                    try:
-                        test_data = np.load(fpath)
-                        if test_data.size > 0:
-                            class_samples[cls_idx].append((fpath, cls_idx))
-                        else:
-                            corrupt_files.append((fpath, "Empty file"))
-                    except Exception as e:
-                        corrupt_files.append((fpath, str(e)))
+        for cls_name in self.classes:
+            if cls_name == self.neg_label and self.neg_root:
+                # Collect negatives recursively from neg_root
+                cls_idx = self.class_to_idx[cls_name]
+                for _root, _dirs, files in os.walk(self.neg_root):
+                    for fname in files:
+                        if fname.endswith(".npy"):
+                            fpath = os.path.join(_root, fname)
+                            try:
+                                test_data = np.load(fpath)
+                                if test_data.size > 0:
+                                    class_samples[cls_idx].append((fpath, cls_idx))
+                                else:
+                                    corrupt_files.append((fpath, "Empty file"))
+                            except Exception as e:
+                                corrupt_files.append((fpath, str(e)))
+            else:
+                cls_dir = os.path.join(root_dir, cls_name)
+                cls_idx = self.class_to_idx[cls_name]
+                for fname in os.listdir(cls_dir):
+                    if fname.endswith(".npy"):
+                        fpath = os.path.join(cls_dir, fname)
+                        # Quick validation: try to load file
+                        try:
+                            test_data = np.load(fpath)
+                            if test_data.size > 0:
+                                class_samples[cls_idx].append((fpath, cls_idx))
+                            else:
+                                corrupt_files.append((fpath, "Empty file"))
+                        except Exception as e:
+                            corrupt_files.append((fpath, str(e)))
         
         if corrupt_files:
             print(f"[Dataset] WARNING: Found {len(corrupt_files)} corrupt files:")

@@ -1,0 +1,54 @@
+{
+  "description": "High-level sign categories for the current 42-class label set.",
+  "categories": {
+    "pronouns": [
+      "I",
+      "he",
+      "she",
+      "it",
+      "we",
+      "you",
+      "you_all",
+      "they"
+    ],
+    "adjectives": [
+      "beautiful",
+      "ugly",
+      "loud",
+      "quiet",
+      "happy",
+      "sad",
+      "deaf",
+      "blind",
+      "nice",
+      "rich",
+      "poor",
+      "thick",
+      "thin",
+      "expensive",
+      "cheap",
+      "flat",
+      "curved",
+      "male",
+      "female",
+      "tight",
+      "loose"
+    ],
+    "greetings": [
+      "Hello",
+      "How_are_you",
+      "Alright",
+      "Good_Morning",
+      "Good_afternoon",
+      "Good_evening",
+      "Good_night"
+    ],
+    "other": [
+      "Thank_you",
+      "Pleased",
+      "Good",
+      "Idle",
+      "Morning"
+    ]
+  }
+}

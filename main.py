@@ -113,7 +113,7 @@ def run_augment_landmarks(
     print()
 
 
-def run_train_word():
+def run_train_word(neg_root: str | None = None):
     """Train single word model."""
     from config import get_config
 
@@ -136,7 +136,7 @@ def run_train_word():
 
         from train import create_data_loaders, train
 
-        tl, vl, nc, cw, ds = create_data_loaders()
+        tl, vl, nc, cw, ds = create_data_loaders(neg_root=neg_root)
         train(tl, vl, nc, cw, classes_list=ds.classes, pipeline_log=pipeline_log)
         pipeline_log.event(
             "train_end",
@@ -196,8 +196,12 @@ def run_cleanup_dataset(
     print()
 
 
-def run_kfold_word():
-    """K-fold word ensemble training."""
+def run_kfold_word(neg_root: str | None = None):
+    """K-fold word ensemble training.
+
+    Args:
+        neg_root: optional path to negatives root to include during K-fold training
+    """
     from config import get_config
 
     cfg = get_config()
@@ -219,7 +223,7 @@ def run_kfold_word():
 
         from train import train_kfold
 
-        fold_accs = train_kfold(pipeline_log=pipeline_log)
+        fold_accs = train_kfold(pipeline_log=pipeline_log, neg_root=neg_root)
         pipeline_log.event(
             "kfold_end",
             fold_accuracies=fold_accs,
@@ -232,6 +236,16 @@ def run_predict_word(video_path: str, model_artifact_path: str | None = None):
     """Predict word from a video file."""
     from preprocess import extract_hand_landmarks
     from ensemble import load_ensemble, ensemble_predict
+    # Prefer ONNX ensemble if available
+    try:
+        from onnx_ensemble_integration import (
+            check_onnx_models_available,
+            load_ensemble_with_onnx,
+            ensemble_predict_with_onnx,
+        )
+        use_onnx = check_onnx_models_available([cfg.paths.ensemble_dir, cfg.paths.base_dir])
+    except Exception:
+        use_onnx = False
     from pipeline_logger import setup_pipeline_logger
 
     if not os.path.exists(video_path):
@@ -241,12 +255,21 @@ def run_predict_word(video_path: str, model_artifact_path: str | None = None):
     pipeline_log = setup_pipeline_logger("predict")
     with pipeline_log.capture_stdio():
         pipeline_log.event("predict_start", video_path=video_path)
-        models, classes, _ = load_ensemble(model_artifact_path=model_artifact_path)
+        if model_artifact_path:
+            models, classes, _ = load_ensemble(model_artifact_path=model_artifact_path)
+        else:
+            if use_onnx:
+                models, classes, _ = load_ensemble_with_onnx()
+            else:
+                models, classes, _ = load_ensemble()
+
         print(f"Processing: {video_path}")
         sequence = extract_hand_landmarks(video_path)
-        pred_idx, conf, probs = ensemble_predict(
-            models, sequence, use_tta=True,
-        )
+
+        if use_onnx and not model_artifact_path:
+            pred_idx, conf, probs = ensemble_predict_with_onnx(models, sequence, use_tta=True)
+        else:
+            pred_idx, conf, probs = ensemble_predict(models, sequence, use_tta=True)
 
         pred_class = (
             classes[pred_idx]
@@ -436,6 +459,10 @@ def main():
         "--n", type=int, default=None,
         help="Number of samples for --collect",
     )
+    parser.add_argument(
+        "--neg-root", type=str, default=None,
+        help="Path to negatives root to include as __reject__ during training",
+    )
     args = parser.parse_args()
 
     # ── Data collection ──
@@ -528,20 +555,20 @@ def main():
         return
 
     if args.kfold:
-        run_kfold_word()
+        run_kfold_word(neg_root=args.neg_root)
         return
 
     # Default: preprocess + train
     if not args.preprocess and not args.train:
         run_preprocess(args.preprocess_dir)
-        run_train_word()
+        run_train_word(neg_root=args.neg_root)
         return
 
     if args.preprocess:
         run_preprocess(args.preprocess_dir)
 
     if args.train:
-        run_train_word()
+        run_train_word(neg_root=args.neg_root)
 
 
 if __name__ == "__main__":
