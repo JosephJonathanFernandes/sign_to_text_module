@@ -374,7 +374,8 @@ class _BalancedAugSubset(torch.utils.data.Dataset):
         # Group indices by class
         class_indices = {}
         for i in indices:
-            _, label = parent.samples[i]
+            # parent.samples entries are (path, label, weight)
+            _, label, _ = parent.samples[i]
             class_indices.setdefault(label, []).append(i)
 
         # Oversample to match the largest class
@@ -391,7 +392,7 @@ class _BalancedAugSubset(torch.utils.data.Dataset):
         balanced = len(self.balanced_indices)
         per_class = {}
         for i in self.balanced_indices:
-            _, lbl = parent.samples[i]
+            _, lbl, _ = parent.samples[i]
             per_class[lbl] = per_class.get(lbl, 0) + 1
         print(f"[BalancedAug] {original} -> {balanced} samples (oversampled)")
         print(f"[BalancedAug] Per class: {dict(sorted(per_class.items()))}")
