@@ -35,6 +35,7 @@ models/
 checkpoints/
 generated/
 filtered_synthetic/
+model.pth
 
 # Logs
 logs/
