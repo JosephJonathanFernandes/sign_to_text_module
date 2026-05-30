@@ -168,6 +168,8 @@ Note: dynamic INT8 quantization is supported, but on small models it may not alw
 
 ## Negatives / --neg-root
 
+**Explicit note:** Negatives (specified with `--neg-root`) are used only during Phase 1 (the main `processed/` training). They are not included in Phase 2 (archived fine‑tuning) unless you explicitly put negative files into `processed_del/` or enable archived-negative inclusion.
+
 You can include a single `__reject__` (negative) class during training by pointing `--neg-root` at a directory containing negative `.npy` samples. The loader collects negatives recursively and treats them as one extra class used for rejecting out‑of‑vocabulary inputs.
 
 Behavior details:
