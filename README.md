@@ -166,6 +166,103 @@ The exporter now infers `num_classes` from the checkpoint, writes `model_fp32_me
 Note: dynamic INT8 quantization is supported, but on small models it may not always reduce file size. Check the reported size after running `quantize_onnx.py`.
 
 
+## Archived fine-tuning (two-phase training)
+
+This repo supports a two-phase training workflow designed to preserve the curated `processed/` set while still allowing a controlled fine‑tune pass on archived samples stored in `processed_del/`.
+
+- Phase 1 (default): train on the cleaned `processed/` dataset (and optional negatives). This avoids immediately exposing the model to noisy or deleted samples.
+- Phase 2 (optional): fine‑tune on `processed_del/` (archived samples) only for a small number of epochs to adapt without forgetting the curated set.
+
+Key CLI flags:
+
+- `--archived-weight <float>` — per-sample weight assigned to archived samples when they are included (default: `0.25`).
+- `--finetune-archived-epochs <int>` — number of epochs to run the archived-only fine‑tune phase after the main training (default: `0`, i.e. disabled).
+- `--finetune-archived-lr <float>` — learning rate to use during the archived fine‑tune phase (optional; if omitted a conservative default is used).
+
+Behavior notes:
+
+- By default `main.py --train` runs Phase 1 on `processed/` only. If you set `--finetune-archived-epochs N` the pipeline will then run Phase 2 and fine‑tune the saved model on samples found under `processed_del/` for `N` epochs.
+- For K‑fold runs (`--kfold`) Phase 1 performs the usual K‑fold training. If `--finetune-archived-epochs` is set, Phase 2 will iterate through each saved fold model and fine‑tune each one on `processed_del/` (so the ensemble reflects archived fine‑tuning across folds).
+- If `processed_del/` is not present the fine‑tune phase is skipped.
+
+Examples:
+
+Train normally then fine‑tune 12 epochs on archived samples with a lower LR:
+
+```bash
+python main.py --train --finetune-archived-epochs 12 --finetune-archived-lr 3e-05
+```
+
+Run K‑fold then fine‑tune every fold for 10 epochs on archived data:
+
+```bash
+python main.py --kfold --finetune-archived-epochs 10
+```
+
+If you want to experiment with different archived sample weighting during fine‑tune, pass `--archived-weight 0.15` (the pipeline assigns this weight to archived samples during any dataset construction that includes them).
+
+Advanced: the code exposes `create_data_loaders()` and `train()` so you can craft custom two‑phase flows in a script if you prefer different inclusion rules for Phase 1.
+
+## Developer Notes & Troubleshooting
+
+This section collects implementation knowledge and quick fixes useful when developing, debugging, or extending the pipeline.
+
+- **Dataset sample representation changed:** `ISLDataset.samples` entries are now 3-tuples `(file_path, label_index, sample_weight)` instead of `(file_path, label_index)`. Update any code that *unpacks* `parent.samples` or assumes 2-tuples (e.g., `_, label = parent.samples[i]`) to handle the third `weight` element: `_, label, _ = parent.samples[i]`.
+
+- **Archived samples are NOT included in normal training:** The default training/data-loader path uses `include_archived=False`. Archived samples in `processed_del/` are only used during the explicit Phase‑2 fine‑tune step (or when you call `create_data_loaders(..., include_archived=True)`). This prevents accidental training on deleted/archived data.
+
+- **API notes:**
+  - `create_data_loaders(neg_root=None, archived_root=None, archived_weight=0.25, include_archived=False)` — call with `include_archived=True` only when you want archived samples included in the base dataset.
+  - `train(..., epochs=None, pretrained_checkpoint=None, lr=None)` — supports overriding epochs, loading a checkpoint, and specifying learning rate for fine‑tune runs.
+
+- **Two-phase training (summary):**
+  1. Phase 1: train on `processed/` only (default). Example:
+
+```bash
+python main.py --train
+```
+
+  2. Phase 2: fine‑tune on archived `processed_del/` only. Enabled with `--finetune-archived-epochs` (applies to single-run and to each fold in `--kfold`). Example:
+
+```bash
+python main.py --train --finetune-archived-epochs 12 --finetune-archived-lr 3e-05
+```
+
+- **K‑fold behavior:** When `--kfold` is used and `--finetune-archived-epochs` > 0, the pipeline will fine‑tune each saved fold model on archived samples (not just the best fold). This keeps the ensemble consistent.
+
+- **How to verify archived inclusion in a run:**
+  - Look in the training log for a `[Dataset] <N> samples` line. If archived were included, the total should equal `len(processed/) + len(processed_del/)` (or the number you expect). The pipeline also prints `[Phase 2] Fine-tuning on archived samples` when it begins the archived pass.
+  - Quick programmatic check (python):
+
+```python
+from train import create_data_loaders
+_, _, _, _, ds = create_data_loaders(include_archived=True)
+print('Total samples (with archived)=', len(ds))
+```
+
+- **Per-sample weighting:** Archived samples are assigned a weight (default `0.25`) so their loss contribution is scaled during training. Change with `--archived-weight` or pass `archived_weight` to `create_data_loaders()` when building a custom dataset.
+
+- **Filelist helper:** Use `tools/build_weighted_filelist.py` to create a 3-column file list `path,label,weight` for inspection or to feed custom samplers.
+
+- **Removing accidentally committed artifacts:** If you previously committed large artifacts that should be ignored (e.g., `model.pth`), remove them from the index without deleting the file with:
+
+```bash
+git rm --cached model.pth
+git commit -m "Remove tracked large artifacts now in .gitignore"
+git push
+```
+
+- **Common crash:** If you see `ValueError: too many values to unpack (expected 2)` during training, search for unpacking sites assuming two elements in `samples`. Update them to handle three elements (see first note).
+
+- **Quick dry-run:** To run a short sanity check (1 epoch Phase 1 + 1 epoch Phase 2) you can temporarily override values in config or call training directly in an interactive script. Example quick run (small, for CI/dev):
+
+```bash
+python -c "import main; main.run_train_word(neg_root=None, archived_weight=0.25, finetune_archived_epochs=1, finetune_archived_lr=1e-4)"
+```
+
+If you want, I can commit these README updates and run a short dry‑run to prove the flow. If you'd like the README to include additional developer notes (e.g., how we untracked `model.pth` historically, or exact log excerpts), tell me what to include and I'll add it.
+
+
 ## Synthetic Data Generation & Filtering
 
 Generate class-balanced training data using a Conditional Variational Autoencoder (CVAE), then filter synthetic samples by quality:

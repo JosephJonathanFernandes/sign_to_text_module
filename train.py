@@ -283,7 +283,7 @@ class FocalLoss(nn.Module):
             return focal_loss
 
 
-def create_data_loaders(neg_root: str | None = None, archived_root: str | None = None, archived_weight: float = 0.25) -> tuple:
+def create_data_loaders(neg_root: str | None = None, archived_root: str | None = None, archived_weight: float = 0.25, include_archived: bool = False) -> tuple:
     """
     Create train (with augmentation + oversampling) and val datasets
     using a class-aware split that keeps validation MVI-heavy.
@@ -291,11 +291,16 @@ def create_data_loaders(neg_root: str | None = None, archived_root: str | None =
     Returns:
         (train_loader, val_loader, num_classes, class_weights, full_ds)
     """
-    # If an archived folder exists next to processed, auto-include it unless overridden
-    if archived_root is None:
-        default_arch = os.path.join(os.path.dirname(cfg.paths.processed_dir), "processed_del")
-        if os.path.isdir(default_arch):
-            archived_root = default_arch
+    # Only include archived samples if explicitly requested via include_archived
+    if include_archived:
+        if archived_root is None:
+            default_arch = os.path.join(os.path.dirname(cfg.paths.processed_dir), "processed_del")
+            if os.path.isdir(default_arch):
+                archived_root = default_arch
+
+    # If caller passed None explicitly for archived_weight, use the function default
+    if archived_weight is None:
+        archived_weight = 0.25
 
     # Load without oversampling first for splitting
     full_ds = ISLDataset(
@@ -533,6 +538,10 @@ def train(
     class_weights: torch.Tensor = None,
     classes_list: list = None,
     pipeline_log: PipelineLogger | None = None,
+    *,
+    epochs: int | None = None,
+    pretrained_checkpoint: str | None = None,
+    lr: float | None = None,
 ) -> SignLanguageGRU:
     """
         Full training loop with:
@@ -554,7 +563,20 @@ def train(
             use_focal_loss=USE_FOCAL_LOSS,
         )
 
+    # Allow caller to override number of epochs and learning rate for fine-tuning
+    epochs = int(epochs) if epochs is not None else NUM_EPOCHS
+    effective_lr = float(lr) if lr is not None else LEARNING_RATE
+
     model = SignLanguageGRU(num_classes=num_classes).to(DEVICE)
+
+    # If a pretrained checkpoint is supplied, load weights before training
+    if pretrained_checkpoint and os.path.exists(pretrained_checkpoint):
+        try:
+            ck = torch.load(pretrained_checkpoint, map_location=DEVICE)
+            model.load_state_dict(ck.get("model_state_dict", ck))
+            print(f"[Train] Loaded weights from: {pretrained_checkpoint}")
+        except Exception as e:
+            print(f"[Train] Warning: failed to load checkpoint {pretrained_checkpoint}: {e}")
 
     # Select loss function (Focal Loss for hard sample mining, else CE)
     # Create criterion that returns per-sample losses (reduction='none'),

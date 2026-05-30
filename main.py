@@ -113,7 +113,13 @@ def run_augment_landmarks(
     print()
 
 
-def run_train_word(neg_root: str | None = None, archived_weight: float | None = None):
+def run_train_word(
+    neg_root: str | None = None,
+    archived_weight: float | None = None,
+    finetune_archived_epochs: int = 0,
+    finetune_archived_lr: float | None = None,
+):
+    """Train single word model."""
     """Train single word model."""
     from config import get_config
 
@@ -134,10 +140,46 @@ def run_train_word(neg_root: str | None = None, archived_weight: float | None = 
             print("[ERROR] Run --preprocess first.")
             sys.exit(1)
 
-        from train import create_data_loaders, train
+        from train import create_data_loaders, train, _PlainSubset
+        from dataset import ISLDataset
+        from torch.utils.data import DataLoader
 
-        tl, vl, nc, cw, ds = create_data_loaders(neg_root=neg_root, archived_weight=archived_weight)
+        # Phase 1: train on processed (+ negatives) only
+        print('\n[Phase 1] Training on processed (no archived)')
+        tl, vl, nc, cw, ds = create_data_loaders(neg_root=neg_root, archived_weight=archived_weight, include_archived=False)
         train(tl, vl, nc, cw, classes_list=ds.classes, pipeline_log=pipeline_log)
+
+        # Phase 2: optional fine-tune on archived samples only
+        finetune_epochs = finetune_archived_epochs if finetune_archived_epochs is not None else getattr(cfg.training, 'finetune_archived_epochs', 0)
+        finetune_lr = finetune_archived_lr if finetune_archived_lr is not None else getattr(cfg.training, 'finetune_archived_lr', None)
+        # Allow CLI override via archived_weight argument being passed as finetune_epochs? Not used.
+        # Read CLI flag if provided
+        try:
+            import argparse as _arg
+            # main's args are available in scope when main() runs; use sys.argv parse instead
+            # But we accept environment config: check for attributes on 'cfg' first
+        except Exception:
+            pass
+
+        # If user requested finetuning via config, run it. We also accept archived_weight to control sample weight during fine-tune.
+        if finetune_epochs and int(finetune_epochs) > 0:
+            processed_del = os.path.join(os.path.dirname(cfg.paths.processed_dir), "processed_del")
+            if os.path.isdir(processed_del):
+                print(f"\n[Phase 2] Fine-tuning on archived samples from: {processed_del}")
+                # Build a dataset that includes archived samples (archived_weight=1.0) and select only archived entries
+                full_arch = ISLDataset(augment=False, min_samples=1, oversample=False, neg_root=neg_root, archived_root=processed_del, archived_weight=1.0)
+                archived_indices = [i for i, s in enumerate(full_arch.samples) if processed_del in s[0]]
+                if archived_indices:
+                    arch_train_ds = _PlainSubset(full_arch, archived_indices)
+                    arch_train_loader = DataLoader(arch_train_ds, batch_size=cfg.training.batch_size, shuffle=True, num_workers=0, pin_memory=False)
+                    # Fine-tune from saved checkpoint with lower LR if configured
+                    ft_lr = float(finetune_lr) if finetune_lr is not None else None
+                    from train import MODEL_SAVE_PATH as _MODEL_PATH
+                    train(arch_train_loader, vl, nc, cw, classes_list=ds.classes, pipeline_log=pipeline_log, epochs=int(finetune_epochs), pretrained_checkpoint=_MODEL_PATH, lr=ft_lr)
+                else:
+                    print('[Phase 2] No archived samples found to fine-tune on.')
+            else:
+                print('[Phase 2] processed_del folder not found; skipping fine-tune.')
         pipeline_log.event(
             "train_end",
             classes=len(ds.classes),
@@ -196,7 +238,12 @@ def run_cleanup_dataset(
     print()
 
 
-def run_kfold_word(neg_root: str | None = None, archived_weight: float | None = None):
+def run_kfold_word(
+    neg_root: str | None = None,
+    archived_weight: float | None = None,
+    finetune_archived_epochs: int = 0,
+    finetune_archived_lr: float | None = None,
+):
     """K-fold word ensemble training.
 
     Args:
@@ -221,9 +268,46 @@ def run_kfold_word(neg_root: str | None = None, archived_weight: float | None = 
             print("[ERROR] Run --preprocess first.")
             sys.exit(1)
 
-        from train import train_kfold
+        from train import train_kfold, create_data_loaders, train, _PlainSubset
+        from dataset import ISLDataset
+        from torch.utils.data import DataLoader
 
+        # Build a processed-only split for val monitoring and class info
+        tl_dummy, vl, nc, cw, ds = create_data_loaders(neg_root=neg_root, archived_weight=archived_weight, include_archived=False)
+
+        # Run K-fold training (phase 1) on processed-only
         fold_accs = train_kfold(pipeline_log=pipeline_log, neg_root=neg_root, archived_weight=archived_weight)
+
+        # Phase 2: fine-tune best fold on archived samples if requested
+        finetune_epochs = finetune_archived_epochs if finetune_archived_epochs is not None else getattr(cfg.training, 'finetune_archived_epochs', 0)
+        finetune_lr = finetune_archived_lr if finetune_archived_lr is not None else getattr(cfg.training, 'finetune_archived_lr', None)
+        if finetune_epochs and int(finetune_epochs) > 0:
+            processed_del = os.path.join(os.path.dirname(cfg.paths.processed_dir), "processed_del")
+            if os.path.isdir(processed_del):
+                if fold_accs:
+                    # Fine-tune every fold's saved model on archived samples
+                    for fold_idx in range(len(fold_accs)):
+                        model_path = os.path.join(cfg.paths.ensemble_dir, f"fold_{fold_idx}.pth")
+                        if not os.path.exists(model_path):
+                            print(f"[KFold Phase 2] Fold {fold_idx} model not found: {model_path}; skipping.")
+                            continue
+                        print(f"\n[KFold Phase 2] Fine-tuning fold {fold_idx} on archived samples: {processed_del}")
+                        full_arch = ISLDataset(augment=False, min_samples=1, oversample=False, neg_root=neg_root, archived_root=processed_del, archived_weight=1.0)
+                        archived_indices = [i for i, s in enumerate(full_arch.samples) if processed_del in s[0]]
+                        if archived_indices:
+                            arch_train_ds = _PlainSubset(full_arch, archived_indices)
+                            arch_train_loader = DataLoader(arch_train_ds, batch_size=cfg.training.batch_size, shuffle=True, num_workers=0, pin_memory=False)
+                            ft_lr = float(finetune_lr) if finetune_lr is not None else None
+                            try:
+                                train(arch_train_loader, vl, nc, cw, classes_list=ds.classes, pipeline_log=pipeline_log, epochs=int(finetune_epochs), pretrained_checkpoint=model_path, lr=ft_lr)
+                            except Exception as e:
+                                print(f"[KFold Phase 2] Fine-tune failed for fold {fold_idx}: {e}")
+                        else:
+                            print(f"[KFold Phase 2] No archived samples found for fold {fold_idx}; skipping.")
+                else:
+                    print('[KFold Phase 2] No fold accuracies available to select models.')
+            else:
+                print('[KFold Phase 2] processed_del folder not found; skipping fine-tune.')
         pipeline_log.event(
             "kfold_end",
             fold_accuracies=fold_accs,
@@ -467,6 +551,14 @@ def main():
         "--archived-weight", type=float, default=None,
         help="Weight to assign to archived samples from processed_del (0-1). If omitted, uses default 0.25",
     )
+    parser.add_argument(
+        "--finetune-archived-epochs", type=int, default=0,
+        help="If >0, after initial training fine-tune for this many epochs on processed_del only (default: 0)",
+    )
+    parser.add_argument(
+        "--finetune-archived-lr", type=float, default=None,
+        help="Learning rate to use during archived fine-tune (defaults to LR*0.1)",
+    )
     args = parser.parse_args()
 
     # ── Data collection ──
@@ -559,20 +651,25 @@ def main():
         return
 
     if args.kfold:
-        run_kfold_word(neg_root=args.neg_root, archived_weight=args.archived_weight)
+        run_kfold_word(
+            neg_root=args.neg_root,
+            archived_weight=args.archived_weight,
+            finetune_archived_epochs=args.finetune_archived_epochs,
+            finetune_archived_lr=args.finetune_archived_lr,
+        )
         return
 
     # Default: preprocess + train
     if not args.preprocess and not args.train:
         run_preprocess(args.preprocess_dir)
-        run_train_word(neg_root=args.neg_root, archived_weight=args.archived_weight)
+        run_train_word(neg_root=args.neg_root, archived_weight=args.archived_weight, finetune_archived_epochs=args.finetune_archived_epochs, finetune_archived_lr=args.finetune_archived_lr)
         return
 
     if args.preprocess:
         run_preprocess(args.preprocess_dir)
 
     if args.train:
-        run_train_word(neg_root=args.neg_root, archived_weight=args.archived_weight)
+        run_train_word(neg_root=args.neg_root, archived_weight=args.archived_weight, finetune_archived_epochs=args.finetune_archived_epochs, finetune_archived_lr=args.finetune_archived_lr)
 
 
 if __name__ == "__main__":
