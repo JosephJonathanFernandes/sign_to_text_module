@@ -166,6 +166,37 @@ The exporter now infers `num_classes` from the checkpoint, writes `model_fp32_me
 Note: dynamic INT8 quantization is supported, but on small models it may not always reduce file size. Check the reported size after running `quantize_onnx.py`.
 
 
+## Negatives / --neg-root
+
+You can include a single `__reject__` (negative) class during training by pointing `--neg-root` at a directory containing negative `.npy` samples. The loader collects negatives recursively and treats them as one extra class used for rejecting out‑of‑vocabulary inputs.
+
+Behavior details:
+
+- Place negative `.npy` files under a folder like `processed_negatives/`. Subfolders are allowed and files are collected recursively.
+- The loader will add a class named `__reject__` only if the negative folder contains at least `min_samples` (default `2`) files — this prevents accidental inclusion of tiny negative sets.
+- Negatives are appended as a single class; their samples become `(file_path, label_index, weight)` entries in `ISLDataset.samples` where `label_index` corresponds to the `__reject__` class.
+- Negatives affect class weighting and splits like any other class. If you have a very large negative set it will influence computed class weights; tune `cfg.training.class_weight_power` if needed.
+
+Examples:
+
+Train with negatives included in Phase 1 (processed-only training) and then fine‑tune on archived data:
+
+```bash
+python main.py --train --neg-root processed_negatives --finetune-archived-epochs 15 --finetune-archived-lr 3e-05
+```
+
+Quick check in Python to see how negatives were discovered:
+
+```python
+from train import create_data_loaders
+_, _, _, _, ds = create_data_loaders(neg_root="processed_negatives", include_archived=False)
+print('Classes:', ds.classes)
+print('Negative label index:', ds.class_to_idx.get('__reject__'))
+```
+
+If you'd like, I can also add a short example script that builds a balanced negative set or a small validation snippet to inspect negative samples before training.
+
+
 ## Archived fine-tuning (two-phase training)
 
 This repo supports a two-phase training workflow designed to preserve the curated `processed/` set while still allowing a controlled fine‑tune pass on archived samples stored in `processed_del/`.
