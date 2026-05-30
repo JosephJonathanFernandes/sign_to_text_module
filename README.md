@@ -198,6 +198,20 @@ print('Negative label index:', ds.class_to_idx.get('__reject__'))
 
 If you'd like, I can also add a short example script that builds a balanced negative set or a small validation snippet to inspect negative samples before training.
 
+Phase 2 negatives: `processed_negatives_del`
+
+If you want negatives to be included in the archived fine‑tune (Phase 2) without copying files into `processed_del/`, create a sibling folder named `processed_negatives_del/` adjacent to `processed/` (this repo's `.gitignore` already lists that name). The training pipeline will automatically use `processed_negatives_del/` as the `__reject__` class for Phase 2 when that folder exists. Example:
+
+```bash
+# copy or create negatives for archived fine-tune
+mkdir -p processed_negatives_del
+cp processed_negatives/*.npy processed_negatives_del/
+
+python main.py --train --neg-root processed_negatives --finetune-archived-epochs 10
+```
+
+This keeps Phase 1 negatives separate from archived negatives and makes archived negative inclusion explicit and auditable.
+
 
 ## Archived fine-tuning (two-phase training)
 
