@@ -20,8 +20,8 @@ import random
 from dataclasses import dataclass
 
 
-ROOT_DIR = "processed"
-DEFAULT_THRESHOLD = 800
+ROOT_DIR = "processed_negatives_del"
+DEFAULT_THRESHOLD = 150
 
 
 @dataclass

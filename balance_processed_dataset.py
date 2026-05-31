@@ -16,8 +16,8 @@ import uuid
 from dataclasses import dataclass
 
 
-ROOT_DIR = "processed"
-TARGET_SAMPLES = 900
+ROOT_DIR = "processed_negatives_del"
+TARGET_SAMPLES = 150
 WEBCAM_PREFIX = "webcam_"
 DUPLICATE_PREFIX = "webcam_dup_"
 

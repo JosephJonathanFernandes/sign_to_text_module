@@ -285,7 +285,7 @@ class TrainingConfig:
 
     # Data splits
     val_split: float = 0.30
-    """Train/validation split ratio (80/20)."""
+    """Train/validation split ratio (70/30)."""
 
     random_seed: int = 42
 

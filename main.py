@@ -146,7 +146,12 @@ def run_train_word(
 
         # Phase 1: train on processed (+ negatives) only
         print('\n[Phase 1] Training on processed (no archived)')
-        tl, vl, nc, cw, ds = create_data_loaders(neg_root=neg_root, archived_weight=archived_weight, include_archived=False)
+        tl, vl, nc, cw, ds = create_data_loaders(
+            neg_root=neg_root,
+            archived_weight=archived_weight,
+            include_archived=False,
+            phase="phase1",
+        )
         train(tl, vl, nc, cw, classes_list=ds.classes, pipeline_log=pipeline_log)
 
         # Phase 2: optional fine-tune on archived samples only
@@ -167,9 +172,9 @@ def run_train_word(
             if os.path.isdir(processed_del):
                 print(f"\n[Phase 2] Fine-tuning on archived samples from: {processed_del}")
                 # Build a dataset that includes archived samples (archived_weight=1.0) and select only archived entries
-                # If a processed_negatives_del folder exists next to processed_del, use it as negatives for Phase 2
-                default_neg_del = os.path.join(os.path.dirname(cfg.paths.processed_dir), "processed_negatives_del")
-                neg_for_arch = default_neg_del if os.path.isdir(default_neg_del) else None
+                # Phase 2 uses its own reject source; the label still remains `reject`.
+                from train import _resolve_phase_neg_root
+                neg_for_arch = _resolve_phase_neg_root("phase2")
                 full_arch = ISLDataset(augment=False, min_samples=1, oversample=False, neg_root=neg_for_arch, archived_root=processed_del, archived_weight=1.0)
                 archived_indices = [i for i, s in enumerate(full_arch.samples) if processed_del in s[0]]
                 if archived_indices:
@@ -276,7 +281,12 @@ def run_kfold_word(
         from torch.utils.data import DataLoader
 
         # Build a processed-only split for val monitoring and class info
-        tl_dummy, vl, nc, cw, ds = create_data_loaders(neg_root=neg_root, archived_weight=archived_weight, include_archived=False)
+        tl_dummy, vl, nc, cw, ds = create_data_loaders(
+            neg_root=neg_root,
+            archived_weight=archived_weight,
+            include_archived=False,
+            phase="phase1",
+        )
 
         # Run K-fold training (phase 1) on processed-only
         fold_accs = train_kfold(pipeline_log=pipeline_log, neg_root=neg_root, archived_weight=archived_weight)
@@ -295,9 +305,9 @@ def run_kfold_word(
                             print(f"[KFold Phase 2] Fold {fold_idx} model not found: {model_path}; skipping.")
                             continue
                         print(f"\n[KFold Phase 2] Fine-tuning fold {fold_idx} on archived samples: {processed_del}")
-                        # If a processed_negatives_del folder exists next to processed_del, use it as negatives for Phase 2
-                        default_neg_del = os.path.join(os.path.dirname(cfg.paths.processed_dir), "processed_negatives_del")
-                        neg_for_arch = default_neg_del if os.path.isdir(default_neg_del) else None
+                        # Phase 2 uses its own reject source; the label still remains `reject`.
+                        from train import _resolve_phase_neg_root
+                        neg_for_arch = _resolve_phase_neg_root("phase2")
                         full_arch = ISLDataset(augment=False, min_samples=1, oversample=False, neg_root=neg_for_arch, archived_root=processed_del, archived_weight=1.0)
                         archived_indices = [i for i, s in enumerate(full_arch.samples) if processed_del in s[0]]
                         if archived_indices:

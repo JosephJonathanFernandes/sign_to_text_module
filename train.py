@@ -231,6 +231,28 @@ def _build_disjoint_folds(
     return [np.asarray(fold, dtype=np.int64) for fold in folds]
 
 
+def _resolve_phase_neg_root(
+    phase: str | None,
+    neg_root: str | None = None,
+) -> str | None:
+    """Resolve the reject source for a training phase.
+
+    Phase 1 uses `processed_negatives` when provided by the caller.
+    Phase 2 prefers `processed_negatives_del` unless the caller passes an
+    explicit override.
+    """
+    if neg_root:
+        return neg_root
+
+    phase_name = (phase or "phase1").strip().lower()
+    if phase_name == "phase2":
+        default_neg_del = os.path.join(os.path.dirname(cfg.paths.processed_dir), "processed_negatives_del")
+        if os.path.isdir(default_neg_del):
+            return default_neg_del
+
+    return None
+
+
 # ── Focal Loss (for hard sample mining) ──────────────────────────────
 
 class FocalLoss(nn.Module):
@@ -283,7 +305,13 @@ class FocalLoss(nn.Module):
             return focal_loss
 
 
-def create_data_loaders(neg_root: str | None = None, archived_root: str | None = None, archived_weight: float = 0.25, include_archived: bool = False) -> tuple:
+def create_data_loaders(
+    neg_root: str | None = None,
+    archived_root: str | None = None,
+    archived_weight: float = 0.25,
+    include_archived: bool = False,
+    phase: str = "phase1",
+) -> tuple:
     """
     Create train (with augmentation + oversampling) and val datasets
     using a class-aware split that keeps validation MVI-heavy.
@@ -301,6 +329,9 @@ def create_data_loaders(neg_root: str | None = None, archived_root: str | None =
     # If caller passed None explicitly for archived_weight, use the function default
     if archived_weight is None:
         archived_weight = 0.25
+
+    # Resolve the phase-specific reject source without changing the label name.
+    neg_root = _resolve_phase_neg_root(phase, neg_root=neg_root)
 
     # Load without oversampling first for splitting
     full_ds = ISLDataset(
@@ -383,11 +414,22 @@ class _BalancedAugSubset(torch.utils.data.Dataset):
             _, label, _ = parent.samples[i]
             class_indices.setdefault(label, []).append(i)
 
-        # Oversample to match the largest class
-        max_count = max(len(v) for v in class_indices.values())
+        # Oversample to match the largest non-reject class.
+        # Keep reject at its natural count so a large negatives bucket does not
+        # force every sign class to be duplicated up to that size.
+        reject_label = getattr(parent, "neg_label", "__reject__")
+        reject_idx = parent.class_to_idx.get(reject_label)
+
+        non_reject_counts = [
+            len(v) for cls, v in class_indices.items() if cls != reject_idx
+        ]
+        max_count = max(non_reject_counts) if non_reject_counts else max(len(v) for v in class_indices.values())
         self.balanced_indices = []
         for cls, idxs in sorted(class_indices.items()):
             n = len(idxs)
+            if cls == reject_idx:
+                self.balanced_indices.extend(idxs)
+                continue
             repeats = max_count // n
             remainder = max_count % n
             oversampled = idxs * repeats + idxs[:remainder]
@@ -870,6 +912,8 @@ def train_kfold(
     pipeline_log: PipelineLogger | None = None,
     start_fold: int = 0,
     *,
+    neg_root: str | None = None,
+    archived_weight: float | None = None,
     epochs: int = NUM_EPOCHS,
     learning_rate: float = LEARNING_RATE,
 ) -> list:
