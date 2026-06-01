@@ -43,7 +43,7 @@ try:
 except Exception:  # pragma: no cover - importing the model should usually work
     SignLanguageGRU = None
 
-ROOT_DIR = "processed_negatives_del"
+ROOT_DIR = "processed_del"
 DEFAULT_QUALITY_COVERAGE = 0.85
 DEFAULT_SHORTLIST_MULTIPLIER = 3.0
 DEFAULT_DUPLICATE_MODE = "relaxed"
