@@ -138,6 +138,142 @@ class ONNXModelWrapper:
         input_seq = input_seq.astype(np.float32)
         proximity = proximity.astype(np.float32)
 
+        # Align input dimensions to what the ONNX session expects (robust to
+        # feature-dimension mismatches caused by velocity toggles or export)
+        try:
+            sess_inputs = self.session.get_inputs()
+            if sess_inputs:
+                # Expect input_seq shape: (batch?, seq_len?, feat_dim?)
+                expected_feat_dim = None
+                # inspect last dimension of the first input's shape if available
+                inp_shape = sess_inputs[0].shape
+                if len(inp_shape) >= 1 and inp_shape[-1] is not None:
+                    expected_feat_dim = int(inp_shape[-1])
+
+                # If expected feature dim known and differs, pad/truncate
+                if expected_feat_dim is not None:
+                    # handle 2D arrays (seq, feat)
+                    if input_seq.ndim == 2:
+                        cur_feat = input_seq.shape[1]
+                        if cur_feat != expected_feat_dim:
+                            if cur_feat > expected_feat_dim:
+                                input_seq = input_seq[:, :expected_feat_dim]
+                            else:
+                                pad = np.zeros((input_seq.shape[0], expected_feat_dim - cur_feat), dtype=np.float32)
+                                input_seq = np.concatenate([input_seq, pad], axis=1)
+
+                    # handle 3D arrays (batch, seq, feat)
+                    elif input_seq.ndim >= 3:
+                        cur_feat = input_seq.shape[-1]
+                        if cur_feat != expected_feat_dim:
+                            if cur_feat > expected_feat_dim:
+                                input_seq = input_seq[..., :expected_feat_dim]
+                            else:
+                                pad_shape = list(input_seq.shape)
+                                pad_shape[-1] = expected_feat_dim - cur_feat
+                                pad = np.zeros(tuple(pad_shape), dtype=np.float32)
+                                input_seq = np.concatenate([input_seq, pad], axis=-1)
+
+                # If proximity is None, create a seq-shaped placeholder (we'll adapt shape later)
+                if proximity is None:
+                    if input_seq.ndim >= 3:
+                        proximity = np.zeros((input_seq.shape[0], input_seq.shape[1]), dtype=np.float32)
+                    else:
+                        proximity = np.zeros((input_seq.shape[0], input_seq.shape[1]), dtype=np.float32)
+                # If the session expects a batched input (3 dims) but we have (seq, feat), add batch dim
+                if sess_inputs and len(inp_shape) >= 3:
+                    if input_seq.ndim == 2:
+                        input_seq = np.expand_dims(input_seq, axis=0)
+                    # ensure proximity has batch dim as well
+                    if proximity is not None and proximity.ndim == 2:
+                        # proximity likely (seq,1) -> make (1,seq,1)
+                        proximity = np.expand_dims(proximity, axis=0)
+
+                # Final sanity: if proximity batch doesn't match input batch, try to broadcast when safe
+                try:
+                    if proximity is not None and input_seq.ndim >= 3 and proximity.ndim >= 3:
+                        if proximity.shape[0] != input_seq.shape[0] and proximity.shape[0] == 1:
+                            proximity = np.repeat(proximity, input_seq.shape[0], axis=0)
+                except Exception:
+                    pass
+        except Exception:
+            # Best-effort only; fall back to using provided arrays
+            pass
+
+        # Log shapes for diagnostics and adapt proximity to what the session expects
+        try:
+            sess_inputs = self.session.get_inputs() if self.session is not None else []
+            expected = [tuple(i.shape) for i in sess_inputs]
+        except Exception:
+            sess_inputs = []
+            expected = None
+
+        # Determine expected proximity shape (heuristic: look for input named 'proximity' or second input)
+        expected_prox_shape = None
+        try:
+            for i in sess_inputs:
+                if 'proximity' in i.name.lower():
+                    expected_prox_shape = i.shape
+                    break
+            if expected_prox_shape is None and len(sess_inputs) > 1:
+                expected_prox_shape = sess_inputs[1].shape
+        except Exception:
+            expected_prox_shape = None
+
+        # If session expects batched inputs but we were given a 2D (seq,feat) input,
+        # add a batch dimension and align proximity from (seq,1) -> (1,seq) as needed.
+        try:
+            if input_seq.ndim == 2 and sess_inputs and len(inp_shape) >= 3:
+                # add batch dim to sequence
+                input_seq = np.expand_dims(input_seq, axis=0)
+
+                if proximity is not None:
+                    # If proximity is (seq,1), convert to (1,seq)
+                    if proximity.ndim == 2 and proximity.shape[1] == 1:
+                        proximity = np.squeeze(proximity, axis=-1)
+                        proximity = np.expand_dims(proximity, axis=0)
+                    # If proximity is (seq,), make it (1,seq)
+                    elif proximity.ndim == 1:
+                        proximity = np.expand_dims(proximity, axis=0)
+                    # If proximity is (1,seq,1) or (1,seq), try to reduce to (1,seq)
+                    elif proximity.ndim == 3 and proximity.shape[-1] == 1:
+                        proximity = np.squeeze(proximity, axis=-1)
+        except Exception:
+            pass
+
+        # If session expects 2D proximity (batch, seq) but we have (...,1), squeeze last axis
+        try:
+            if expected_prox_shape is not None and len(expected_prox_shape) == 2:
+                # proximity could be (seq,1), (batch, seq,1) or (batch,seq)
+                if proximity is not None and proximity.ndim >= 2:
+                    # If last dim is singleton, squeeze it
+                    if proximity.shape[-1] == 1:
+                        proximity = np.squeeze(proximity, axis=-1)
+
+                    # If proximity is (seq,) and input is batched, add batch dim
+                    if proximity.ndim == 1 and input_seq.ndim >= 3:
+                        proximity = np.expand_dims(proximity, axis=0)
+
+                    # If proximity is (seq,) and input is 2D seq, expand to (1,seq)
+                    if proximity.ndim == 1 and input_seq.ndim == 2:
+                        proximity = np.expand_dims(proximity, axis=0)
+
+                    # If proximity batch-size 1 but input has larger batch, broadcast
+                    if proximity.ndim == 2 and input_seq.ndim >= 3 and proximity.shape[0] == 1 and input_seq.shape[0] > 1:
+                        proximity = np.repeat(proximity, input_seq.shape[0], axis=0)
+
+            # If session expects 3D proximity (batch, seq, feat) but we have 2D, expand trailing dim
+            elif expected_prox_shape is not None and len(expected_prox_shape) >= 3:
+                if proximity is not None and proximity.ndim == 2:
+                    proximity = np.expand_dims(proximity, axis=-1)
+                # broadcast batch if needed
+                if proximity is not None and input_seq.ndim >= 3 and proximity.shape[0] == 1 and input_seq.shape[0] > 1:
+                    proximity = np.repeat(proximity, input_seq.shape[0], axis=0)
+        except Exception:
+            pass
+
+        logger.info(f"ONNX expected_inputs={expected}; passing input_seq.shape={getattr(input_seq, 'shape', None)}, proximity.shape={getattr(proximity, 'shape', None)}; expected_prox_shape={expected_prox_shape}")
+
         inputs = {
             "input_seq": input_seq,
             "proximity": proximity,

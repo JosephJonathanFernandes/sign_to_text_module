@@ -854,4 +854,3 @@ python train.py --epochs 8 --lr 1e-4
 python train.py --kfold 5 --epochs 8 --lr 1e-4
 ```
 
-If you'd like, I can expand these notes into a longer changelog section or add per-file developer notes.

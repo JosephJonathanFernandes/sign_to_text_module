@@ -135,7 +135,7 @@ def ensemble_predict_with_onnx(
             sequence,
             device=str(DEVICE),
             proximity_feat_dim=cfg.spatial.proximity_dim,
-            frame_feat_dim=cfg.frame_features.frame_features_dim,
+            frame_feat_dim=cfg.frame_features.input_sequence_dim,
             proximity_index=cfg.frame_features.proximity_index,
         )
         return pred_idx, confidence, probs
