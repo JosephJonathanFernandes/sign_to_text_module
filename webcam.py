@@ -57,8 +57,8 @@ DYNAMIC_THRESHOLD_MIN = cfg.motion.dynamic_threshold_min
 TRANSITION_HYSTERESIS = cfg.inference.transition_hysteresis
 AMBIGUITY_MARGIN_THRESHOLD = cfg.inference.ambiguity_margin_threshold
 AMBIGUITY_DELAY_FRAMES = cfg.inference.ambiguity_delay_frames
-TRANSITION_MOVEMENT_THRESHOLD = 0.015
-TRANSITION_STABLE_FRAMES = 2
+TRANSITION_MOVEMENT_THRESHOLD = 0.02
+TRANSITION_STABLE_FRAMES = 3
 
 # ════════════════════════════════════════════════════════════════════════════════════
 # PHASE 3: Live inference optimization configuration
@@ -589,7 +589,7 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
     word_use_onnx = False
 
     def ensure_word_models():
-        nonlocal word_models, word_models_fallback, word_classes
+        nonlocal word_models, word_models_fallback, word_classes, word_use_onnx
         if word_models is None:
             if model_artifact_path:
                 print(f"Loading quantized model bundle: {model_artifact_path}")
@@ -1435,6 +1435,11 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
                         seq = _add_velocity(seq)
 
             with profile_section("model_inference"):
+                result = {
+                    "pred_idx": -1,
+                    "confidence": 0.0,
+                    "probs": np.array([], dtype=np.float32),
+                }
                 try:
                     main_models, fallback_models, classes = ensure_word_models()
                     # PHASE 3: Use ONNX ensemble if available, else existing PyTorch merged ensemble
@@ -1465,6 +1470,11 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
                     conf = 0.0
                     probs = np.zeros(len(classes)) if classes else []
                     predicted = "ERROR"
+                    result = {
+                        "pred_idx": int(idx),
+                        "confidence": float(conf),
+                        "probs": np.array(probs, dtype=np.float32) if len(probs) else np.array([], dtype=np.float32),
+                    }
             
             # ─────────────────────────────────────────────────────────────────────────
             # [SECTION 5] Post-Processing (Temporal Smoothing + Momentum)

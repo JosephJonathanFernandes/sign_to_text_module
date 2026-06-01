@@ -736,14 +736,14 @@ class LiveInferenceConfig:
     temporal_smoothing_enabled: bool = True
     """Enable temporal post-processing during live inference."""
 
-    temporal_window_size: int = 3
-    """Temporal smoothing window size (frames)."""
+    temporal_window_size: int = 8
+    """Temporal smoothing window size (frames). Increased for smoother transitions."""
 
-    temporal_patience: int = 1
+    temporal_patience: int = 3
     """Frames required to confirm a transition in temporal post-processing."""
 
-    temporal_delta: float = 0.05
-    """Confidence margin used by temporal anti-flicker logic."""
+    temporal_delta: float = 0.12
+    """Confidence margin used by temporal anti-flicker logic. Higher -> harder to switch."""
 
     temporal_decay_factor: float = 0.3
     """Exponential decay factor for older frames in temporal smoothing."""
@@ -770,13 +770,13 @@ class LiveInferenceConfig:
             "momentum_min_avg_conf must be in (0, 1)"
 
     # Prediction momentum parameters for live inference (majority + confidence commit)
-    momentum_window: int = 3
+    momentum_window: int = 5
     """Number of recent predictions to keep for momentum majority voting."""
 
-    momentum_commit_count: int = 2
-    """Minimum occurrences of the same class within `momentum_window` required to commit (2-of-3)."""
+    momentum_commit_count: int = 3
+    """Minimum occurrences of the same class within `momentum_window` required to commit (3-of-5)."""
 
-    momentum_min_avg_conf: float = 0.5
+    momentum_min_avg_conf: float = 0.60
     """Minimum average confidence on the agreeing entries required to commit prediction."""
 
 
