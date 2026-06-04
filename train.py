@@ -73,6 +73,15 @@ def _compute_inverse_class_weights(
     return torch.FloatTensor(class_weights).to(DEVICE)
 
 
+def _sample_label(sample) -> int:
+    """Return the label field from a dataset sample.
+
+    Supports both legacy (path, label) and weighted (path, label, weight)
+    sample tuples.
+    """
+    return int(sample[1])
+
+
 def _now_iso() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
@@ -777,7 +786,7 @@ def _train_fold(
     Train a single fold with balanced oversampling + weighted CE loss.
     Returns best validation accuracy.
     """
-    labels = np.array([lbl for _, lbl in full_ds.samples])
+    labels = np.array([_sample_label(sample) for sample in full_ds.samples])
 
     # Balanced oversampling for training split
     train_ds = _BalancedAugSubset(full_ds, train_idx.tolist())
@@ -930,7 +939,7 @@ def train_kfold(
 
     full_ds = ISLDataset(augment=False, min_samples=2, neg_root=neg_root)
     num_classes = full_ds.num_classes
-    labels = np.array([lbl for _, lbl in full_ds.samples])
+    labels = np.array([_sample_label(sample) for sample in full_ds.samples])
     manifest = _init_kfold_manifest(
         start_fold=start_fold,
         num_folds=NUM_FOLDS,
