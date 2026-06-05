@@ -72,7 +72,12 @@ Pseudo-labeling and User-Specific Live Adapter
 Developer scripts & helpers
 - `scripts/` contains small dev tools like `smoke_gnn_test.py` and `benchmark_gnn.py`.
 - `modify_train_kfold.py` and `train_kfold_resume.py` help orchestrate multi-run experiments.
-- `tools/` includes ad-hoc helpers; inspect to see utilities used for dataset ops.
+- `tools/` includes ad-hoc helpers for dataset operations:
+  - `generate_negative_root.py` — Manages negative samples using a `manifest.json`.
+  - `grid_search_archived.py` — Performs grid search over archived sample weights to balance recall and accuracy.
+  - `validate_npy.py` — Sanity checks the `processed/` dataset ensuring `.npy` integrity.
+  - `build_weighted_filelist.py` — Emits a filelist (`path \t label \t weight`) for dataloaders.
+  - `debug_onnx_input_check.py` — Debugs ONNX input dimensions.
 
 Reproducible experiment scripts
 - `scripts/run_kfold_gnn.sh` — POSIX shell script to run K-fold full fine-tuning, install deps, and save logs.

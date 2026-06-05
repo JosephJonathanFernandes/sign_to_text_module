@@ -454,7 +454,28 @@ The integration of all enhancements described in Section 4.6 produced measurable
 
 ---
 
-## 4.10 Current Status of the Module
+## 4.10 Advanced Pipeline Optimizations
+
+In addition to the core architecture, the pipeline includes several advanced optimisations to ensure robustness and performance in production environments:
+
+### Dynamic K-Fold Ensemble & Test-Time Augmentation
+The system employs a dynamic K-fold ensemble (`ensemble.py`) allowing the configuration of 1, 3, or 5 concurrent models to balance latency and accuracy. To optimise inference, the ensemble averages raw logits rather than softmax probabilities, saving computationally expensive operations. Test-Time Augmentation (TTA) is supported, applying light Gaussian noise and scaling across multiple forward passes. Furthermore, `onnx_ensemble_integration.py` provides a mixed ensemble environment that transparently loads and runs both `.onnx` and `.pth` models, with automatic fallback mechanisms.
+
+### Multi-Person Robustness & Hand Selection
+To prevent confusion in multi-person environments, `hand_selector.py` implements a face-anchored Region of Interest (ROI) filter. It extracts the face center to establish distance thresholds, filtering out extraneous background hands. Crucially, it deterministically assigns left and right hand labels based on their spatial position relative to the face center (overriding MediaPipe's sometimes unreliable handedness predictions) and includes geometric flipping support for left-handed signers.
+
+### Hybrid Quality & Diversity Curation
+Beyond simple variance checks, dataset curation uses `quality_filter_hybrid.py` to balance sample quality with diversity. It extracts 32-dimensional embeddings from the trained classifier's pre-FC layer (or uses handcrafted statistical features as a fallback) to compute pairwise cosine similarities. This allows the system to suppress near-duplicates and prevent dataset collapse, selecting the most novel augmented samples while strictly adhering to a per-class quality budget.
+
+### Native PyTorch Dynamic Quantization
+While ONNX INT8 export is the primary deployment path, the pipeline also fully supports native PyTorch dynamic CPU quantization (`quantize_model.py`). It applies FBGEMM or QNNPACK quantization directly to `Linear`, `GRU`, and `LSTM` layers, producing a reloadable `.pt` bundle that bakes in benchmarked latency and size-reduction metrics.
+
+### Unified CLI Orchestration
+The entire training, preprocessing, and inference lifecycle is unified under a single orchestrator (`main.py`). It exposes a granular command-line interface for each pipeline stage and includes advanced workflows such as two-phase fine-tuning (`--finetune-archived-epochs`), which automatically trains on curated data before fine-tuning on archived samples at a reduced learning rate.
+
+---
+
+## 4.11 Current Status of the Module
 
 The Sign-to-Text module is functionally complete and production-ready at its current scope.
 
@@ -485,7 +506,7 @@ The Sign-to-Text module is functionally complete and production-ready at its cur
 
 ---
 
-## 4.11 Future Enhancements
+## 4.12 Future Enhancements
 
 To further improve the accuracy, scalability, robustness, and accessibility of the Indian Sign Language recognition system, several strategic enhancements are planned. These future developments are categorised into model improvements, robustness, deployment, and accessibility extensions.
 
@@ -521,7 +542,7 @@ To further improve the accuracy, scalability, robustness, and accessibility of t
 
 ---
 
-## 4.12 Conclusion
+## 4.13 Conclusion
 
 The Sign-to-Text module represents a complete, multi-phase implementation of a real-time Indian Sign Language recognition system, developed from first principles over a period of approximately 3.5 months (February to June 2026) across 173 version-controlled commits. The implementation advances beyond a baseline recognition pipeline through ten independently configurable architectural improvements to the core `SignLanguageGRU` model â€” including a Conv1D depthwise-separable frontend, a lightweight Spatial GNN, learnable frame weighting, multi-layer BiGRU with reduced dropout, and a HybridAttention mechanism combining temporal and proximity-aware attention heads with learnable temperatures â€” together with a comprehensive feature engineering pipeline that produces 506-dimensional velocity-augmented, face-relative spatiotemporal representations.
 
