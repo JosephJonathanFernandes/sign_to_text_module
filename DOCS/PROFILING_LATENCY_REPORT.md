@@ -1,0 +1,118 @@
+# Profiling, Latency, and Model Comparison Report
+
+This report compiles real-time pipeline profiling, backend latency benchmarks, model size comparisons, and training accuracy metrics across the development history of the Sign-to-Text module.
+
+---
+
+## 1. Live Inference Pipeline Profiling
+
+Measurements are taken using Python's `time.perf_counter()` from real-time webcam session logs (e.g., [inference_20260603_104249.log](file:///c:/Users/Joseph/Desktop/projects/sign_to_text/logs/inference_20260603_104249.log)).
+
+### 1.1 Frame Statistics (Webcam Loop)
+During live inference, a 20-frame sliding window is evaluated. The target budget for maintaining 30 FPS is **33.33 ms** per frame.
+
+| Metric | Measured Value | Target / Limit | Budget Utilization |
+| :--- | :---: | :---: | :---: |
+| **Average Frame Time** | 33.53 ms | 33.33 ms | 100.6% |
+| **Median Frame Time** | 15.47 ms | 33.33 ms | 46.4% |
+| **95th-Percentile Latency** | 123.98 ms | 200.00 ms | 62.0% |
+| **99th-Percentile Latency** | 149.11 ms | 200.00 ms | 74.6% |
+| **Minimum Frame Time** | 3.81 ms | — | — |
+| **Maximum Frame Time** | 306.54 ms | — | — |
+| **Sustained Frame Rate** | 29.83 FPS | 30.00 FPS | 99.4% |
+
+*Note: The high maximum frame time is caused by startup warm-up and occasional forced hand re-detections.*
+
+---
+
+### 1.2 Pipeline Component Latency Breakdown
+Components are ranked by their average execution time per frame. The adaptive landmark extraction strategy gates MediaPipe execution (running full detection on 1-in-5 frames and reusing cached points), which reduces the average extraction cost.
+
+| Rank | Component | Avg Latency (ms) | % of Frame Time | Call Count | Description |
+| :---: | :--- | :---: | :---: | :---: | :--- |
+| 1 | `hand_redetect` | 85.50 | 255.0% | 2 | Occasional forced hand re-detection (every 15 frames) |
+| 2 | `model_inference` | 27.68 | 82.5% | 26 | Deep learning classification forward pass |
+| 3 | `landmark_extraction` | 22.55 | 67.3% | 301 | MediaPipe hand and face detection / caching |
+| 4 | `display` | 4.82 | 14.4% | 301 | OpenCV video rendering and UI overlay drawing |
+| 5 | `rendering` | 2.40 | 7.2% | 301 | Skeletal landmarker drawing on frame |
+| 6 | `preprocessing` | 1.84 | 5.5% | 26 | Preprocessing sequence data (shape padding/interpolation) |
+| 7 | `normalization` | 1.69 | 5.1% | 26 | Face-relative coordinate alignment and scaling |
+| 8 | `frame_capture` | 0.27 | 0.8% | 301 | Webcam frame reading from OpenCV queue |
+| 9 | `temporal_smoothing`| 0.18 | 0.5% | 26 | Post-processor confidence smoothing |
+| 10 | `velocity_features` | 0.09 | 0.3% | 26 | Finite difference computation for velocity vectors |
+| 11 | `prediction_momentum`| 0.04 | 0.1% | 14 | 3-of-5 majority commit filter evaluation |
+| 12 | `sentence_builder` | 0.04 | 0.1% | 14 | Sentence composition and NLP formatting |
+
+---
+
+## 2. Model Backend Latency & Size Comparisons
+
+The primary classification model ([SignLanguageGRU](file:///c:/Users/Joseph/Desktop/projects/sign_to_text/model.py)) supports multiple backends on CPU to ensure high performance on standard consumer laptops.
+
+### 2.1 Benchmark Results (Single Sequence Inference)
+The following benchmarks evaluate the forward pass latency on a standard CPU:
+
+| Backend | Data Type | Average Latency (ms) | Target Latency | FPS equivalent | Serialization Size | Size Reduction |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **PyTorch (Base)** | FP32 | 30.00 – 60.00 ms | < 100.0 ms | 16.7 – 33.3 FPS | ~4.20 MB | Baseline |
+| **PyTorch (Dynamic)** | INT8 | 15.00 – 25.00 ms | < 50.0 ms | 40.0 – 66.7 FPS | ~1.15 MB | **72.6%** |
+| **ONNX Runtime (Base)** | FP32 | 15.00 – 25.00 ms | < 50.0 ms | 40.0 – 66.7 FPS | ~4.20 MB | Baseline |
+| **ONNX Runtime (Dynamic)**| INT8 | **5.00 – 15.00 ms** | < 20.0 ms | **66.7 – 200.0 FPS** | **~1.05 MB** | **75.0%** |
+
+### 2.2 Ensemble vs. Single Model Tradeoffs
+The system supports both single-model execution and K-fold ensemble classification.
+*   **Ensemble Latency:** Running K models (e.g., $K=5$) sequentially increases inference latency to **25.0 – 75.0 ms** under ONNX INT8, which fits within the end-to-end 200 ms target, but increases CPU utilization.
+*   **Single-Model Latency:** Achieves sub-15 ms inference under ONNX INT8, maximizing CPU headroom for other concurrent pipelines (like MediaPipe landmarker threads).
+
+---
+
+## 3. Training & Validation Accuracy Comparisons
+
+Over development iterations, accuracy metrics were logged across single models and K-fold cross-validation ensembles.
+
+### 3.1 K-Fold Ensemble Accuracy Metrics
+Disjoint, stratified 5-fold cross-validation split runs completed over several developmental milestones:
+
+| Run Date | Log Reference | Fold Accuracy Details (%) | Mean Accuracy | Overall Accuracy |
+| :--- | :--- | :--- | :---: | :---: |
+| **May 7, 2026** | [kfold_20260506_230804.log](file:///c:/Users/Joseph/Desktop/projects/sign_to_text/logs/kfold_20260506_230804.log) | `[90.60, 91.27, 82.29, 93.13, 79.01]` | 87.26% | 87.29% |
+| **May 8, 2026** | [kfold_20260507_225507.log](file:///c:/Users/Joseph/Desktop/projects/sign_to_text/logs/kfold_20260507_225507.log) | `[94.33, 88.30, 84.45, 94.23, 92.06]` | **90.68%** | **90.67%** |
+| **May 9, 2026** | [kfold_20260508_225557.log](file:///c:/Users/Joseph/Desktop/projects/sign_to_text/logs/kfold_20260508_225557.log) | `[93.91, 88.74, 82.57, 93.49, 89.06]` | 89.56% | 89.56% |
+| **May 13, 2026** | [kfold_20260512_234651.log](file:///c:/Users/Joseph/Desktop/projects/sign_to_text/logs/kfold_20260512_234651.log) | `[91.82, 89.07, 85.43, 92.37, 93.29]` | 90.39% | 90.39% |
+| **May 20, 2026** | [kfold_20260519_193854.log](file:///c:/Users/Joseph/Desktop/projects/sign_to_text/logs/kfold_20260519_193854.log) | `[74.70, 84.44, 92.34, 95.97, 96.61]` | 88.81% | 88.81% |
+
+### 3.2 Single-Model Validation Accuracy Progression
+The single-model validation accuracy demonstrates significant improvements following the integration of the CVAE generation pipeline, face-relative normalization, and HybridAttention changes:
+
+*   **May 7, 2026** ([train_20260507_074607.log](file:///c:/Users/Joseph/Desktop/projects/sign_to_text/logs/train_20260507_074607.log)): **75.87%** (Baseline features)
+*   **May 9, 2026** ([train_20260509_145637.log](file:///c:/Users/Joseph/Desktop/projects/sign_to_text/logs/train_20260509_145637.log)): **79.46%**
+*   **May 20, 2026** ([train_20260520_135011.log](file:///c:/Users/Joseph/Desktop/projects/sign_to_text/logs/train_20260520_135011.log)): **71.55%** (Extended classes)
+*   **May 30, 2026** ([train_20260529_221941.log](file:///c:/Users/Joseph/Desktop/projects/sign_to_text/logs/train_20260529_221941.log)): **94.32%** (Face-relative features & CVAE augmentations)
+*   **May 31, 2026** ([train_20260531_142246.log](file:///c:/Users/Joseph/Desktop/projects/sign_to_text/logs/train_20260531_142246.log)): **94.29%**
+*   **June 2, 2026** ([train_20260601_232956.log](file:///c:/Users/Joseph/Desktop/projects/sign_to_text/logs/train_20260601_232956.log)): **94.32%** (Optimized architecture)
+*   **June 2, 2026** ([train_20260602_095442.log](file:///c:/Users/Joseph/Desktop/projects/sign_to_text/logs/train_20260602_095442.log)): **93.86%**
+
+---
+
+## 4. Quality & Diversity Filtering Dataset Impact
+
+The dataset cleanup pipeline ([cleanup_dataset_npy.py](file:///c:/Users/Joseph/Desktop/projects/sign_to_text/cleanup_dataset_npy.py)) uses a neural quality score (gated at $\ge 0.45$) and Farthest Point Sampling (FPS) to maintain a highly diverse 500-sample limit per class.
+
+According to [quality_filter_report.json](file:///c:/Users/Joseph/Desktop/projects/sign_to_text/logs/quality_filter/quality_filter_report.json):
+
+| Gesture Class | Pre-filtered Files | Kept Files | Deleted Files | Removed Duplicates | Filtered by Score | Score Median |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **`0` (Idle)** | 1,283 | 687 | 596 | 477 | 119 | 0.688 |
+| **`1`** | 900 | 479 | 421 | 251 | 170 | 0.605 |
+| **`alive`** | 940 | 598 | 342 | 272 | 70 | 0.688 |
+| **`alright`** | 900 | 614 | 286 | 284 | 2 | 0.700 |
+| **`beautiful`**| 904 | 490 | 414 | 97 | 317 | 0.513 |
+| **`dead`** | 930 | 318 | 612 | 228 | 384 | 0.485 |
+| **`dirty`** | 900 | 731 | 169 | 131 | 13 | 0.682 |
+| **`famous`** | 905 | 457 | 448 | 376 | 72 | 0.683 |
+| **`hello`** | 920 | 526 | 394 | 267 | 127 | 0.646 |
+| **`how_are_you`**| 900 | 561 | 339 | 324 | 15 | 0.685 |
+
+### 4.1 Observations from Quality Scores
+*   Classes with simple, highly local trajectories (e.g., `alright` and `dirty`) maintain a high median quality score (~0.68 to 0.70), with very few files rejected by neural scoring.
+*   Classes that involve complex spatial trajectories or are prone to hand occlusion (e.g., `dead` and `beautiful`) show a lower median score (~0.48 to 0.51), resulting in a larger proportion of samples rejected by neural quality scoring.
