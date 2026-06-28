@@ -5,16 +5,18 @@ Supports both single-split and K-fold cross-validation with ensemble.
 Uses weighted CrossEntropyLoss + Mixup for handling class imbalance.
 """
 
-import os
+import argparse
 import json
+import os
 import time
-from datetime import datetime
 from collections import defaultdict
+from datetime import datetime
+
 import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-import argparse
+
 from config import get_config
 from src.utils.pipeline_logger import PipelineLogger
 
@@ -90,7 +92,7 @@ def _load_kfold_manifest() -> dict:
     if not os.path.exists(KFOLD_MANIFEST_PATH):
         return {}
     try:
-        with open(KFOLD_MANIFEST_PATH, "r", encoding="utf-8") as manifest_file:
+        with open(KFOLD_MANIFEST_PATH, encoding="utf-8") as manifest_file:
             return json.load(manifest_file)
     except (OSError, json.JSONDecodeError):
         return {}
@@ -286,7 +288,7 @@ class FocalLoss(nn.Module):
         self.gamma = gamma
         self.weight = weight
         self.reduction = reduction
-    
+
     def forward(self, inputs, targets):
         """
         Args:
@@ -296,16 +298,16 @@ class FocalLoss(nn.Module):
         ce_loss = nn.functional.cross_entropy(
             inputs, targets, weight=self.weight, reduction='none'
         )
-        
+
         # Get probability of true class
         p_t = torch.exp(-ce_loss)
-        
+
         # Focal weight: (1 - p_t) ^ gamma
         focal_weight = (1 - p_t) ** self.gamma
-        
+
         # Applied focal loss
         focal_loss = self.alpha * focal_weight * ce_loss
-        
+
         if self.reduction == 'mean':
             return focal_loss.mean()
         elif self.reduction == 'sum':
@@ -532,15 +534,15 @@ def train_one_epoch(
             per_sample = lam * loss_a + (1 - lam) * loss_b
             # Apply sample weights and reduce
             sign_loss = (per_sample * weights).mean()
-            
+
             domain_loss = 0.0
             if domain_criterion is not None and outputs["domain_logits"] is not None:
                 domain_loss = domain_criterion(outputs["domain_logits"], domains)
                 domain_preds = outputs["domain_logits"].argmax(dim=1)
                 domain_correct += (domain_preds == domains).sum().item()
-                
+
             loss = sign_loss + domain_loss
-            
+
             # Accuracy on original labels (approximate - weighted sum)
             preds = sign_logits.argmax(dim=1)
             correct += (lam * (preds == y_a).float().sum().item()
@@ -551,15 +553,15 @@ def train_one_epoch(
             sign_logits = outputs["sign_logits"]
             per_sample = criterion(sign_logits, labels)
             sign_loss = (per_sample * weights).mean()
-            
+
             domain_loss = 0.0
             if domain_criterion is not None and outputs["domain_logits"] is not None:
                 domain_loss = domain_criterion(outputs["domain_logits"], domains)
                 domain_preds = outputs["domain_logits"].argmax(dim=1)
                 domain_correct += (domain_preds == domains).sum().item()
-                
+
             loss = sign_loss + domain_loss
-            
+
             preds = sign_logits.argmax(dim=1)
             correct += (preds == labels).sum().item()
 
@@ -607,11 +609,11 @@ def validate(
         running_loss += loss.item() * sequences.size(0)
         preds = sign_logits.argmax(dim=1)
         correct += (preds == labels).sum().item()
-        
+
         if domain_criterion is not None and outputs["domain_logits"] is not None:
             domain_preds = outputs["domain_logits"].argmax(dim=1)
             domain_correct += (domain_preds == domains).sum().item()
-            
+
         total += labels.size(0)
 
     return running_loss / total, 100.0 * correct / total, 100.0 * domain_correct / total
@@ -681,11 +683,11 @@ def train(
             label_smoothing=LABEL_SMOOTHING,
             reduction='none',
         )
-    
+
     domain_criterion = None
     if num_domains > 0:
         domain_criterion = nn.CrossEntropyLoss()
-        
+
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=LEARNING_RATE,
@@ -716,7 +718,7 @@ def train(
 
     for epoch in range(1, NUM_EPOCHS + 1):
         t0 = time.time()
-        
+
         # Calculate lambda_val for GRL
         p = float(epoch) / NUM_EPOCHS
         lambda_val = 2. / (1. + np.exp(-10. * p)) - 1.
@@ -1106,7 +1108,7 @@ if __name__ == '__main__':
     # Single-run training
     train_loader, val_loader, num_classes, class_weights, full_ds = create_data_loaders(neg_root=args.neg_root)
     model = train(
-        train_loader, val_loader, num_classes, class_weights, 
+        train_loader, val_loader, num_classes, class_weights,
         classes_list=full_ds.classes, num_domains=len(full_ds.domains)
     )
     print(f"[Done] Training complete. Model saved to {MODEL_SAVE_PATH}")

@@ -4,9 +4,11 @@ Includes data augmentation and balanced oversampling for training.
 """
 
 import os
+
 import numpy as np
 import torch
 from torch.utils.data import Dataset
+
 from config import get_config
 
 cfg = get_config()
@@ -65,8 +67,9 @@ class ISLDataset(Dataset):
         if os.path.exists(self.h5_path):
             self.use_hdf5 = True
             self.h5 = None
-            
+
             import json
+
             import h5py
             # Load metadata quickly without keeping file open in main thread
             with h5py.File(self.h5_path, "r") as f:
@@ -76,7 +79,7 @@ class ISLDataset(Dataset):
                 for cls_name, idx in class_mapping.items():
                     self.classes[idx] = cls_name
                 self.class_to_idx = class_mapping
-                
+
                 if 'domain_names' in f:
                     domain_mapping = json.loads(f['domain_names'][()])
                     self.domains = [None] * len(domain_mapping)
@@ -86,7 +89,7 @@ class ISLDataset(Dataset):
                 else:
                     self.domains = ["unknown"]
                     self.domain_to_idx = {"unknown": 0}
-            
+
             print(f"[Dataset] HDF5 loaded: {self.num_samples} samples, {len(self.classes)} classes, {len(self.domains)} domains (augment={self.augment})")
             return
         # Discover classes and count samples
@@ -149,7 +152,7 @@ class ISLDataset(Dataset):
         # Validate files during collection to skip corrupt ones
         class_samples = {i: [] for i in range(len(self.classes))}
         corrupt_files = []
-        
+
         def _get_domain_idx(filename: str) -> int:
             if filename.startswith("webcam_") or filename.startswith("MVI_") or filename.startswith("cvae_"):
                 parts = filename.split("_")
@@ -159,7 +162,7 @@ class ISLDataset(Dataset):
                     d_str = "unknown"
             else:
                 d_str = "unknown"
-                
+
             if d_str not in self.domain_to_idx:
                 self.domain_to_idx[d_str] = len(self.domains)
                 self.domains.append(d_str)
@@ -213,7 +216,7 @@ class ISLDataset(Dataset):
                                 except Exception:
                                     # skip corrupt archived files silently
                                     pass
-        
+
         if corrupt_files:
             print(f"[Dataset] WARNING: Found {len(corrupt_files)} corrupt files:")
             for fpath, err in corrupt_files[:5]:
@@ -278,18 +281,18 @@ class ISLDataset(Dataset):
         Handles corrupt files by retrying with different samples or raising informative error.
         """
         import sys
-        
+
         if getattr(self, 'use_hdf5', False):
             self._ensure_open()
             seq = self.h5["features"][idx].copy()
             label = self.h5["labels"][idx]
             weight = self.h5["weights"][idx]
-            
+
             if "domains" in self.h5:
                 domain_idx = self.h5["domains"][idx]
             else:
                 domain_idx = 0
-            
+
             seq, proximity = self._prepare_sequence(
                 seq,
                 augment=self.augment,
@@ -303,7 +306,7 @@ class ISLDataset(Dataset):
             return seq_t, prox_t, lbl_t, weight_t, domain_t
 
         fpath, label, weight, domain_idx = self.samples[idx]
-        
+
         # Try to load the file with error handling
         max_retries = 3
         for attempt in range(max_retries):
@@ -331,7 +334,7 @@ class ISLDataset(Dataset):
                 # Try again
                 import time
                 time.sleep(0.01 * (attempt + 1))
-        
+
         seq, proximity = self._prepare_sequence(
             seq,
             augment=self.augment,
@@ -417,15 +420,15 @@ class ISLDataset(Dataset):
                 hand_to_drop = np.random.randint(0, hand_blocks)
                 start = hand_to_drop * LANDMARK_DIM
                 end = start + LANDMARK_DIM
-                drop_frames = np.random.choice(num_frames, 
-                                              max(1, num_frames // 3), 
+                drop_frames = np.random.choice(num_frames,
+                                              max(1, num_frames // 3),
                                               replace=False)
                 seq[drop_frames, start:end] = 0.0
 
         # 8) Stronger noise on specific frames (25% chance) - NEW
         if np.random.rand() < 0.25:
-            noise_frames = np.random.choice(num_frames, 
-                                           max(1, num_frames // 4), 
+            noise_frames = np.random.choice(num_frames,
+                                           max(1, num_frames // 4),
                                            replace=False)
             seq[noise_frames] += np.random.randn(len(noise_frames), feat_dim) * 0.03
 
@@ -537,10 +540,10 @@ class ISLDataset(Dataset):
         lam = np.random.beta(alpha, alpha)
         cut_ratio = np.sqrt(1 - lam)
         num_cut = max(1, int(num_frames * cut_ratio))
-        
+
         cut_start = np.random.randint(0, num_frames - num_cut) if num_frames > num_cut else 0
         cut_end = cut_start + num_cut
-        
+
         mixed = seq1.copy()
         mixed[cut_start:cut_end] = seq2[cut_start:cut_end]
         return mixed.astype(np.float32)
