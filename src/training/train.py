@@ -504,7 +504,8 @@ def train_one_epoch(
     optimizer: torch.optim.Optimizer,
     use_mixup: bool = True,
     domain_criterion: nn.Module = None,
-    lambda_val: float = 0.0,
+    epoch: int = 1,
+    total_epochs: int = 1,
 ) -> tuple:
     """Train one epoch with optional Mixup; return (loss, accuracy%)."""
     model.train()
@@ -513,7 +514,8 @@ def train_one_epoch(
     domain_correct = 0
     total = 0
 
-    for sequences, proximity, labels, weights, domains in loader:
+    total_steps = len(loader)
+    for i, (sequences, proximity, labels, weights, domains) in enumerate(loader):
         sequences = sequences.to(DEVICE)
         proximity = proximity.to(DEVICE)
         labels = labels.to(DEVICE)
@@ -521,6 +523,10 @@ def train_one_epoch(
         domains = domains.to(DEVICE)
 
         optimizer.zero_grad()
+        
+        # Calculate lambda_val for GRL smoothly over steps
+        p = float(epoch - 1 + i / total_steps) / total_epochs
+        lambda_val = 2. / (1. + np.exp(-10. * p)) - 1.
 
         # Apply Mixup or CutMix if enabled
         if use_mixup and USE_MIXUP and np.random.rand() < MIXUP_PROB:
@@ -716,16 +722,12 @@ def train(
     )
     print("-" * 70)
 
-    for epoch in range(1, NUM_EPOCHS + 1):
+    for epoch in range(1, epochs + 1):
         t0 = time.time()
-
-        # Calculate lambda_val for GRL
-        p = float(epoch) / NUM_EPOCHS
-        lambda_val = 2. / (1. + np.exp(-10. * p)) - 1.
 
         tr_loss, tr_acc, tr_dom_acc = train_one_epoch(
             model, train_loader, criterion, optimizer,
-            domain_criterion=domain_criterion, lambda_val=lambda_val
+            domain_criterion=domain_criterion, epoch=epoch, total_epochs=epochs
         )
         va_loss, va_acc, va_dom_acc = validate(
             model, val_loader, criterion, domain_criterion=domain_criterion
