@@ -22,6 +22,10 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import time
+import logging
+import psutil
+from collections import deque
 from contextlib import asynccontextmanager
 from functools import partial
 from typing import Dict
@@ -61,6 +65,22 @@ ENV: str = os.getenv("ENV", "production").lower()
 if DEBUG:
     print("[API] Debug mode ON — top-5 probabilities will be included in responses")
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Logging & Metrics State
+# ─────────────────────────────────────────────────────────────────────────────
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+logger = logging.getLogger("sign_to_text")
+
+START_TIME = time.time()
+TOTAL_PREDICTIONS = 0
+DROPPED_FRAMES = 0
+LATENCY_HISTORY = deque(maxlen=1000)
+
+# Initialize psutil CPU percent (first call returns 0.0)
+process = psutil.Process(os.getpid())
+process.cpu_percent(interval=None)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Lifespan — startup / shutdown
@@ -72,20 +92,17 @@ async def lifespan(app: FastAPI):
     Load model once at startup. Run warmup inference.
     Clean up sessions on shutdown.
     """
-    print("[API] Loading ensemble models...")
+    logger.info("startup_started", extra={"event": "startup_started"})
     models, classes, num_classes = load_ensemble()
     for m in models:
         m.eval()
 
     # ── Warmup inference ──────────────────────────────────────────────────────
-    # PyTorch has cold-start overhead on the first forward pass (JIT, cache
-    # initialization). Running one dummy pass at startup ensures all subsequent
-    # real predictions are fast (20–100 ms instead of 400–1000 ms).
-    print(f"[API] Running warmup inference ({NUM_FRAMES}×{INPUT_SIZE} zeros)...")
+    logger.info("warmup_started", extra={"num_frames": NUM_FRAMES, "input_size": INPUT_SIZE})
     dummy_seq = np.zeros((NUM_FRAMES, INPUT_SIZE), dtype=np.float32)
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, partial(ensemble_predict, models, dummy_seq))
-    print("[API] Warmup complete. Model is ready.")
+    logger.info("warmup_completed", extra={"event": "model_ready"})
 
     # Store in app state
     app.state.models = models
@@ -98,7 +115,7 @@ async def lifespan(app: FastAPI):
 
     # ── Shutdown ──────────────────────────────────────────────────────────────
     app.state.sessions.clear()
-    print("[API] Shutdown complete.")
+    logger.info("shutdown_completed", extra={"event": "shutdown"})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -161,6 +178,59 @@ async def health() -> HealthResponse:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# GET /metrics
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/metrics", tags=["Status"])
+async def metrics() -> dict:
+    """
+    Exposes runtime observability metrics.
+    Keeps collection lightweight and in-memory.
+    """
+    uptime = int(time.time() - START_TIME)
+    active_sessions = getattr(app.state, "sessions", {})
+    
+    latencies = list(LATENCY_HISTORY)
+    if latencies:
+        arr = np.array(latencies)
+        avg_ms = round(float(np.mean(arr)), 2)
+        p50 = round(float(np.percentile(arr, 50)), 2)
+        p95 = round(float(np.percentile(arr, 95)), 2)
+        p99 = round(float(np.percentile(arr, 99)), 2)
+    else:
+        avg_ms = p50 = p95 = p99 = 0.0
+
+    mem_mb = round(process.memory_info().rss / (1024 * 1024), 2)
+    cpu = process.cpu_percent(interval=None)
+
+    # Read model version if available
+    model_version = "unknown"
+    metadata_path = os.path.join("assets", "model_metadata.json")
+    if os.path.exists(metadata_path):
+        try:
+            with open(metadata_path, "r") as f:
+                metadata = json.load(f)
+                model_version = metadata.get("model_version", "unknown")
+        except Exception:
+            pass
+
+    return {
+        "uptime_seconds": uptime,
+        "active_sessions": len(active_sessions),
+        "total_predictions": TOTAL_PREDICTIONS,
+        "avg_inference_ms": avg_ms,
+        "p50_inference_ms": p50,
+        "p95_inference_ms": p95,
+        "p99_inference_ms": p99,
+        "dropped_frames": DROPPED_FRAMES,
+        "process_memory_mb": mem_mb,
+        "cpu_percent": cpu,
+        "model_version": model_version,
+        "api_version": "v1"
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # POST /predict
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -195,9 +265,24 @@ async def predict(request: PredictRequest) -> dict:
 
     # ── Run inference in thread — never blocks event loop ────────────────────
     loop = asyncio.get_running_loop()
+    t0 = time.perf_counter()
     response_dict, _, _, _ = await loop.run_in_executor(
         None,
         partial(run_predict, app.state.models, sequence, app.state.classes, DEBUG),
+    )
+    t1 = time.perf_counter()
+    latency_ms = (t1 - t0) * 1000.0
+
+    global TOTAL_PREDICTIONS
+    TOTAL_PREDICTIONS += 1
+    LATENCY_HISTORY.append(latency_ms)
+
+    logger.info(
+        "predict_stateless_completed",
+        extra={
+            "latency_ms": latency_ms,
+            "confidence": response_dict.get("confidence", 0.0)
+        }
     )
 
     return response_dict
@@ -310,10 +395,17 @@ async def ws_translate(websocket: WebSocket) -> None:
     app.state.sessions[session_id] = session
 
     short_id = session_id[:8]
-    print(f"[WS] Session {short_id} connected — "
-          f"total active: {len(app.state.sessions)}")
+    logger.info(
+        "websocket_connected",
+        extra={
+            "session_id": short_id,
+            "active_sessions": len(app.state.sessions)
+        }
+    )
 
     loop = asyncio.get_running_loop()
+    
+    global TOTAL_PREDICTIONS, DROPPED_FRAMES
 
     try:
         while True:
@@ -367,6 +459,7 @@ async def ws_translate(websocket: WebSocket) -> None:
                 # not a backlog of old ones.
                 if session.pending_count > MAX_PENDING:
                     session.pending_count = max(0, session.pending_count - 1)
+                    DROPPED_FRAMES += 1
                     continue
 
                 # ── Append to sliding buffer ──────────────────────────────────
@@ -383,9 +476,25 @@ async def ws_translate(websocket: WebSocket) -> None:
 
                 try:
                     # Blocking torch call — run in thread pool
+                    t0 = time.perf_counter()
                     pred_idx, confidence, all_probs = await loop.run_in_executor(
                         None,
                         partial(ensemble_predict, app.state.models, sequence),
+                    )
+                    t1 = time.perf_counter()
+                    latency_ms = (t1 - t0) * 1000.0
+                    
+                    TOTAL_PREDICTIONS += 1
+                    LATENCY_HISTORY.append(latency_ms)
+                    
+                    logger.info(
+                        "prediction_completed",
+                        extra={
+                            "session_id": short_id,
+                            "latency_ms": round(latency_ms, 2),
+                            "confidence": round(float(confidence), 4),
+                            "word": app.state.classes[pred_idx]
+                        }
                     )
                 finally:
                     session.pending_count = max(0, session.pending_count - 1)
@@ -449,8 +558,14 @@ async def ws_translate(websocket: WebSocket) -> None:
 
                 # Reset session — ready for the next signing sequence
                 session.reset()
-                print(f"[WS] Session {short_id} stopped — "
-                      f"'{final_text}' ({len(words_snapshot)} words)")
+                logger.info(
+                    "session_stopped",
+                    extra={
+                        "session_id": short_id,
+                        "sentence": final_text,
+                        "word_count": len(words_snapshot)
+                    }
+                )
 
             # ── clear ─────────────────────────────────────────────────────────
             elif msg_type == "clear":
@@ -465,14 +580,19 @@ async def ws_translate(websocket: WebSocket) -> None:
                 })
 
     except WebSocketDisconnect:
-        print(f"[WS] Session {short_id} disconnected")
+        logger.info("websocket_disconnected", extra={"session_id": short_id})
     except Exception as exc:
-        print(f"[WS] Session {short_id} error: {exc}")
+        logger.error("websocket_error", extra={"session_id": short_id, "error": str(exc)})
         try:
             await websocket.close(code=1011, reason=str(exc))
         except Exception:
             pass
     finally:
         app.state.sessions.pop(session_id, None)
-        print(f"[WS] Session {short_id} cleaned up — "
-              f"remaining: {len(app.state.sessions)}")
+        logger.info(
+            "session_cleanup",
+            extra={
+                "session_id": short_id,
+                "active_sessions": len(app.state.sessions)
+            }
+        )

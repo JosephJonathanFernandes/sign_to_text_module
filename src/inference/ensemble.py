@@ -16,9 +16,12 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import time
+import logging
 
 from config import get_config
 from src.utils.quantization_utils import load_model_artifact
+
+logger = logging.getLogger("sign_to_text.ensemble")
 
 cfg = get_config()
 
@@ -98,9 +101,12 @@ def load_ensemble(model_artifact_path: str | None = None):
         model.eval()
         if classes is None:
             classes = current_classes
-        print(
-            f"[Ensemble] Loaded model artifact: {os.path.basename(model_artifact_path)}, "
-            f"{len(classes)} classes"
+        logger.info(
+            "model_artifact_loaded",
+            extra={
+                "artifact": os.path.basename(model_artifact_path),
+                "num_classes": len(classes)
+            }
         )
         return [model], classes, num_classes
 
@@ -123,9 +129,12 @@ def load_ensemble(model_artifact_path: str | None = None):
             # Skip stale folds that don't match current processed classes
             if ckpt_classes is not None:
                 if sorted(ckpt_classes) != current_classes:
-                    print(
-                        f"[Ensemble] Skipping stale fold: {fname} "
-                        f"(checkpoint classes != current processed classes)"
+                    logger.warning(
+                        "stale_fold_skipped",
+                        extra={
+                            "fold": fname,
+                            "reason": "checkpoint classes != current processed classes"
+                        }
                     )
                     continue
 
@@ -137,10 +146,13 @@ def load_ensemble(model_artifact_path: str | None = None):
     if models:
         if classes is None:
             classes = current_classes
-        print(
-            f"[Ensemble] Loaded {len(models)} fold models "
-            f"(LIVE_ENSEMBLE_SIZE={LIVE_ENSEMBLE_SIZE}), "
-            f"{len(classes)} classes"
+        logger.info(
+            "ensemble_loaded",
+            extra={
+                "models_count": len(models),
+                "ensemble_size": LIVE_ENSEMBLE_SIZE,
+                "num_classes": len(classes)
+            }
         )
         return models, classes, len(classes)
 
@@ -150,9 +162,11 @@ def load_ensemble(model_artifact_path: str | None = None):
         model.eval()
         if classes is None or sorted(classes) != current_classes:
             classes = current_classes
-        print(
-            f"[Ensemble] Fallback: loaded single model, "
-            f"{len(classes)} classes"
+        logger.info(
+            "fallback_model_loaded",
+            extra={
+                "num_classes": len(classes)
+            }
         )
         return [model], classes, num_classes
 
@@ -173,11 +187,10 @@ def load_merged_ensemble_10_2():
     fallback_models = []
     classes = None
     
-    print("[Ensemble] Loading ensemble...")
+    logger.info("merged_ensemble_load_started", extra={"event": "loading_merged_ensemble"})
     
     # Load new folds (5 models for main ensemble)
     if os.path.isdir(ENSEMBLE_DIR):
-        print(f"  Loading fold models from {ENSEMBLE_DIR}...")
         new_fold_files = sorted([
             f for f in os.listdir(ENSEMBLE_DIR) if f.endswith(".pth")
         ])
@@ -188,22 +201,21 @@ def load_merged_ensemble_10_2():
                 main_models.append(model)
                 if classes is None and classes_in_ckpt is not None:
                     classes = classes_in_ckpt
-                print(f"    ✓ {fname}")
+                logger.info("fold_loaded", extra={"fold": fname})
             except Exception as e:
-                print(f"    ✗ {fname} - {e}")
+                logger.error("fold_load_error", extra={"fold": fname, "error": str(e)})
     
     # Load single fallback model
     if os.path.exists(MODEL_SAVE_PATH):
-        print(f"  Loading fallback model from {MODEL_SAVE_PATH}...")
         try:
             model, classes_in_ckpt, num_classes, _, ckpt = load_model_artifact(MODEL_SAVE_PATH, map_location="cpu")
             model.eval()
             fallback_models.append(model)
             if classes is None and classes_in_ckpt is not None:
                 classes = classes_in_ckpt
-            print(f"    ✓ model.pth")
+            logger.info("fallback_loaded", extra={"model": "model.pth"})
         except Exception as e:
-            print(f"    ✗ model.pth - {e}")
+            logger.error("fallback_load_error", extra={"model": "model.pth", "error": str(e)})
     
     if classes is None:
         current_classes = sorted([
@@ -215,7 +227,14 @@ def load_merged_ensemble_10_2():
     if not main_models and not fallback_models:
         raise FileNotFoundError("No models found for ensemble.")
     
-    print(f"[Ensemble] Loaded {len(main_models)} main models + {len(fallback_models)} fallback, {len(classes)} classes")
+    logger.info(
+        "merged_ensemble_loaded",
+        extra={
+            "main_models": len(main_models),
+            "fallback_models": len(fallback_models),
+            "num_classes": len(classes)
+        }
+    )
     
     return main_models, fallback_models, classes, len(classes)
 
@@ -310,13 +329,19 @@ def ensemble_predict(
         
         fps = 1000.0 / total_time if total_time > 0 else 0
         
-        print(f"[Inference Latency] "
-              f"Model: {model_time:.1f}ms ({num_forward_passes} passes) | "
-              f"TTA prep: {tta_time:.1f}ms | "
-              f"Other: {other_time:.1f}ms | "
-              f"Total: {total_time:.1f}ms ({fps:.2f} FPS) | "
-              f"Config: {len(models)} models, "
-              f"TTA={'on' if use_tta else 'off'}")
+        logger.info(
+            "inference_latency_stats",
+            extra={
+                "model_ms": round(model_time, 1),
+                "forward_passes": num_forward_passes,
+                "tta_prep_ms": round(tta_time, 1),
+                "other_ms": round(other_time, 1),
+                "total_ms": round(total_time, 1),
+                "fps": round(fps, 2),
+                "num_models": len(models),
+                "use_tta": use_tta
+            }
+        )
 
     return pred_idx, confidence, avg_probs
 
