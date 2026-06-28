@@ -9,6 +9,18 @@ import torch.nn as nn
 import torch.nn.functional as F
 from config import get_config
 
+
+class GradientReversalLayer(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, x, lambda_val):
+        ctx.lambda_val = lambda_val
+        return x.view_as(x)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        return grad_output.neg() * ctx.lambda_val, None
+
+
 cfg = get_config()
 
 # Convenience references for model architecture
@@ -451,6 +463,7 @@ class SignLanguageGRU(nn.Module):
         num_layers: int | None = None,
         bidirectional: bool | None = None,
         dropout: float | None = None,
+        num_domains: int = 0,
     ):
         super().__init__()
 
@@ -627,6 +640,17 @@ class SignLanguageGRU(nn.Module):
             nn.Linear(96, num_classes),
         )
 
+        # Domain Classifier for DANN
+        if num_domains > 0:
+            self.domain_classifier = nn.Sequential(
+                nn.Linear(self.hidden_dim, self.hidden_dim // 2),
+                nn.ReLU(),
+                nn.Dropout(FC_DROPOUT),
+                nn.Linear(self.hidden_dim // 2, num_domains),
+            )
+        else:
+            self.domain_classifier = None
+
     @staticmethod
     def _frame_proximity_from_features(x: torch.Tensor) -> torch.Tensor:
         """
@@ -645,6 +669,7 @@ class SignLanguageGRU(nn.Module):
         x: torch.Tensor,
         proximity: torch.Tensor = None,
         return_attention: bool = False,
+        lambda_val: float = 0.0,
     ):
         """
         Forward pass with Phase 1–7 architectural improvements.
@@ -805,7 +830,21 @@ class SignLanguageGRU(nn.Module):
         context = self.dropout(context)
 
         # Classification
-        logits = self.fc(context)
+        sign_logits = self.fc(context)
+
+        # Domain Classification
+        domain_logits = None
+        if self.domain_classifier is not None:
+            reversed_context = GradientReversalLayer.apply(context, lambda_val)
+            domain_logits = self.domain_classifier(reversed_context)
+
+        result = {
+            "sign_logits": sign_logits,
+            "domain_logits": domain_logits,
+            "features": context
+        }
+        
         if return_attention:
-            return logits, alpha
-        return logits
+            result["attention"] = alpha
+            
+        return result

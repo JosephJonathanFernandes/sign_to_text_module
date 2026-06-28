@@ -419,8 +419,8 @@ class _BalancedAugSubset(torch.utils.data.Dataset):
         # Group indices by class
         class_indices = {}
         for i in indices:
-            # parent.samples entries are (path, label, weight)
-            _, label, _ = parent.samples[i]
+            # parent.samples entries are (path, label, weight, domain_idx)
+            _, label, _, _ = parent.samples[i]
             class_indices.setdefault(label, []).append(i)
 
         # Oversample to match the largest non-reject class.
@@ -448,7 +448,7 @@ class _BalancedAugSubset(torch.utils.data.Dataset):
         balanced = len(self.balanced_indices)
         per_class = {}
         for i in self.balanced_indices:
-            _, lbl, _ = parent.samples[i]
+            _, lbl, _, _ = parent.samples[i]
             per_class[lbl] = per_class.get(lbl, 0) + 1
         print(f"[BalancedAug] {original} -> {balanced} samples (oversampled)")
         print(f"[BalancedAug] Per class: {dict(sorted(per_class.items()))}")
@@ -459,7 +459,7 @@ class _BalancedAugSubset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         import numpy as np
         real_idx = self.balanced_indices[idx]
-        fpath, label, weight = self.parent.samples[real_idx]
+        fpath, label, weight, domain_idx = self.parent.samples[real_idx]
         seq = np.load(fpath).astype(np.float32)
         seq, proximity = ISLDataset._prepare_sequence(seq, augment=True)
         return (
@@ -467,6 +467,7 @@ class _BalancedAugSubset(torch.utils.data.Dataset):
             torch.from_numpy(proximity),
             torch.tensor(label, dtype=torch.long),
             torch.tensor(weight, dtype=torch.float32),
+            torch.tensor(domain_idx, dtype=torch.long),
         )
 
 
@@ -482,7 +483,7 @@ class _PlainSubset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         import numpy as np
-        fpath, label, weight = self.parent.samples[self.indices[idx]]
+        fpath, label, weight, domain_idx = self.parent.samples[self.indices[idx]]
         seq = np.load(fpath).astype(np.float32)
         seq, proximity = ISLDataset._prepare_sequence(seq, augment=False)
         return (
@@ -490,6 +491,7 @@ class _PlainSubset(torch.utils.data.Dataset):
             torch.from_numpy(proximity),
             torch.tensor(label, dtype=torch.long),
             torch.tensor(weight, dtype=torch.float32),
+            torch.tensor(domain_idx, dtype=torch.long),
         )
 
 
@@ -499,18 +501,22 @@ def train_one_epoch(
     criterion: nn.Module,
     optimizer: torch.optim.Optimizer,
     use_mixup: bool = True,
+    domain_criterion: nn.Module = None,
+    lambda_val: float = 0.0,
 ) -> tuple:
     """Train one epoch with optional Mixup; return (loss, accuracy%)."""
     model.train()
     running_loss = 0.0
     correct = 0
+    domain_correct = 0
     total = 0
 
-    for sequences, proximity, labels, weights in loader:
+    for sequences, proximity, labels, weights, domains in loader:
         sequences = sequences.to(DEVICE)
         proximity = proximity.to(DEVICE)
         labels = labels.to(DEVICE)
         weights = weights.to(DEVICE)
+        domains = domains.to(DEVICE)
 
         optimizer.zero_grad()
 
@@ -518,23 +524,43 @@ def train_one_epoch(
         if use_mixup and USE_MIXUP and np.random.rand() < MIXUP_PROB:
             # Mixup: interpolate random training pairs
             mixed_x, y_a, y_b, lam = mixup_data(sequences, labels, alpha=MIXUP_ALPHA)
-            logits = model(mixed_x, proximity=proximity)
+            outputs = model(mixed_x, proximity=proximity, lambda_val=lambda_val)
+            sign_logits = outputs["sign_logits"]
             # Per-sample losses (reduction='none')
-            loss_a = criterion(logits, y_a)
-            loss_b = criterion(logits, y_b)
+            loss_a = criterion(sign_logits, y_a)
+            loss_b = criterion(sign_logits, y_b)
             per_sample = lam * loss_a + (1 - lam) * loss_b
             # Apply sample weights and reduce
-            loss = (per_sample * weights).mean()
+            sign_loss = (per_sample * weights).mean()
+            
+            domain_loss = 0.0
+            if domain_criterion is not None and outputs["domain_logits"] is not None:
+                domain_loss = domain_criterion(outputs["domain_logits"], domains)
+                domain_preds = outputs["domain_logits"].argmax(dim=1)
+                domain_correct += (domain_preds == domains).sum().item()
+                
+            loss = sign_loss + domain_loss
+            
             # Accuracy on original labels (approximate - weighted sum)
-            preds = logits.argmax(dim=1)
+            preds = sign_logits.argmax(dim=1)
             correct += (lam * (preds == y_a).float().sum().item()
                         + (1 - lam) * (preds == y_b).float().sum().item())
         else:
             # Standard training: get per-sample losses then weight
-            logits = model(sequences, proximity=proximity)
-            per_sample = criterion(logits, labels)
-            loss = (per_sample * weights).mean()
-            preds = logits.argmax(dim=1)
+            outputs = model(sequences, proximity=proximity, lambda_val=lambda_val)
+            sign_logits = outputs["sign_logits"]
+            per_sample = criterion(sign_logits, labels)
+            sign_loss = (per_sample * weights).mean()
+            
+            domain_loss = 0.0
+            if domain_criterion is not None and outputs["domain_logits"] is not None:
+                domain_loss = domain_criterion(outputs["domain_logits"], domains)
+                domain_preds = outputs["domain_logits"].argmax(dim=1)
+                domain_correct += (domain_preds == domains).sum().item()
+                
+            loss = sign_loss + domain_loss
+            
+            preds = sign_logits.argmax(dim=1)
             correct += (preds == labels).sum().item()
 
         loss.backward()
@@ -546,10 +572,10 @@ def train_one_epoch(
 
         optimizer.step()
 
-        running_loss += loss.item() * sequences.size(0)
+        running_loss += sign_loss.item() * sequences.size(0)
         total += labels.size(0)
 
-    return running_loss / total, 100.0 * correct / total
+    return running_loss / total, 100.0 * correct / total, 100.0 * domain_correct / total
 
 
 @torch.no_grad()
@@ -557,29 +583,38 @@ def validate(
     model: nn.Module,
     loader: DataLoader,
     criterion: nn.Module,
+    domain_criterion: nn.Module = None,
 ) -> tuple:
     """Validate model. Returns (avg_loss, accuracy%)."""
     model.eval()
     running_loss = 0.0
     correct = 0
+    domain_correct = 0
     total = 0
 
-    for sequences, proximity, labels, weights in loader:
+    for sequences, proximity, labels, weights, domains in loader:
         sequences = sequences.to(DEVICE)
         proximity = proximity.to(DEVICE)
         labels = labels.to(DEVICE)
         weights = weights.to(DEVICE)
+        domains = domains.to(DEVICE)
 
-        logits = model(sequences, proximity=proximity)
-        per_sample = criterion(logits, labels)
+        outputs = model(sequences, proximity=proximity)
+        sign_logits = outputs["sign_logits"]
+        per_sample = criterion(sign_logits, labels)
         loss = (per_sample * weights).mean()
 
         running_loss += loss.item() * sequences.size(0)
-        preds = logits.argmax(dim=1)
+        preds = sign_logits.argmax(dim=1)
         correct += (preds == labels).sum().item()
+        
+        if domain_criterion is not None and outputs["domain_logits"] is not None:
+            domain_preds = outputs["domain_logits"].argmax(dim=1)
+            domain_correct += (domain_preds == domains).sum().item()
+            
         total += labels.size(0)
 
-    return running_loss / total, 100.0 * correct / total
+    return running_loss / total, 100.0 * correct / total, 100.0 * domain_correct / total
 
 
 def train(
@@ -590,6 +625,7 @@ def train(
     classes_list: list = None,
     pipeline_log: PipelineLogger | None = None,
     *,
+    num_domains: int = 0,
     epochs: int | None = None,
     pretrained_checkpoint: str | None = None,
     lr: float | None = None,
@@ -618,7 +654,7 @@ def train(
     epochs = int(epochs) if epochs is not None else NUM_EPOCHS
     effective_lr = float(lr) if lr is not None else LEARNING_RATE
 
-    model = SignLanguageGRU(num_classes=num_classes).to(DEVICE)
+    model = SignLanguageGRU(num_classes=num_classes, num_domains=num_domains).to(DEVICE)
 
     # If a pretrained checkpoint is supplied, load weights before training
     if pretrained_checkpoint and os.path.exists(pretrained_checkpoint):
@@ -646,6 +682,10 @@ def train(
             reduction='none',
         )
     
+    domain_criterion = None
+    if num_domains > 0:
+        domain_criterion = nn.CrossEntropyLoss()
+        
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=LEARNING_RATE,
@@ -670,18 +710,23 @@ def train(
 
     print(
         f" {'Ep':>3} | {'TrLoss':>7} | {'TrAcc':>6} | "
-        f"{'VaLoss':>7} | {'VaAcc':>6} | {'LR':>8} | {'T':>4}"
+        f"{'VaLoss':>7} | {'VaAcc':>6} | {'LR':>8} | {'T':>4} | {'DomAcc':>6}"
     )
-    print("-" * 60)
+    print("-" * 70)
 
     for epoch in range(1, NUM_EPOCHS + 1):
         t0 = time.time()
+        
+        # Calculate lambda_val for GRL
+        p = float(epoch) / NUM_EPOCHS
+        lambda_val = 2. / (1. + np.exp(-10. * p)) - 1.
 
-        tr_loss, tr_acc = train_one_epoch(
-            model, train_loader, criterion, optimizer
+        tr_loss, tr_acc, tr_dom_acc = train_one_epoch(
+            model, train_loader, criterion, optimizer,
+            domain_criterion=domain_criterion, lambda_val=lambda_val
         )
-        va_loss, va_acc = validate(
-            model, val_loader, criterion
+        va_loss, va_acc, va_dom_acc = validate(
+            model, val_loader, criterion, domain_criterion=domain_criterion
         )
 
         # Step scheduler based on val accuracy
@@ -725,11 +770,12 @@ def train(
         else:
             no_improve += 1
 
+        dom_str = f" | {tr_dom_acc:>5.1f}%" if num_domains > 0 else ""
         print(
             f" {epoch:>3} | {tr_loss:>7.4f} | "
             f"{tr_acc:>5.1f}% | {va_loss:>7.4f} | "
             f"{va_acc:>5.1f}% | {cur_lr:.1e} | "
-            f"{elapsed:>3.1f}s{marker}"
+            f"{elapsed:>3.1f}s{marker}{dom_str}"
         )
 
         # Early stopping
@@ -1059,5 +1105,8 @@ if __name__ == '__main__':
 
     # Single-run training
     train_loader, val_loader, num_classes, class_weights, full_ds = create_data_loaders(neg_root=args.neg_root)
-    model = train(train_loader, val_loader, num_classes, class_weights, classes_list=full_ds.classes)
+    model = train(
+        train_loader, val_loader, num_classes, class_weights, 
+        classes_list=full_ds.classes, num_domains=len(full_ds.domains)
+    )
     print(f"[Done] Training complete. Model saved to {MODEL_SAVE_PATH}")

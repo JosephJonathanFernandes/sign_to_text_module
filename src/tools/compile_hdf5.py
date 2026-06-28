@@ -64,6 +64,25 @@ def compile_hdf5():
     
     features_list = []
     labels_list = []
+    domain_list = []
+    
+    domain_to_idx = {}
+    domains_list_str = []
+    
+    def _get_domain_idx(filename: str) -> int:
+        if filename.startswith("webcam_") or filename.startswith("MVI_") or filename.startswith("cvae_"):
+            parts = filename.split("_")
+            if len(parts) >= 2:
+                d_str = f"{parts[0]}_{parts[1]}"
+            else:
+                d_str = "unknown"
+        else:
+            d_str = "unknown"
+            
+        if d_str not in domain_to_idx:
+            domain_to_idx[d_str] = len(domains_list_str)
+            domains_list_str.append(d_str)
+        return domain_to_idx[d_str]
     
     for cls_name in class_dirs:
         cls_dir = os.path.join(root_dir, cls_name)
@@ -106,6 +125,7 @@ def compile_hdf5():
                 
                 features_list.append(data.astype(np.float32))
                 labels_list.append(cls_idx)
+                domain_list.append(_get_domain_idx(fname))
                 valid_count += 1
                 report["valid_files"] += 1
                 
@@ -126,6 +146,7 @@ def compile_hdf5():
     # Compile arrays
     features = np.stack(features_list)
     labels = np.array(labels_list, dtype=np.int32)
+    domain_indices = np.array(domain_list, dtype=np.int32)
     weights = np.ones_like(labels, dtype=np.float32)  # Default weights
     
     N = features.shape[0]
@@ -149,9 +170,11 @@ def compile_hdf5():
         print("Creating labels & weights datasets...")
         f.create_dataset('labels', data=labels, dtype='int32')
         f.create_dataset('weights', data=weights, dtype='float32')
+        f.create_dataset('domains', data=domain_indices, dtype='int32')
         
-        # Serialize class names as JSON string
+        # Serialize class and domain names as JSON string
         f.create_dataset('class_names', data=json.dumps(class_to_idx))
+        f.create_dataset('domain_names', data=json.dumps(domain_to_idx))
         
         # Metadata Fingerprinting
         f.attrs['dataset_version'] = "1.0"

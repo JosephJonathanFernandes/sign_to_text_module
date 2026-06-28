@@ -86,7 +86,10 @@ def run_once(arch_w):
     val_indices = val_ds.indices
 
     # Train for a few epochs
-    model = train(tl, vl, nc, cw, classes_list=full_ds.classes, epochs=EPOCHS)
+    model = train(
+        tl, vl, nc, cw, classes_list=full_ds.classes, epochs=EPOCHS, 
+        num_domains=len(full_ds.domains)
+    )
 
     # Evaluate per-class recall and archived vs non-archived recall
     pcr, arch_r, non_arch_r = evaluate_per_class_recall(model, full_ds, val_indices, full_ds.classes)

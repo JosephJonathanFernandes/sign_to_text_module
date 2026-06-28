@@ -152,7 +152,7 @@ def run_train_word(
             include_archived=False,
             phase="phase1",
         )
-        train(tl, vl, nc, cw, classes_list=ds.classes, pipeline_log=pipeline_log)
+        train(tl, vl, nc, cw, classes_list=ds.classes, pipeline_log=pipeline_log, num_domains=len(ds.domains))
 
         # Phase 2: optional fine-tune on archived samples only
         finetune_epochs = finetune_archived_epochs if finetune_archived_epochs is not None else getattr(cfg.training, 'finetune_archived_epochs', 0)
@@ -183,7 +183,7 @@ def run_train_word(
                     # Fine-tune from saved checkpoint with lower LR if configured
                     ft_lr = float(finetune_lr) if finetune_lr is not None else None
                     from src.training.train import MODEL_SAVE_PATH as _MODEL_PATH
-                    train(arch_train_loader, vl, nc, cw, classes_list=ds.classes, pipeline_log=pipeline_log, epochs=int(finetune_epochs), pretrained_checkpoint=_MODEL_PATH, lr=ft_lr)
+                    train(arch_train_loader, vl, nc, cw, classes_list=ds.classes, pipeline_log=pipeline_log, epochs=int(finetune_epochs), pretrained_checkpoint=_MODEL_PATH, lr=ft_lr, num_domains=len(ds.domains))
                 else:
                     print('[Phase 2] No archived samples found to fine-tune on.')
             else:
@@ -314,7 +314,7 @@ def run_kfold_word(
                             arch_train_loader = DataLoader(arch_train_ds, batch_size=cfg.training.batch_size, shuffle=True, num_workers=0, pin_memory=False)
                             ft_lr = float(finetune_lr) if finetune_lr is not None else None
                             try:
-                                train(arch_train_loader, vl, nc, cw, classes_list=ds.classes, pipeline_log=pipeline_log, epochs=int(finetune_epochs), pretrained_checkpoint=model_path, lr=ft_lr)
+                                train(arch_train_loader, vl, nc, cw, classes_list=ds.classes, pipeline_log=pipeline_log, epochs=int(finetune_epochs), pretrained_checkpoint=model_path, lr=ft_lr, num_domains=len(ds.domains))
                             except Exception as e:
                                 print(f"[KFold Phase 2] Fine-tune failed for fold {fold_idx}: {e}")
                         else:

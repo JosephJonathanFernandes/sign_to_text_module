@@ -56,6 +56,8 @@ class ISLDataset(Dataset):
         self.samples = []   # List of (file_path, label_index, weight)
         self.classes = []    # Sorted list of class names
         self.class_to_idx = {}
+        self.domains = []
+        self.domain_to_idx = {}
 
         # ── HDF5 Fast-Path Initialization ──
         self.use_hdf5 = False
@@ -74,11 +76,19 @@ class ISLDataset(Dataset):
                 for cls_name, idx in class_mapping.items():
                     self.classes[idx] = cls_name
                 self.class_to_idx = class_mapping
+                
+                if 'domain_names' in f:
+                    domain_mapping = json.loads(f['domain_names'][()])
+                    self.domains = [None] * len(domain_mapping)
+                    for d_name, idx in domain_mapping.items():
+                        self.domains[idx] = d_name
+                    self.domain_to_idx = domain_mapping
+                else:
+                    self.domains = ["unknown"]
+                    self.domain_to_idx = {"unknown": 0}
             
-            print(f"[Dataset] HDF5 loaded: {self.num_samples} samples, {len(self.classes)} classes (augment={self.augment})")
+            print(f"[Dataset] HDF5 loaded: {self.num_samples} samples, {len(self.classes)} classes, {len(self.domains)} domains (augment={self.augment})")
             return
-
-        # ── Legacy .npy Initialization ──
         # Discover classes and count samples
         class_dirs = sorted([
             d for d in os.listdir(root_dir)
@@ -139,6 +149,22 @@ class ISLDataset(Dataset):
         # Validate files during collection to skip corrupt ones
         class_samples = {i: [] for i in range(len(self.classes))}
         corrupt_files = []
+        
+        def _get_domain_idx(filename: str) -> int:
+            if filename.startswith("webcam_") or filename.startswith("MVI_") or filename.startswith("cvae_"):
+                parts = filename.split("_")
+                if len(parts) >= 2:
+                    d_str = f"{parts[0]}_{parts[1]}"
+                else:
+                    d_str = "unknown"
+            else:
+                d_str = "unknown"
+                
+            if d_str not in self.domain_to_idx:
+                self.domain_to_idx[d_str] = len(self.domains)
+                self.domains.append(d_str)
+            return self.domain_to_idx[d_str]
+
         for cls_name in self.classes:
             if cls_name == self.neg_label and self.neg_root:
                 # Collect negatives recursively from neg_root
@@ -150,7 +176,8 @@ class ISLDataset(Dataset):
                             try:
                                 test_data = np.load(fpath)
                                 if test_data.size > 0:
-                                    class_samples[cls_idx].append((fpath, cls_idx, 1.0))
+                                    d_idx = _get_domain_idx(fname)
+                                    class_samples[cls_idx].append((fpath, cls_idx, 1.0, d_idx))
                                 else:
                                     corrupt_files.append((fpath, "Empty file"))
                             except Exception as e:
@@ -165,7 +192,8 @@ class ISLDataset(Dataset):
                         try:
                             test_data = np.load(fpath)
                             if test_data.size > 0:
-                                class_samples[cls_idx].append((fpath, cls_idx, 1.0))
+                                d_idx = _get_domain_idx(fname)
+                                class_samples[cls_idx].append((fpath, cls_idx, 1.0, d_idx))
                             else:
                                 corrupt_files.append((fpath, "Empty file"))
                         except Exception as e:
@@ -180,7 +208,8 @@ class ISLDataset(Dataset):
                                 try:
                                     test_data = np.load(afpath)
                                     if test_data.size > 0:
-                                        class_samples[cls_idx].append((afpath, cls_idx, float(archived_weight)))
+                                        d_idx = _get_domain_idx(af)
+                                        class_samples[cls_idx].append((afpath, cls_idx, float(archived_weight), d_idx))
                                 except Exception:
                                     # skip corrupt archived files silently
                                     pass
@@ -209,17 +238,17 @@ class ISLDataset(Dataset):
 
         # Flatten to single list
         for cls_idx in sorted(class_samples.keys()):
-            # Each item already has (fpath, idx, weight)
+            # Each item already has (fpath, idx, weight, domain_idx)
             self.samples.extend(class_samples[cls_idx])
 
         # Print distribution
         label_counts = {}
-        for _, lbl, _ in self.samples:
+        for _, lbl, _, _ in self.samples:
             label_counts[lbl] = label_counts.get(lbl, 0) + 1
 
         print(
             f"[Dataset] {len(self.samples)} samples, "
-            f"{len(self.classes)} classes "
+            f"{len(self.classes)} classes, {len(self.domains)} domains "
             f"(augment={self.augment}, oversample={oversample})"
         )
         dist = ", ".join(
@@ -256,6 +285,11 @@ class ISLDataset(Dataset):
             label = self.h5["labels"][idx]
             weight = self.h5["weights"][idx]
             
+            if "domains" in self.h5:
+                domain_idx = self.h5["domains"][idx]
+            else:
+                domain_idx = 0
+            
             seq, proximity = self._prepare_sequence(
                 seq,
                 augment=self.augment,
@@ -265,9 +299,10 @@ class ISLDataset(Dataset):
             prox_t = torch.from_numpy(proximity)
             lbl_t = torch.tensor(label, dtype=torch.long)
             weight_t = torch.tensor(weight, dtype=torch.float32)
-            return seq_t, prox_t, lbl_t, weight_t
+            domain_t = torch.tensor(domain_idx, dtype=torch.long)
+            return seq_t, prox_t, lbl_t, weight_t, domain_t
 
-        fpath, label, weight = self.samples[idx]
+        fpath, label, weight, domain_idx = self.samples[idx]
         
         # Try to load the file with error handling
         max_retries = 3
@@ -306,7 +341,8 @@ class ISLDataset(Dataset):
         prox_t = torch.from_numpy(proximity)
         lbl_t = torch.tensor(label, dtype=torch.long)
         weight_t = torch.tensor(weight, dtype=torch.float32)
-        return seq_t, prox_t, lbl_t, weight_t
+        domain_t = torch.tensor(domain_idx, dtype=torch.long)
+        return seq_t, prox_t, lbl_t, weight_t, domain_t
 
     @property
     def num_classes(self) -> int:
