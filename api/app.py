@@ -56,6 +56,7 @@ MAX_PENDING: int = 2
 
 # Enable debug mode via: DEBUG=true python run_api.py
 DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
+ENV: str = os.getenv("ENV", "production").lower()
 
 if DEBUG:
     print("[API] Debug mode ON — top-5 probabilities will be included in responses")
@@ -115,9 +116,21 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# ── CORS — production-safe ───────────────────────────────────────────────────
+# In development mode: allow all origins to prevent local CORS issues.
+# In production: read ALLOWED_ORIGINS from environment. If unset, defaults to
+# an empty list — no cross-origin requests are permitted.
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "")
+if ENV == "development":
+    _allowed_origins: list[str] = ["*"]
+elif _raw_origins:
+    _allowed_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+else:
+    _allowed_origins = []
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # Tighten this for production deployment
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -129,7 +142,6 @@ app.add_middleware(
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/health", response_model=HealthResponse, tags=["Status"])
-async def health() -> dict:
 async def health() -> HealthResponse:
     """
     Model readiness check.

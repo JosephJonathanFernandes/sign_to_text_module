@@ -16,7 +16,6 @@
         "hot",
         "i",
         "it",
-        "loud",
         "low",
         "male",
         "mean",
@@ -28,7 +27,6 @@
         "short",
         "sick",
         "tall",
-        "thank_you",
         "they",
         "thin",
         "ugly",
@@ -36,13 +34,15 @@
         "we",
         "you",
         "you_all",
-        "young"
+        "young",
+        "blind"
       ],
       "two_hands": [
+        "thank_you",
+        "loud",
         "alive",
         "alright",
         "big_large",
-        "blind",
         "cheap",
         "clean",
         "cold",
