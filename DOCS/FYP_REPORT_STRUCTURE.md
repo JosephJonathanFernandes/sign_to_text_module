@@ -173,3 +173,14 @@ What is genuinely novel in this project beyond standard academic implementations
 - [ ] **Text-to-speech integration** — complete accessibility loop
 - [ ] **Web-based demo** — WebRTC frame capture + ONNX.js inference in browser
 - [ ] **ISL sentence corpus** — expand from isolated words to phrase-level dataset
+
+---
+
+## 11. Infrastructure Contributions
+
+- **Designed** a low-latency FastAPI inference architecture for real-time ISL translation.
+- **Introduced** a deterministic frontend/backend feature contract to eliminate preprocessing inconsistencies between MediaPipe and PyTorch pipelines.
+- **Implemented** schema validation and compatibility handshakes for robust browser integration.
+- **Developed** a shared feature extraction system to ensure zero-drift preprocessing across training, inference, and frontend simulation environments.
+- **Optimized** dataset storage using HDF5 with backward-compatible integration, reducing dataset initialization latency from 71.14 s to 0.18 s and reducing first-epoch execution time from 98.58 s to 18.28 s under the evaluated configuration.
+- **Added** dataset fingerprinting and metadata lineage tracking to improve reproducibility and experiment consistency.

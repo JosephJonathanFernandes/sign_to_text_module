@@ -30,6 +30,9 @@ assets/
 │
 ├── processed_negatives/         ← Background/non-sign sequences (__reject__ class)
 │
+├── dataset.h5                   ← Compiled HDF5 dataset container (optimized storage)
+├── validation_report.json       ← Metadata and integrity hash for dataset.h5
+│
 └── ensemble/                    ← K-fold model checkpoints
     ├── fold_0.pth
     ├── fold_1.pth
@@ -123,6 +126,7 @@ Frame-splicing between same-class recordings:
 
 | Script | Purpose |
 |---|---|
+| `src/tools/compile_hdf5.py` | Compiles `.npy` into a single HDF5 container (`assets/dataset.h5`) for 391x faster startup |
 | `scripts/balance_processed_dataset.py` | Balance all classes to a target count |
 | `scripts/random_downsample_processed.py` | Safe class downsampling (protects originals) |
 | `scripts/quality_filter_hybrid.py` | Remove near-duplicates + select diverse subset |

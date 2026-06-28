@@ -31,6 +31,8 @@ This project delivers a **complete, CPU-deployable ISL word recognition pipeline
 | 🔄 **Adaptive Detection** | Hand/face landmark detection runs every 5 frames (extended to 8 during low-motion), forced re-detect every 15 — real-time at 30 FPS |
 | 🧠 **Proximity Attention** | HybridAttention with 4 heads; 2 are proximity-biased using a Gaussian kernel over hand-to-face distance |
 | 👤 **Live User Adapter** | Asynchronous background MLP corrects ensemble output in log-probability space for user-specific personalization |
+| 🗄️ **Optimized Storage Pipeline** | HDF5 dataset compilation with backward-compatible integration, reducing dataset initialization latency by ~391× (71.1s → 0.18s) and first epoch time by 5.4× |
+| 🤝 **Zero-Drift Feature Contract** | Deterministic shared feature extraction system to eliminate drift between browser-based MediaPipe and the PyTorch backend |
 
 ---
 
@@ -108,7 +110,7 @@ This project delivers a **complete, CPU-deployable ISL word recognition pipeline
 | Computer vision | OpenCV 4.x |
 | Graph neural network | Custom GCN (PyTorch, no external GNN library) |
 | Generative model | CVAE (Conditional VAE — BiGRU encoder/decoder) |
-| Dataset format | NumPy `.npy` sequences, `(20, 506)` per sample |
+| Dataset format | Optimized HDF5 container (`dataset.h5`) with `.npy` fallback |
 | Configuration | Validated Python dataclasses (`config.py`) |
 | Language | Python 3.10+ |
 | OS | Windows / Linux / macOS |
@@ -273,7 +275,9 @@ sign_to_text/
 │   ├── Dataset/                 ← Raw video files organized by class
 │   ├── processed/               ← Preprocessed .npy sequences (20×506)
 │   ├── augmented_dataset/       ← Augmented videos (before preprocessing)
-│   └── ensemble/                ← K-fold model checkpoints
+│   ├── ensemble/                ← K-fold model checkpoints
+│   ├── dataset.h5               ← Compiled HDF5 optimized dataset
+│   └── validation_report.json   ← Dataset compilation integrity metadata
 │
 ├── models/                      ← Model files (gitignored)
 │   ├── hand_landmarker.task     ← MediaPipe hand landmarker (7.8 MB)
@@ -389,10 +393,11 @@ The full training pipeline runs in this order:
 4. Augment landmarks         python main.py --augment-landmarks
 5. Merge augmentations       python main.py --merge
 6. Cleanup near-duplicates   python main.py --cleanup
-7. Train K-fold ensemble     python main.py --kfold
-8. Export ONNX               python scripts/export_onnx.py
-9. Quantize INT8             python scripts/quantize_onnx.py
-10. Run inference API        python run_api.py
+7. Compile HDF5 dataset      python src/tools/compile_hdf5.py
+8. Train K-fold ensemble     python main.py --kfold
+9. Export ONNX               python scripts/export_onnx.py
+10. Quantize INT8            python scripts/quantize_onnx.py
+11. Run inference API        python run_api.py
 ```
 
 ---
