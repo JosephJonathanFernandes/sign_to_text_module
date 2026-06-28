@@ -1,11 +1,12 @@
 # 🤟 ISL Sign-to-Text
 
-> **Real-time Indian Sign Language word recognition** using MediaPipe hand & face landmarks, a BiGRU + Spatial GNN deep learning classifier, and ONNX INT8 inference — running entirely on a CPU.
+> **Real-time Indian Sign Language word recognition** using MediaPipe hand & face landmarks, a BiGRU + Spatial GNN deep learning classifier, and ONNX INT8 inference — running entirely on a CPU. Includes a robust **FastAPI WebSocket backend** for seamless frontend integration.
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python)
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Status](https://img.shields.io/badge/Status-FYP%20Final-blueviolet)
 ![Framework](https://img.shields.io/badge/Framework-PyTorch%20%7C%20ONNX-orange)
+![API](https://img.shields.io/badge/API-FastAPI%20%7C%20WebSockets-009688)
 ![MediaPipe](https://img.shields.io/badge/Landmarks-MediaPipe%20Tasks%20API-red)
 
 ---
@@ -25,6 +26,7 @@ This project delivers a **complete, CPU-deployable ISL word recognition pipeline
 | 🦴 **Spatial GNN Branch** | 2-layer Graph Convolutional Network over the anatomical hand skeleton (21 nodes × 2 hands), fused with the Conv1D temporal frontend |
 | 👁️ **Face-Relative Features** | Hand landmarks normalized by face anchor (nose tip + inter-eye distance) — position- and scale-invariant across signers |
 | ⚡ **ONNX INT8 Inference** | 2–3× faster CPU inference vs PyTorch FP32; automatic PyTorch fallback on any failure |
+| 🌐 **Real-Time API Layer** | Sub-100ms FastAPI inference layer with UUID session state, temporal smoothing, and flood protection |
 | 🎭 **CVAE Synthetic Data** | Conditional Variational Autoencoder (BiGRU encoder/decoder) generates class-balanced synthetic training sequences |
 | 🔄 **Adaptive Detection** | Hand/face landmark detection runs every 5 frames (extended to 8 during low-motion), forced re-detect every 15 — real-time at 30 FPS |
 | 🧠 **Proximity Attention** | HybridAttention with 4 heads; 2 are proximity-biased using a Gaussian kernel over hand-to-face distance |
@@ -99,6 +101,7 @@ This project delivers a **complete, CPU-deployable ISL word recognition pipeline
 
 | Component | Technology |
 |---|---|
+| API Layer | FastAPI, Uvicorn, WebSockets |
 | Landmark extraction | MediaPipe Tasks API (`HandLandmarker`, `FaceLandmarker`) |
 | Deep learning | PyTorch 2.x |
 | Accelerated inference | ONNX Runtime (INT8 quantized) |
@@ -163,6 +166,15 @@ sign_to_text/
 ├── LICENSE                      ← MIT License
 ├── CHANGELOG.md                 ← Version history
 ├── CONTRIBUTING.md              ← Contribution guide
+├── FEATURE_CONTRACT.md          ← Frontend integration specification
+│
+├── api/                         ← Real-time API & Integration Layer
+│   ├── app.py                   ← FastAPI entrypoint, WebSocket routers
+│   ├── inference.py             ← PyTorch inference wrapper
+│   ├── schemas.py               ← Request/Response Pydantic schemas
+│   ├── session.py               ← UUID stateful session management
+│   ├── simulate_frontend.py     ← E2E test for frontend integration
+│   └── FRONTEND_HANDOFF.md      ← Handoff instructions for UI developers
 │
 ├── src/                         ← All core source code
 │   ├── core/
@@ -205,6 +217,9 @@ sign_to_text/
 │   │   ├── profiling.py         ← Lightweight latency profiler
 │   │   ├── quantization_utils.py← Checkpoint quantization helpers
 │   │   └── pseudo_utilities.py  ← Pseudo-label generation utilities
+│   │
+│   ├── shared/
+│   │   └── feature_extractor.py ← Source-of-truth normalization logic
 │   │
 │   └── ui/
 │       └── renderer.py          ← OpenCV overlay rendering
@@ -308,7 +323,17 @@ Place the following MediaPipe task files in the `models/` directory:
 
 ## 🚀 Usage
 
-### Live Webcam Recognition
+### Run FastAPI Inference Server (Frontend Integration)
+
+```bash
+python run_api.py
+```
+
+* The server will start on `http://127.0.0.1:8000`.
+* The WebSocket streaming endpoint is available at `ws://127.0.0.1:8000/ws/translate`.
+* See `FEATURE_CONTRACT.md` for payload formats.
+
+### Live Webcam Recognition (Local debug)
 
 ```bash
 python main.py --webcam
@@ -367,7 +392,7 @@ The full training pipeline runs in this order:
 7. Train K-fold ensemble     python main.py --kfold
 8. Export ONNX               python scripts/export_onnx.py
 9. Quantize INT8             python scripts/quantize_onnx.py
-10. Run inference            python main.py --webcam
+10. Run inference API        python run_api.py
 ```
 
 ---
@@ -393,6 +418,8 @@ See [`DOCS/DEVELOPER.md`](DOCS/DEVELOPER.md) for:
 | [`docs/inference_pipeline.md`](docs/inference_pipeline.md) | Live inference stages and latency budget |
 | [`docs/dataset.md`](docs/dataset.md) | Dataset structure, statistics, and augmentation |
 | [`docs/FYP_REPORT_STRUCTURE.md`](docs/FYP_REPORT_STRUCTURE.md) | Academic evaluation structure |
+| [`FEATURE_CONTRACT.md`](FEATURE_CONTRACT.md) | Frontend JS payload specification |
+| [`api/FRONTEND_HANDOFF.md`](api/FRONTEND_HANDOFF.md) | Instructions for the UI developer |
 | [`CHANGELOG.md`](CHANGELOG.md) | Full version history |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Contribution guide |
 | [`DOCS/DEVELOPER.md`](DOCS/DEVELOPER.md) | Developer commands and utilities |
