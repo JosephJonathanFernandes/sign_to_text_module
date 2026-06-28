@@ -16,6 +16,7 @@ face_landmarker.task
 *.pth
 *.pt
 *.onnx
+*.ckpt
 *_metadata.json
 *_quantization_metadata.json
 model_fp32.onnx.data
@@ -29,6 +30,7 @@ processed_negatives/
 processed_del/
 processed_negatives_del/
 dataset.h5
+*.h5
 validation_report.json
 
 # Model weights & checkpoints
@@ -47,8 +49,17 @@ logs/
 # Jupyter
 .ipynb_checkpoints/
 
-# Testing
+# Testing & Coverage
 .pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Type checking
+.mypy_cache/
+
+# Linting
+.ruff_cache/
 
 # OS
 Thumbs.db
@@ -59,6 +70,14 @@ Desktop.ini
 .vscode/
 .idea/
 powershell.cmd
+
+# Environment / secrets — NEVER commit these
+.env
+.env.*
+!.env.example
+
+# Dependency locks (generated — don't track)
+requirements-lock.txt
 
 # Internal audit artifacts (not for public view)
 .internal/

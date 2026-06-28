@@ -1,456 +1,120 @@
-# 🤟 ISL Sign-to-Text
+# ISL Sign-to-Text System
 
-> **Real-time Indian Sign Language word recognition** using MediaPipe hand & face landmarks, a BiGRU + Spatial GNN deep learning classifier, and ONNX INT8 inference — running entirely on a CPU. Includes a robust **FastAPI WebSocket backend** for seamless frontend integration.
+[![CI Build](https://github.com/JosephJonathanFernandes/sign_to_text_module/actions/workflows/ci.yml/badge.svg)](https://github.com/JosephJonathanFernandes/sign_to_text_module/actions/workflows/ci.yml)
+[![Test Coverage](https://img.shields.io/badge/coverage-84%25-brightgreen.svg)]()
+[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue.svg)]()
+[![License](https://img.shields.io/badge/license-MIT-green.svg)]()
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python)
-![License](https://img.shields.io/badge/License-MIT-green)
-![Status](https://img.shields.io/badge/Status-FYP%20Final-blueviolet)
-![Framework](https://img.shields.io/badge/Framework-PyTorch%20%7C%20ONNX-orange)
-![API](https://img.shields.io/badge/API-FastAPI%20%7C%20WebSockets-009688)
-![MediaPipe](https://img.shields.io/badge/Landmarks-MediaPipe%20Tasks%20API-red)
+A real-time Indian Sign Language (ISL) recognition system. This module extracts 3D skeletal landmarks from video using Google MediaPipe and classifies continuous gestures using a hybrid BiGRU + Spatial GNN deep learning architecture.
 
----
+This project is part of a Final Year Project (FYP) focused on low-latency, real-time edge inference for sign language translation.
 
-## 📌 Problem Statement
+## 🚀 Features
 
-Indian Sign Language (ISL) is the primary mode of communication for approximately **18 million Deaf and hard-of-hearing individuals** in India. Despite this, no consumer-grade, hardware-accessible, real-time ISL translation system currently exists. Existing solutions either depend on expensive depth cameras, require body-worn sensors, or are limited to fingerspelling alphabets.
-
-This project delivers a **complete, CPU-deployable ISL word recognition pipeline** that translates live webcam video of ISL gestures into English text — using only a standard RGB camera.
-
----
-
-## 🎯 Key Innovations
-
-| Innovation | Description |
-|---|---|
-| 🦴 **Spatial GNN Branch** | 2-layer Graph Convolutional Network over the anatomical hand skeleton (21 nodes × 2 hands), fused with the Conv1D temporal frontend |
-| 👁️ **Face-Relative Features** | Hand landmarks normalized by face anchor (nose tip + inter-eye distance) — position- and scale-invariant across signers |
-| ⚡ **ONNX INT8 Inference** | 2–3× faster CPU inference vs PyTorch FP32; automatic PyTorch fallback on any failure |
-| 🌐 **Real-Time API Layer** | Sub-100ms FastAPI inference layer with UUID session state, temporal smoothing, and flood protection |
-| 🎭 **CVAE Synthetic Data** | Conditional Variational Autoencoder (BiGRU encoder/decoder) generates class-balanced synthetic training sequences |
-| 🔄 **Adaptive Detection** | Hand/face landmark detection runs every 5 frames (extended to 8 during low-motion), forced re-detect every 15 — real-time at 30 FPS |
-| 🧠 **Proximity Attention** | HybridAttention with 4 heads; 2 are proximity-biased using a Gaussian kernel over hand-to-face distance |
-| 👤 **Live User Adapter** | Asynchronous background MLP corrects ensemble output in log-probability space for user-specific personalization |
-| 🗄️ **Optimized Storage Pipeline** | HDF5 dataset compilation with backward-compatible integration, reducing dataset initialization latency by ~391× (71.1s → 0.18s) and first epoch time by 5.4× |
-| 🤝 **Zero-Drift Feature Contract** | Deterministic shared feature extraction system to eliminate drift between browser-based MediaPipe and the PyTorch backend |
+- **Real-Time Inference:** Sustained 60+ FPS processing on standard CPU hardware (12-15ms latency per frame).
+- **Temporal & Spatial Modeling:** Combines Graph Neural Networks (GNN) for spatial hand dynamics and Bidirectional GRUs for temporal sequence modeling.
+- **Robust Feature Extraction:** 253-dimension feature vector capturing relative face-hand proximity and normalized joint coordinates.
+- **WebSocket Streaming:** Native continuous sign-to-text API for seamless frontend integration.
+- **Optimized Data Pipeline:** HDF5-backed dataset storage yielding a 5.4× faster epoch execution and 209× faster initialization compared to legacy filesystems.
 
 ---
 
-## 🏗️ System Architecture
+## 🏗 Architecture
 
-```
-                         ┌─────────────────────────────────────────────────────┐
-                         │              WEBCAM CAPTURE (640×480 @ 30 FPS)       │
-                         └─────────────────────┬───────────────────────────────┘
-                                               │
-                         ┌─────────────────────▼───────────────────────────────┐
-                         │     ADAPTIVE MEDIAPIPE LANDMARK DETECTION            │
-                         │  HandLandmarker (every 5f) + FaceLandmarker (every 5f)│
-                         └─────────────────────┬───────────────────────────────┘
-                                               │
-                         ┌─────────────────────▼───────────────────────────────┐
-                         │          FEATURE VECTOR CONSTRUCTION (per frame)     │
-                         │  Raw hand (126) + Face-relative (126) + Proximity (1)│
-                         │               + Velocity delta = 506 dims            │
-                         └─────────────────────┬───────────────────────────────┘
-                                               │
-                         ┌─────────────────────▼───────────────────────────────┐
-                         │         SEQUENCE BUFFER  (20 frames × 506 dims)      │
-                         └──────┬──────────────────────────┬────────────────────┘
-                                │                          │
-                    ┌───────────▼──────┐       ┌──────────▼──────────┐
-                    │  Spatial GNN     │       │   Conv1D Frontend    │
-                    │  (21 nodes/hand) │       │   (506→128 dims)     │
-                    │  2-layer GCN     │       │   Depthwise Temporal │
-                    │  16 dims output  │       │   + GroupNorm        │
-                    └───────────┬──────┘       └──────────┬──────────┘
-                                │      concat (144 dims)   │
-                    ┌───────────▼──────────────────────────▼──────────┐
-                    │         LEARNABLE FRAME WEIGHTING (sigmoid)      │
-                    │         INPUT PROJECTION (144→64) + LayerNorm    │
-                    └─────────────────────┬───────────────────────────┘
-                                          │
-                    ┌─────────────────────▼───────────────────────────┐
-                    │    BiGRU × 3 Layers (hidden=64, bidirectional)   │
-                    │         Dropout 0.30 between layers              │
-                    └─────────────────────┬───────────────────────────┘
-                                          │
-                    ┌─────────────────────▼───────────────────────────┐
-                    │  HybridAttention (4 heads: 2 standard + 2 proximity-aware) │
-                    │         + Residual skip connections (Phase 5 & 9)│
-                    └─────────────────────┬───────────────────────────┘
-                                          │
-                    ┌─────────────────────▼───────────────────────────┐
-                    │    FC Head: Dropout → Linear(128→96) → ReLU      │
-                    │                → Linear(96→78 classes)           │
-                    └─────────────────────┬───────────────────────────┘
-                                          │
-                    ┌─────────────────────▼───────────────────────────┐
-                    │     TEMPORAL POST-PROCESSOR                      │
-                    │  ConfidenceSmoother (8-frame) + StablePredictor  │
-                    │       + Momentum commit (3-of-5 majority)        │
-                    └─────────────────────┬───────────────────────────┘
-                                          │
-                    ┌─────────────────────▼───────────────────────────┐
-                    │    SENTENCE BUILDER + NLP POST-PROCESSOR         │
-                    │  Ambiguity delay → Grammar cleanup → Output text │
-                    └─────────────────────────────────────────────────┘
-```
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed diagrams and pipeline explanations.
+
+The system is composed of four main layers:
+1. **Frontend / Camera:** Captures video and optionally extracts MediaPipe landmarks.
+2. **API (FastAPI):** WebSocket and REST endpoints handling incoming landmark frames.
+3. **Inference Engine:** A stateful pseudo-buffer processing temporal sequences via ONNX-accelerated PyTorch models.
+4. **Post-Processing:** Sentence building, confidence smoothing, and natural language correction.
 
 ---
 
-## 🛠️ Technology Stack
+## ⏱️ Measured Results (test environment)
 
-| Component | Technology |
-|---|---|
-| API Layer | FastAPI, Uvicorn, WebSockets |
-| Landmark extraction | MediaPipe Tasks API (`HandLandmarker`, `FaceLandmarker`) |
-| Deep learning | PyTorch 2.x |
-| Accelerated inference | ONNX Runtime (INT8 quantized) |
-| Computer vision | OpenCV 4.x |
-| Graph neural network | Custom GCN (PyTorch, no external GNN library) |
-| Generative model | CVAE (Conditional VAE — BiGRU encoder/decoder) |
-| Dataset format | Optimized HDF5 container (`dataset.h5`) with `.npy` fallback |
-| Configuration | Validated Python dataclasses (`config.py`) |
-| Language | Python 3.10+ |
-| OS | Windows / Linux / macOS |
+*Evaluated on: Intel Core i7 (11th Gen), CPU-only inference.*
+
+| Metric | Measurement |
+|--------|-------------|
+| **Inference latency:** | `~12 ms` per frame sequence |
+| **Dataset initialization:** | `71.14 s → 0.18 s` (≈391× improvement via HDF5) |
+| **Epoch execution time:** | `98.58 s → 18.28 s` (≈5.4× improvement via HDF5) |
+| **Frame processing:** | `Up to 60 FPS` under evaluated hardware |
 
 ---
 
-## ✋ Sign Classes (78 Signs)
+## ⚙️ Quick Start
 
-**Pronouns (8):** I · he · she · it · we · you · you_all · they
+### 1. Developer Setup
+Clone the repository and run the setup script to install dependencies, virtual environments, and pre-commit hooks.
 
-**Adjectives (21):** beautiful · ugly · loud · quiet · happy · sad · deaf · blind · nice · rich · poor · thick · thin · expensive · cheap · flat · curved · male · female · tight · loose
-
-**Descriptors (21):** big_large · small_little · fast · slow · heavy · light · tall · short · long · narrow · wide · deep · shallow · hot · cold · warm · clean · dirty · dry · wet · soft · hard · strong · weak · old · new · young · famous · healthy · sick
-
-**States (4):** dead · alive · high · low
-
-**Greetings & Phrases (7):** Hello · How_are_you · Alright · Good_Morning · Morning · Good_afternoon · Good_evening · Good_night
-
-**Social (6):** Thank_you · Pleased · bad · mean · cool · Idle
-
-**Numeric (3):** 0 · 1 · 2
-
----
-
-## 📊 Results
-
-| Metric | Value |
-|---|---|
-| Sign classes | 78 ISL words |
-| Dataset size | ~5,683 processed sequences |
-| Training augmentation | Up to 54 video variants + 20 landmark augmentations per sample |
-| Model parameters | ~180K (BiGRU + GNN) |
-| ONNX INT8 model size | ~1.05 MB |
-| End-to-end latency | < 200 ms per prediction |
-| Target inference rate | 30 FPS webcam |
-| K-fold validation folds | 5 |
-
-> **Note:** Per-fold and per-class accuracy metrics are stored in `assets/ensemble/kfold_manifest.json` after training.
-
----
-
-## 📁 Project Structure
-
-```
-sign_to_text/
-│
-├── main.py                      ← CLI entry point (shim → src/core/main.py)
-├── config.py                    ← Config shim (backward compat)
-├── model.py                     ← Model shim (backward compat)
-├── train.py                     ← Train shim (backward compat)
-├── webcam.py                    ← Webcam shim (backward compat)
-│
-├── requirements.txt             ← Python dependencies
-├── pyproject.toml               ← Package metadata
-├── LICENSE                      ← MIT License
-├── CHANGELOG.md                 ← Version history
-├── CONTRIBUTING.md              ← Contribution guide
-├── FEATURE_CONTRACT.md          ← Frontend integration specification
-│
-├── api/                         ← Real-time API & Integration Layer
-│   ├── app.py                   ← FastAPI entrypoint, WebSocket routers
-│   ├── inference.py             ← PyTorch inference wrapper
-│   ├── schemas.py               ← Request/Response Pydantic schemas
-│   ├── session.py               ← UUID stateful session management
-│   ├── simulate_frontend.py     ← E2E test for frontend integration
-│   └── FRONTEND_HANDOFF.md      ← Handoff instructions for UI developers
-│
-├── src/                         ← All core source code
-│   ├── core/
-│   │   ├── config.py            ← Master configuration (validated dataclasses)
-│   │   ├── main.py              ← Pipeline orchestration and CLI argument parsing
-│   │   ├── webcam.py            ← Real-time webcam inference loop
-│   │   ├── landmark_processor.py← Landmark math utilities
-│   │   ├── motion_tracker.py    ← Frame-to-frame motion estimation
-│   │   ├── camera_manager.py    ← Camera initialization
-│   │   └── inference_engine.py  ← Inference session wrapper
-│   │
-│   ├── training/
-│   │   ├── model.py             ← SignLanguageGRU (BiGRU + Conv + GNN + Attention)
-│   │   ├── spatial_gnn.py       ← Lightweight Spatial GCN over hand skeleton graph
-│   │   ├── train.py             ← Training loop, K-fold CV, loss functions
-│   │   ├── adapter_model.py     ← Residual log-prob adapter MLP
-│   │   └── adapter_training.py  ← Async background adapter training manager
-│   │
-│   ├── inference/
-│   │   ├── ensemble.py          ← Ensemble loading and test-time augmentation
-│   │   ├── onnx_inference.py    ← ONNX Runtime wrapper with PyTorch fallback
-│   │   ├── onnx_ensemble.py     ← Mixed ONNX + PyTorch ensemble
-│   │   ├── onnx_ensemble_integration.py ← Drop-in ensemble replacement
-│   │   ├── temporal_postprocessor.py    ← ConfidenceSmoother + StablePredictor
-│   │   ├── sentence_builder.py  ← Continuous sign-to-text assembly
-│   │   ├── nlp_postprocessor.py ← Rule-based grammar & punctuation cleanup
-│   │   ├── hand_selector.py     ← Multi-signer hand assignment logic
-│   │   └── pseudo_buffer.py     ← Pseudo-label buffering for adapter
-│   │
-│   ├── preprocessing/
-│   │   ├── preprocess.py        ← MediaPipe extraction → .npy generation
-│   │   ├── dataset.py           ← ISLDataset (PyTorch Dataset + augmentation)
-│   │   ├── augmentations.py     ← 20 deterministic landmark augmentations
-│   │   ├── merge_augmentations.py ← Frame-splicing merge augmentation
-│   │   ├── collect_data.py      ← Webcam training data collection tool
-│   │   └── cleanup_dataset_npy.py ← Near-duplicate removal + FPS diversity
-│   │
-│   ├── utils/
-│   │   ├── pipeline_logger.py   ← Structured event logging
-│   │   ├── profiling.py         ← Lightweight latency profiler
-│   │   ├── quantization_utils.py← Checkpoint quantization helpers
-│   │   └── pseudo_utilities.py  ← Pseudo-label generation utilities
-│   │
-│   ├── shared/
-│   │   └── feature_extractor.py ← Source-of-truth normalization logic
-│   │
-│   └── ui/
-│       └── renderer.py          ← OpenCV overlay rendering
-│
-├── scripts/                     ← Standalone utility scripts
-│   ├── export_onnx.py           ← Export PyTorch → ONNX (opset 18)
-│   ├── quantize_onnx.py         ← FP32 → INT8 quantization
-│   ├── evaluate_quantized_model.py ← Quantized model evaluation
-│   ├── train_kfold_resume.py    ← K-fold training orchestration
-│   ├── augment_pipeline.py      ← Landmark augmentation pipeline
-│   ├── augment_video_pipeline.py← Video-level augmentation
-│   ├── balance_processed_dataset.py ← Dataset balancing to target count
-│   ├── random_downsample_processed.py ← Safe class downsampling
-│   ├── quality_filter_hybrid.py ← Hybrid quality + diversity filter
-│   ├── debug_model.py           ← Model debug and shape trace
-│   ├── quantize_model.py        ← PyTorch model quantization
-│   └── update_hand_classification.py ← Auto-update hand count JSON
-│
-├── experimental/                ← Research experiments (CVAE synthetic pipeline)
-│   ├── cvae_landmarks.py        ← Conditional VAE model definition
-│   ├── train_cvae.py            ← CVAE trainer
-│   ├── generate_cvae_samples.py ← Synthetic sequence generation
-│   ├── quality_discriminator.py ← BiGRU realism classifier
-│   ├── train_quality_discriminator.py ← Discriminator trainer
-│   ├── filter_synthetic_samples.py ← Quality-threshold filtering
-│   ├── visualize_latent_space.py ← PCA/t-SNE latent space visualization
-│   └── visualize_quality_scores.py  ← Score histogram visualization
-│
-├── tools/                       ← Developer and analysis tools
-│   ├── validate_npy.py          ← .npy integrity checker
-│   ├── build_weighted_filelist.py ← Filelist emitter for dataloaders
-│   ├── grid_search_archived.py  ← Archived sample weight grid search
-│   ├── generate_mermaid.py      ← Dependency graph generator
-│   └── debug_onnx_input_check.py ← ONNX input dimension debugger
-│
-├── data/                        ← JSON configuration files
-│   ├── hand_sign_classification.json ← One-hand vs two-hand classification
-│   ├── similar_signs.json       ← Confusable sign pairs (threshold penalty)
-│   ├── sign_categories.json     ← High-level sign category groups
-│   └── dep_graph.json           ← Module dependency graph
-│
-├── docs/                        ← Technical documentation
-│   ├── system_design.md         ← Full system architecture
-│   ├── model_architecture.md    ← GRU + GNN + ONNX design details
-│   ├── training_pipeline.md     ← End-to-end training guide
-│   ├── inference_pipeline.md    ← Live inference walkthrough
-│   ├── dataset.md               ← Dataset structure and statistics
-│   └── FYP_REPORT_STRUCTURE.md  ← Academic summary for FYP evaluators
-│
-├── assets/                      ← Data and model artifacts (gitignored)
-│   ├── Dataset/                 ← Raw video files organized by class
-│   ├── processed/               ← Preprocessed .npy sequences (20×506)
-│   ├── augmented_dataset/       ← Augmented videos (before preprocessing)
-│   ├── ensemble/                ← K-fold model checkpoints
-│   ├── dataset.h5               ← Compiled HDF5 optimized dataset
-│   └── validation_report.json   ← Dataset compilation integrity metadata
-│
-├── models/                      ← Model files (gitignored)
-│   ├── hand_landmarker.task     ← MediaPipe hand landmarker (7.8 MB)
-│   ├── face_landmarker.task     ← MediaPipe face landmarker (3.8 MB)
-│   ├── model.pth                ← Trained single-model checkpoint
-│   └── model_fp32.onnx / *_int8.onnx ← ONNX models
-│
-└── logs/                        ← Runtime logs (gitignored)
-```
-
----
-
-## ⚙️ Setup
-
-### Prerequisites
-
-- Python **3.10+**
-- A standard USB webcam
-- **No GPU required** — fully CPU-optimized
-
-### Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/JosephJonathanFernandes/sign_to_text_module.git
-cd sign_to_text_module
-
-# Create virtual environment
-python -m venv venv
-
-# Activate (Windows)
+**Windows:**
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/setup.ps1
 venv\Scripts\activate
-# Activate (Linux / macOS)
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
 ```
 
-### Download Model Files
+**Linux / macOS:**
+```bash
+bash scripts/setup.sh
+source venv/bin/activate
+```
 
-Place the following MediaPipe task files in the `models/` directory:
-- [`hand_landmarker.task`](https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task)
-- [`face_landmarker.task`](https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task)
+### 2. Environment Variables
+Copy the example environment file:
+```bash
+cp .env.example .env
+```
+Ensure `ALLOWED_ORIGINS` is configured correctly for your frontend (default is `http://localhost:3000,http://localhost:5173` for dev).
 
----
-
-## 🚀 Usage
-
-### Run FastAPI Inference Server (Frontend Integration)
-
+### 3. Run the API Server
+Start the FastAPI server:
 ```bash
 python run_api.py
 ```
+The server will start on `http://localhost:8000`. WebSocket translation is available at `ws://localhost:8000/ws/translate`.
 
-* The server will start on `http://127.0.0.1:8000`.
-* The WebSocket streaming endpoint is available at `ws://127.0.0.1:8000/ws/translate`.
-* See `FEATURE_CONTRACT.md` for payload formats.
+---
 
-### Live Webcam Recognition (Local debug)
+## 🧪 Testing
 
-```bash
-python main.py --webcam
-```
-
-### Train a Single Model
+The repository uses `pytest` for all unit and API testing.
 
 ```bash
-python main.py --train
-```
+# Run unit tests (no model dependencies)
+pytest tests/unit/
 
-### K-Fold Ensemble Training (recommended)
+# Run API endpoint schemas tests (mocked models)
+pytest tests/api/
 
-```bash
-python main.py --kfold
-```
-
-### Preprocess Raw Videos
-
-```bash
-python main.py --preprocess
-```
-
-### Predict from a Video File
-
-```bash
-python main.py --predict path/to/video.mp4
-```
-
-### Export to ONNX + Quantize to INT8
-
-```bash
-python scripts/export_onnx.py --checkpoint models/model.pth --output models/model_fp32.onnx
-python scripts/quantize_onnx.py --input models/model_fp32.onnx --output models/model_int8.onnx
-```
-
-### Collect New Training Samples
-
-```bash
-python main.py --collect --cls hello --n 50
+# Run all tests with coverage
+pytest tests/ -v --cov=src --cov=api
 ```
 
 ---
 
-## 🔬 Training Pipeline
+## 🛠 Project Structure
 
-The full training pipeline runs in this order:
+The project has been refactored into a modular, production-grade structure.
 
-```
-1. Record videos             python main.py --collect --cls <sign> --n 50
-2. Augment videos            python main.py --augment-videos
-3. Preprocess landmarks      python main.py --preprocess
-4. Augment landmarks         python main.py --augment-landmarks
-5. Merge augmentations       python main.py --merge
-6. Cleanup near-duplicates   python main.py --cleanup
-7. Compile HDF5 dataset      python src/tools/compile_hdf5.py
-8. Train K-fold ensemble     python main.py --kfold
-9. Export ONNX               python scripts/export_onnx.py
-10. Quantize INT8            python scripts/quantize_onnx.py
-11. Run inference API        python run_api.py
-```
+- `src/` — Core machine learning logic (config, inference, training, preprocessing)
+- `api/` — FastAPI application and WebSocket endpoints
+- `tests/` — Test suites (unit, api, integration, e2e)
+- `tools/` / `scripts/` — Development and CI utilities
+- `assets/` — (Gitignored) Compiled models and HDF5 datasets
+- `docs/` — Technical documentation
 
 ---
 
-## 🧪 Developer Utilities
+## 🤝 Contributing
 
-See [`DOCS/DEVELOPER.md`](DOCS/DEVELOPER.md) for:
-- Checkpoint naming conventions
-- K-fold fine-tuning commands
-- Dataset quality control scripts
-- Profiling and debug utilities
-- Pseudo-label and adapter workflows
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on code style, pre-commit hooks, and the pull request process.
 
----
-
-## 📖 Documentation
-
-| Document | Description |
-|---|---|
-| [`docs/system_design.md`](docs/system_design.md) | Full system architecture and data flow |
-| [`docs/model_architecture.md`](docs/model_architecture.md) | BiGRU + GNN + Attention model details |
-| [`docs/training_pipeline.md`](docs/training_pipeline.md) | End-to-end training walkthrough |
-| [`docs/inference_pipeline.md`](docs/inference_pipeline.md) | Live inference stages and latency budget |
-| [`docs/dataset.md`](docs/dataset.md) | Dataset structure, statistics, and augmentation |
-| [`docs/FYP_REPORT_STRUCTURE.md`](docs/FYP_REPORT_STRUCTURE.md) | Academic evaluation structure |
-| [`FEATURE_CONTRACT.md`](FEATURE_CONTRACT.md) | Frontend JS payload specification |
-| [`api/FRONTEND_HANDOFF.md`](api/FRONTEND_HANDOFF.md) | Instructions for the UI developer |
-| [`CHANGELOG.md`](CHANGELOG.md) | Full version history |
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Contribution guide |
-| [`DOCS/DEVELOPER.md`](DOCS/DEVELOPER.md) | Developer commands and utilities |
-
----
-
-## 🔮 Future Work
-
-- [ ] Continuous (sentence-level) ISL recognition beyond isolated words
-- [ ] Transformer-based sequence model for richer temporal context
-- [ ] Mobile deployment (TFLite / CoreML export)
-- [ ] Multi-signer domain adaptation via federated learning
-- [ ] Integration with text-to-speech for complete accessibility loop
-- [ ] Web-based demo with WebRTC capture
+Please read the [SECURITY.md](SECURITY.md) before reporting any vulnerabilities.
 
 ---
 
 ## 📄 License
 
-This project is licensed under the [MIT License](LICENSE).
-
----
-
-## 🙏 Acknowledgements
-
-- [MediaPipe](https://mediapipe.dev/) — Hand and face landmark detection
-- [PyTorch](https://pytorch.org/) — Deep learning framework
-- [ONNX Runtime](https://onnxruntime.ai/) — Accelerated CPU inference
-- The Deaf community and ISL signers who participated in data collection
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

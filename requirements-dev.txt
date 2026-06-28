@@ -1,0 +1,27 @@
+# ISL Sign-to-Text — Development Dependencies
+# Install with: pip install -r requirements-dev.txt
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-asyncio>=0.21.0
+httpx>=0.27.0            # Required by FastAPI TestClient
+websockets>=12.0         # Required by e2e tests
+
+# API testing
+fastapi[all]>=0.104.0
+
+# Code quality
+black>=24.0.0
+isort>=5.13.0
+ruff>=0.4.0
+mypy>=1.8.0
+
+# Security scanning
+bandit[toml]>=1.7.7
+
+# Pre-commit hooks
+pre-commit>=3.7.0
+
+# Type stubs
+types-tqdm>=4.65.0

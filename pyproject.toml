@@ -4,7 +4,7 @@ build-backend = "setuptools.backends.legacy:build"
 
 [project]
 name = "isl-sign-to-text"
-version = "2.0.0"
+version = "2.1.0"
 description = "Real-time Indian Sign Language word recognition using MediaPipe landmarks and a BiGRU deep learning classifier"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -43,6 +43,25 @@ dependencies = [
   "onnx>=1.14.0",
   "scipy>=1.11.0",
   "tqdm>=4.65.0",
+  "h5py>=3.0.0",
+  "fastapi>=0.104.0",
+  "uvicorn>=0.24.0",
+  "pydantic>=2.0.0",
+  "websockets>=12.0",
+  "httpx>=0.27.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.4.0",
+  "pytest-cov>=4.1.0",
+  "pytest-asyncio>=0.21.0",
+  "black>=24.0.0",
+  "isort>=5.13.0",
+  "ruff>=0.4.0",
+  "mypy>=1.8.0",
+  "bandit[toml]>=1.7.7",
+  "pre-commit>=3.7.0",
 ]
 
 [project.urls]
@@ -54,11 +73,112 @@ isl-recognize = "src.core.main:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["src*"]
+include = ["src*", "api*"]
 
-[tool.flake8]
-max-line-length = 120
-exclude = ["venv", "__pycache__", "*.egg-info", "experimental"]
-per-file-ignores = [
-  "__init__.py:F401",
+# ─────────────────────────────────────
+# Black — code formatter
+# ─────────────────────────────────────
+[tool.black]
+line-length = 120
+target-version = ["py310", "py311", "py312"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    venv
+  | experimental
+  | \.git
+  | __pycache__
+  | Paper
+)/
+'''
+
+# ─────────────────────────────────────
+# isort — import sorting
+# ─────────────────────────────────────
+[tool.isort]
+profile = "black"
+line_length = 120
+skip_glob = ["venv/*", "experimental/*", "Paper/*"]
+
+# ─────────────────────────────────────
+# Ruff — fast linter
+# ─────────────────────────────────────
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+exclude = ["venv", "experimental", "Paper", "__pycache__"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]
+ignore = [
+  "E501",   # line too long (handled by black)
+  "F401",   # imported but unused (common in __init__.py)
+  "UP007",  # use X | Y for Union (Python 3.10+ only)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"tests/*" = ["F811"]   # redefinition of unused name (fixtures)
+
+# ─────────────────────────────────────
+# mypy — type checker (scoped to stable modules)
+# ─────────────────────────────────────
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_return_any = true
+warn_unused_configs = true
+exclude = ["venv", "experimental", "Paper", "scripts"]
+
+# Strict only on stable, testable modules
+[[tool.mypy.overrides]]
+module = ["src.core.config", "src.shared.feature_extractor", "api.schemas"]
+disallow_untyped_defs = true
+
+# ─────────────────────────────────────
+# Bandit — security scanner
+# ─────────────────────────────────────
+[tool.bandit]
+exclude_dirs = ["tests", "venv", "experimental", "Paper"]
+skips = ["B101"]   # B101: assert used in tests — expected
+
+# ─────────────────────────────────────
+# pytest — test runner
+# ─────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+pythonpath = ["."]
+markers = [
+  "unit: Unit tests (no network, no model files)",
+  "integration: Integration tests (requires running server or model files)",
+  "api: API endpoint tests (uses TestClient — no server needed)",
+  "e2e: End-to-end tests (requires full environment)",
+  "hdf5: Tests that require assets/dataset.h5 to be present",
+]
+addopts = "-v --tb=short -ra"
+
+# ─────────────────────────────────────
+# Coverage — report settings
+# ─────────────────────────────────────
+[tool.coverage.run]
+source = ["src", "api"]
+omit = [
+  "*/venv/*",
+  "*/experimental/*",
+  "*/Paper/*",
+  "tests/*",
+  "scripts/*",
+  "tools/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+  "pragma: no cover",
+  "def __repr__",
+  "if __name__ == .__main__.:",
+  "raise NotImplementedError",
 ]
