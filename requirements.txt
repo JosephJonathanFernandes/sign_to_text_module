@@ -1,12 +1,26 @@
-# ISL Word Recognition Pipeline — Requirements
-# CPU-optimized for Intel Iris Xe
+# ISL Sign-to-Text — Python Dependencies
+# CPU-optimized (Intel Iris Xe / any modern CPU)
+# Python 3.10+ required
 
-torch
-numpy
-opencv-python
-mediapipe
-onnxruntime 
-onnx 
-onnxscript
-scipy 
-tqdm
+# Core deep learning
+torch>=2.0.0
+
+# Numerical computing
+numpy>=1.24.0
+
+# Computer vision
+opencv-python>=4.8.0
+
+# Landmark extraction (Tasks API)
+mediapipe>=0.10.0
+
+# ONNX inference + export
+onnxruntime>=1.16.0
+onnx>=1.14.0
+onnxscript>=0.1.0
+
+# Scientific computing (augmentation, filtering)
+scipy>=1.11.0
+
+# Progress bars
+tqdm>=4.65.0

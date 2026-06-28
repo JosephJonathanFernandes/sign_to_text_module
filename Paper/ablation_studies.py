@@ -24,9 +24,9 @@ from datetime import datetime
 
 # Import project modules
 from config import get_config, TrainingConfig, FrameFeaturesConfig, SpatialFeaturesConfig
-from train import create_data_loaders, train_one_epoch, FocalLoss, _compute_inverse_class_weights
-from model import SignLanguageGRU
-from dataset import ISLDataset
+from src.training.train import create_data_loaders, train_one_epoch, FocalLoss, _compute_inverse_class_weights
+from src.training.model import SignLanguageGRU
+from src.preprocessing.dataset import ISLDataset
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support

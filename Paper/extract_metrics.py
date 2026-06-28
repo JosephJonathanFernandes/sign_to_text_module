@@ -17,10 +17,10 @@ from sklearn.metrics import (
     confusion_matrix, classification_report
 )
 
-from train import create_data_loaders
-from model import SignLanguageGRU
+from src.training.train import create_data_loaders
+from src.training.model import SignLanguageGRU
 from config import get_config
-from ensemble import load_ensemble, ensemble_predict
+from src.inference.ensemble import load_ensemble, ensemble_predict
 
 
 def extract_single_model_metrics():

@@ -6,7 +6,7 @@ import numpy as np
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from onnx_inference import ONNXModelWrapper
+from src.inference.onnx_inference import ONNXModelWrapper
 from config import PreprocessingConfig
 
 MODEL = os.path.join(ROOT, "model_fp32.onnx")

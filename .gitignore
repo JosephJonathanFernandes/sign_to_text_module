@@ -58,3 +58,5 @@ Desktop.ini
 .idea/
 powershell.cmd
 
+# Internal audit artifacts (not for public view)
+.internal/

@@ -9,7 +9,6 @@ Usage: python tools/grid_search_archived.py
 import os
 import sys
 import csv
-import time
 import numpy as np
 import torch
 
@@ -18,9 +17,8 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from train import create_data_loaders, train, MODEL_SAVE_PATH
-from dataset import ISLDataset
-from train import _PlainSubset
+from src.training.train import create_data_loaders, train
+from src.preprocessing.dataset import ISLDataset
 
 WEIGHTS = [0.0, 0.05, 0.1, 0.25, 0.5]
 EPOCHS = 2
@@ -94,7 +92,7 @@ def run_once(arch_w):
     pcr, arch_r, non_arch_r = evaluate_per_class_recall(model, full_ds, val_indices, full_ds.classes)
 
     # Get final val accuracy by running validate directly
-    from train import validate, nn
+    from src.training.train import validate, nn
     crit = nn.CrossEntropyLoss(weight=cw, label_smoothing=0.0, reduction='none')
     va_loss, va_acc = validate(model, vl, crit)
 

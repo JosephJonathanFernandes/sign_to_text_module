@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "isl-sign-to-text"
+version = "2.0.0"
+description = "Real-time Indian Sign Language word recognition using MediaPipe landmarks and a BiGRU deep learning classifier"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+  { name = "Joseph Jonathan Fernandes" }
+]
+keywords = [
+  "sign language",
+  "indian sign language",
+  "ISL",
+  "hand gesture recognition",
+  "mediapipe",
+  "deep learning",
+  "BiGRU",
+  "GNN",
+  "ONNX",
+  "real-time inference",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+requires-python = ">=3.10"
+dependencies = [
+  "torch>=2.0.0",
+  "numpy>=1.24.0",
+  "opencv-python>=4.8.0",
+  "mediapipe>=0.10.0",
+  "onnxruntime>=1.16.0",
+  "onnx>=1.14.0",
+  "scipy>=1.11.0",
+  "tqdm>=4.65.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/JosephJonathanFernandes/sign_to_text_module"
+Repository = "https://github.com/JosephJonathanFernandes/sign_to_text_module"
+
+[project.scripts]
+isl-recognize = "src.core.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.flake8]
+max-line-length = 120
+exclude = ["venv", "__pycache__", "*.egg-info", "experimental"]
+per-file-ignores = [
+  "__init__.py:F401",
+]
