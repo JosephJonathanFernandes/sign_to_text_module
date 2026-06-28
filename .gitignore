@@ -28,6 +28,8 @@ pseudo_data/
 processed_negatives/
 processed_del/
 processed_negatives_del/
+dataset.h5
+validation_report.json
 
 # Model weights & checkpoints
 adapter_weights/

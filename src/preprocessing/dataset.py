@@ -57,6 +57,28 @@ class ISLDataset(Dataset):
         self.classes = []    # Sorted list of class names
         self.class_to_idx = {}
 
+        # ── HDF5 Fast-Path Initialization ──
+        self.use_hdf5 = False
+        self.h5_path = os.path.join(os.path.dirname(cfg.paths.processed_dir), "dataset.h5")
+        if os.path.exists(self.h5_path):
+            self.use_hdf5 = True
+            self.h5 = None
+            
+            import json
+            import h5py
+            # Load metadata quickly without keeping file open in main thread
+            with h5py.File(self.h5_path, "r") as f:
+                self.num_samples = f.attrs['sample_count']
+                class_mapping = json.loads(f['class_names'][()])
+                self.classes = [None] * len(class_mapping)
+                for cls_name, idx in class_mapping.items():
+                    self.classes[idx] = cls_name
+                self.class_to_idx = class_mapping
+            
+            print(f"[Dataset] HDF5 loaded: {self.num_samples} samples, {len(self.classes)} classes (augment={self.augment})")
+            return
+
+        # ── Legacy .npy Initialization ──
         # Discover classes and count samples
         class_dirs = sorted([
             d for d in os.listdir(root_dir)
@@ -207,7 +229,15 @@ class ISLDataset(Dataset):
         print(f"[Dataset] Distribution: {dist}")
 
     def __len__(self) -> int:
+        if getattr(self, 'use_hdf5', False):
+            return self.num_samples
         return len(self.samples)
+
+    def _ensure_open(self):
+        """Worker-safe HDF5 file opening."""
+        import h5py
+        if self.h5 is None:
+            self.h5 = h5py.File(self.h5_path, "r")
 
     def __getitem__(self, idx: int):
         """
@@ -220,6 +250,23 @@ class ISLDataset(Dataset):
         """
         import sys
         
+        if getattr(self, 'use_hdf5', False):
+            self._ensure_open()
+            seq = self.h5["features"][idx].copy()
+            label = self.h5["labels"][idx]
+            weight = self.h5["weights"][idx]
+            
+            seq, proximity = self._prepare_sequence(
+                seq,
+                augment=self.augment,
+            )
+
+            seq_t = torch.from_numpy(seq)
+            prox_t = torch.from_numpy(proximity)
+            lbl_t = torch.tensor(label, dtype=torch.long)
+            weight_t = torch.tensor(weight, dtype=torch.float32)
+            return seq_t, prox_t, lbl_t, weight_t
+
         fpath, label, weight = self.samples[idx]
         
         # Try to load the file with error handling

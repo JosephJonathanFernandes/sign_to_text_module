@@ -13,6 +13,7 @@ opencv-python>=4.8.0
 
 # Landmark extraction (Tasks API)
 mediapipe>=0.10.0
+h5py>=3.0.0
 
 # ONNX inference + export
 onnxruntime>=1.16.0
