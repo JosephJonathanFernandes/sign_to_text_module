@@ -2,6 +2,16 @@
 
 **Backend status:** Ready for frontend integration testing.
 
+## 0. Model File Architecture (Who needs what?)
+
+**Clarification:** You **DO NOT** need the PyTorch `.pth` files. 
+
+The architecture is strictly separated:
+- **Frontend (Browser):** You only need the standard Google MediaPipe `.task` files (e.g., `hand_landmarker.task`, `face_landmarker.task`) to run the JS extraction.
+- **Backend (API):** The server holds the `.pth` model and executes the inference. You simply stream the JSON numbers to it and receive text back.
+
+---
+
 ## Required Backend Endpoints
 
 ### 1. Health check
