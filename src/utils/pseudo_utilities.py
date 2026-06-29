@@ -9,7 +9,10 @@ import numpy as np
 from collections import defaultdict
 
 
-def load_pseudo_data(pseudo_data_dir: str = "pseudo_data/") -> dict:
+from src.core.config import get_config
+cfg = get_config()
+
+def load_pseudo_data(pseudo_data_dir: str = cfg.paths.pseudo_data_dir) -> dict:
     """
     Load all pseudo-labeled data from disk.
     
@@ -53,7 +56,7 @@ def load_pseudo_data(pseudo_data_dir: str = "pseudo_data/") -> dict:
     return dict(data)
 
 
-def print_pseudo_data_summary(pseudo_data_dir: str = "pseudo_data/"):
+def print_pseudo_data_summary(pseudo_data_dir: str = cfg.paths.pseudo_data_dir):
     """Print summary of pseudo-labeled data on disk."""
     data = load_pseudo_data(pseudo_data_dir)
     
@@ -179,7 +182,7 @@ def merge_pseudo_datasets(
 
 
 def clean_pseudo_data(
-    pseudo_data_dir: str = "pseudo_data/",
+    pseudo_data_dir: str = cfg.paths.pseudo_data_dir,
     min_sequence_length: int = 10,
     max_sequence_length: int = 300,
 ) -> int:

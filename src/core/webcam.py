@@ -80,7 +80,7 @@ PSEUDO_BUFFER_ENABLED = True  # Toggle pseudo-label collection
 PSEUDO_THRESHOLD = 0.85  # Minimum confidence to collect
 MIN_BUFFER_SIZE = 20  # Minimum samples before auto-save
 PER_CLASS_CAP = 50  # Max samples per class
-PSEUDO_SAVE_DIR = "pseudo_data/"
+PSEUDO_SAVE_DIR = cfg.paths.pseudo_data_dir
 AUTO_SAVE_PSEUDO = True  # Auto-save when MIN_BUFFER_SIZE is reached
 PSEUDO_SAVE_INTERVAL = 50  # Save every N predictions
 
@@ -93,7 +93,7 @@ ADAPTER_HIDDEN_DIM = 128
 ADAPTER_TRAIN_MIN_SAMPLES = cfg.live_inference.adapter_train_min_samples
 ADAPTER_MIN_CLASSES = cfg.live_inference.adapter_min_classes
 ADAPTER_MIN_SAMPLES_PER_CLASS = cfg.live_inference.adapter_min_samples_per_class
-ADAPTER_WEIGHTS_DIR = "adapter_weights/"
+ADAPTER_WEIGHTS_DIR = cfg.paths.adapter_weights_dir
 ADAPTER_TRAINING_INTERVAL = cfg.live_inference.adapter_training_interval
 ADAPTER_POLL_INTERVAL = 50  # Poll adapter_weights/ for new models every N predictions
 ADAPTER_MIN_SAVED_SAMPLES = cfg.live_inference.adapter_min_saved_samples

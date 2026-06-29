@@ -51,7 +51,11 @@ class PathsConfig:
     model_save_path: str = field(default_factory=lambda: os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "..", "..", "models", "model.pth"))
     ensemble_dir: str = field(default_factory=lambda: os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "..", "..", "assets", "ensemble"))
+        os.path.dirname(os.path.abspath(__file__)), "..", "..", "models", "ensemble"))
+    pseudo_data_dir: str = field(default_factory=lambda: os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "..", "assets", "pseudo_data"))
+    adapter_weights_dir: str = field(default_factory=lambda: os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "..", "models", "adapter_weights"))
     hand_landmarker_model: str = field(default_factory=lambda: os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "..", "..", "models", "hand_landmarker.task"))
     face_landmarker_model: str = field(default_factory=lambda: os.path.join(

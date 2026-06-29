@@ -100,8 +100,10 @@ class SentenceBuilder:
         self.prediction_history_window = deque(maxlen=10)  # Track recent predictions for smoothing
         self.idle_frames = 0  # Count frames in idle state
         self.last_transition_frame = -1000  # Frame when last word was added
-        self.min_frame_gap_between_words = 5  # Minimum frames between word additions
-        
+        self.min_frame_gap_between_words = 5  # Minimum frames between different word additions
+        self.same_word_cooldown_frames = 45  # Minimum frames (~1.5s) before allowing identical consecutive word
+        self.separator_seen_since_last_word = False  # Track if a separator was seen since last word
+                
         # ── NLP Post-Processing ──
         self.nlp_processor = NLPPostProcessor(
             grammar_enabled=True,
@@ -174,53 +176,13 @@ class SentenceBuilder:
                 self.frames_since_last_word = 0
         
         # ── Improved Transition Logic ──
-        # Use smoothed prediction for transition detection
+        is_separator = smoothed_pred in ["...", "idle", "__reject__", "__transition__"]
+        
+        if is_separator:
+            self.separator_seen_since_last_word = True
+
         if smoothed_pred != self.current_word:
-            # Ignore transitions from/to idle unless very certain
-            if smoothed_pred == "..." or self.current_word == "...":
-                # Transitioning from/to idle: require more stability
-                min_stability = max(self.stability_frames + 2, 10)
-            else:
-                # Word-to-word transition: normal stability
-                min_stability = self.stability_frames
-
-            is_ambiguous_transition = (
-                confidence_gap is not None and
-                confidence_gap < self.ambiguity_margin_threshold and
-                self.ambiguity_delay_frames > 0
-            )
-            
-            # Finalize previous sign if stable and genuinely different
-            if (self.current_word is not None and 
-                self.current_word != "..." and 
-                self.stability_counter >= min_stability and
-                self.current_word != self.last_added_word):
-
-                if is_ambiguous_transition:
-                    if self.pending_ambiguity_prediction != smoothed_pred:
-                        self.pending_ambiguity_prediction = smoothed_pred
-                        self.ambiguity_delay_counter = 0
-
-                    self.ambiguity_delay_counter += 1
-                    if self.ambiguity_delay_counter < self.ambiguity_delay_frames:
-                        self.transition_ready = False
-                        self.current_confidence = max(self.current_confidence, confidence)
-                        return {
-                            'added_word': added_word,
-                            'completed_sentence': completed_sentence,
-                        }
-                
-                # Enforce minimum frame gap between words
-                frames_since_last = self.total_frames - self.last_word_added_frame
-                if frames_since_last >= self.min_frame_gap_between_words:
-                    added_word = self._add_word(self.current_word)
-                    self.last_added_word = self.current_word
-                    if added_word:
-                        self.last_word_added_frame = self.total_frames
-                        self.frames_since_last_word = 0
-                        self.last_transition_frame = self.total_frames
-            
-            # Start tracking new sign
+            # Prediction changed. Start tracking the new sign.
             self.current_word = smoothed_pred
             self.current_confidence = confidence
             self.stability_counter = 1
@@ -229,17 +191,37 @@ class SentenceBuilder:
             self.ambiguity_delay_counter = 0
             
         else:
-            # Same prediction, increase stability
+            # Prediction is stable.
             self.stability_counter += 1
-            self.current_confidence = max(
-                self.current_confidence, confidence
-            )
+            self.current_confidence = max(self.current_confidence, confidence)
             self.pending_ambiguity_prediction = None
             self.ambiguity_delay_counter = 0
             
-            # Mark as ready to transition when stable enough
-            if self.stability_counter >= self.stability_frames:
+            # Check if we should commit the word
+            if not is_separator and self.stability_counter >= self.stability_frames:
                 self.transition_ready = True
+                
+                # Check for cooldown
+                frames_since_last = self.total_frames - self.last_word_added_frame
+                
+                # Enforce much stricter cooldown for identical consecutive words
+                if self.current_word == self.last_added_word and not self.separator_seen_since_last_word:
+                    required_gap = self.same_word_cooldown_frames
+                else:
+                    required_gap = self.min_frame_gap_between_words
+                
+                if frames_since_last >= required_gap:
+                    added_word = self._add_word(self.current_word)
+                    if added_word:
+                        self.last_added_word = self.current_word
+                        self.last_word_added_frame = self.total_frames
+                        self.frames_since_last_word = 0
+                        self.last_transition_frame = self.total_frames
+                        self.separator_seen_since_last_word = False
+                        
+                        # Reset stability counter to avoid emitting every frame after threshold
+                        # It will require another `stability_frames` + `required_gap` to emit again
+                        self.stability_counter = 0
         
         return {
             'added_word': added_word,
@@ -252,9 +234,8 @@ class SentenceBuilder:
         if not word or word == "...":
             return ""
         
-        # Skip if duplicate of last word
-        if self.words and self.words[-1].lower() == word.lower():
-            return ""
+        # We now rely on the cooldown logic in update() to suppress duplicate words,
+        # so we DO NOT explicitly block duplicates here anymore.
         
         self.words.append(word.upper())
         self.word_history.append(word.upper())
