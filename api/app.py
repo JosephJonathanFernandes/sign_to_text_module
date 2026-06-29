@@ -307,6 +307,13 @@ async def validate_features(request: ValidateFeaturesRequest) -> dict:
     if feat_len not in [253, 506]:
         errors.append(f"Invalid feature length {feat_len}. Expected 253 or 506.")
         dimension_check = False
+        return {
+            "valid": False,
+            "mae": -1.0,
+            "dimension_check": False,
+            "range_check": range_check,
+            "errors": errors,
+        }
 
     # 2. Range Check (Valid normalized coordinates should ideally be in [-3.0, 3.0])
     for idx, val in enumerate(request.features):

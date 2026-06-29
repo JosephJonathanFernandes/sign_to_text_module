@@ -144,7 +144,7 @@ def build_model_from_checkpoint(checkpoint: dict) -> SignLanguageGRU:
 
     if model_kwargs:
         model = SignLanguageGRU(num_classes=num_classes, **model_kwargs)
-        model.load_state_dict(state_dict)
+        model.load_state_dict(state_dict, strict=False)
         model.eval()
         return model
 
@@ -168,7 +168,7 @@ def build_model_from_checkpoint(checkpoint: dict) -> SignLanguageGRU:
         num_layers=num_layers,
         bidirectional=bidirectional,
     )
-    model.load_state_dict(checkpoint["model_state_dict"])
+    model.load_state_dict(checkpoint["model_state_dict"], strict=False)
     model.eval()
     return model
 
@@ -191,7 +191,7 @@ def build_quantized_model_from_bundle(checkpoint: dict) -> SignLanguageGRU:
     if quantized_state is None:
         raise KeyError("Quantized bundle is missing 'quantized_state_dict'")
 
-    model.load_state_dict(quantized_state)
+    model.load_state_dict(quantized_state, strict=False)
     model.eval()
     return model
 

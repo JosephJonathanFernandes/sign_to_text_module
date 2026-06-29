@@ -127,6 +127,8 @@ class ONNXModelWrapper:
         prox_t = torch.from_numpy(proximity).to(self.device)
 
         logits = self.pytorch_model(input_t, prox_t)
+        if isinstance(logits, dict):
+            logits = logits.get("sign_logits", logits.get("logits", logits))
         output = torch.softmax(logits, dim=-1).cpu().detach().numpy()
         return output
 

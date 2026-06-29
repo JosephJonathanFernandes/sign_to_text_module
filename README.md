@@ -61,6 +61,12 @@ bash scripts/setup.sh
 source venv/bin/activate
 ```
 
+**Using UV (Ultra-fast alternative):**
+```bash
+uv sync --extra dev
+# See DOCS/UV_GUIDE.md for full instructions
+```
+
 ### 2. Environment Variables
 Copy the example environment file:
 ```bash

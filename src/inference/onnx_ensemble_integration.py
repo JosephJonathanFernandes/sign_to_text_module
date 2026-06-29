@@ -64,7 +64,7 @@ def load_ensemble_with_onnx(
     current_classes = sorted([
         d for d in os.listdir(PROCESSED_DIR)
         if os.path.isdir(os.path.join(PROCESSED_DIR, d))
-    ])
+    ]) if os.path.exists(PROCESSED_DIR) else []
 
     search_roots = [ENSEMBLE_DIR, cfg.paths.base_dir]
     print("[ONNX Ensemble] Scanning roots:")

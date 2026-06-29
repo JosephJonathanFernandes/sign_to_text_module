@@ -49,6 +49,8 @@ class EnsembleModel:
     def _infer_pytorch(self, tensor: torch.Tensor, proximity: Optional[torch.Tensor] = None) -> np.ndarray:
         """PyTorch inference."""
         logits = self.model(tensor, proximity=proximity)
+        if isinstance(logits, dict):
+            logits = logits.get("sign_logits", logits.get("logits", logits))
         return logits.cpu().detach().numpy()[0]
 
     def _infer_onnx(self, tensor: torch.Tensor, proximity: Optional[torch.Tensor] = None) -> np.ndarray:

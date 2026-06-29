@@ -48,8 +48,11 @@ def client(mock_classes):
     mock_model = MagicMock()
     app.state.models = [mock_model]
 
-    with TestClient(app, raise_server_exceptions=False) as c:
-        yield c
+    with patch("api.app.load_ensemble", return_value=([mock_model], mock_classes, len(mock_classes))), \
+         patch("api.app.ensemble_predict", return_value=(np.zeros((1, len(mock_classes))), np.zeros((1, len(mock_classes))))):
+        with TestClient(app, raise_server_exceptions=False) as c:
+            yield c
+
 
 
 class TestHealthEndpoint:

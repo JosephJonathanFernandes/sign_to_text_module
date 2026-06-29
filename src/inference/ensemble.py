@@ -94,7 +94,7 @@ def load_ensemble(model_artifact_path: str | None = None):
     current_classes = sorted([
         d for d in os.listdir(PROCESSED_DIR)
         if os.path.isdir(os.path.join(PROCESSED_DIR, d))
-    ])
+    ]) if os.path.exists(PROCESSED_DIR) else []
 
     if model_artifact_path:
         model, classes, num_classes, _, _ = load_model_artifact(model_artifact_path, map_location="cpu")
@@ -128,7 +128,7 @@ def load_ensemble(model_artifact_path: str | None = None):
 
             # Skip stale folds that don't match current processed classes
             if ckpt_classes is not None:
-                if sorted(ckpt_classes) != current_classes:
+                if current_classes and sorted(ckpt_classes) != current_classes:
                     logger.warning(
                         "stale_fold_skipped",
                         extra={
@@ -160,8 +160,9 @@ def load_ensemble(model_artifact_path: str | None = None):
     if os.path.exists(MODEL_SAVE_PATH):
         model, classes, num_classes, _, ckpt = load_model_artifact(MODEL_SAVE_PATH, map_location="cpu")
         model.eval()
-        if classes is None or sorted(classes) != current_classes:
-            classes = current_classes
+        if classes is None or (current_classes and sorted(classes) != current_classes):
+            if current_classes:
+                classes = current_classes
         logger.info(
             "fallback_model_loaded",
             extra={
@@ -221,7 +222,7 @@ def load_merged_ensemble_10_2():
         current_classes = sorted([
             d for d in os.listdir(PROCESSED_DIR)
             if os.path.isdir(os.path.join(PROCESSED_DIR, d))
-        ])
+        ]) if os.path.exists(PROCESSED_DIR) else []
         classes = current_classes
     
     if not main_models and not fallback_models:
@@ -297,6 +298,8 @@ def ensemble_predict(
         for model in models:
             t_fwd_start = time.time()
             logits = model(tensor, proximity=proximity)
+            if isinstance(logits, dict):
+                logits = logits.get("sign_logits", logits.get("logits", logits))
             t_fwd_end = time.time()
             t_model_forward += (t_fwd_end - t_fwd_start)
             

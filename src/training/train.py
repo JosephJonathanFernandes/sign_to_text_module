@@ -668,7 +668,7 @@ def train(
     if pretrained_checkpoint and os.path.exists(pretrained_checkpoint):
         try:
             ck = torch.load(pretrained_checkpoint, map_location=DEVICE)
-            model.load_state_dict(ck.get("model_state_dict", ck))
+            model.load_state_dict(ck.get("model_state_dict", ck), strict=False)
             print(f"[Train] Loaded weights from: {pretrained_checkpoint}")
         except Exception as e:
             print(f"[Train] Warning: failed to load checkpoint {pretrained_checkpoint}: {e}")
@@ -812,7 +812,7 @@ def train(
         map_location=DEVICE,
         weights_only=False,
     )
-    model.load_state_dict(ckpt["model_state_dict"])
+    model.load_state_dict(ckpt["model_state_dict"], strict=False)
 
     return model
 
