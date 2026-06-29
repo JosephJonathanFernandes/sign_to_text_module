@@ -18,7 +18,7 @@ import torch.nn.functional as F
 import time
 import logging
 
-from config import get_config
+from src.core.config import get_config
 from src.utils.quantization_utils import load_model_artifact
 
 logger = logging.getLogger("sign_to_text.ensemble")
@@ -302,6 +302,8 @@ def ensemble_predict(
             
             # OPTIMIZATION: Store logits, not softmax probabilities
             # This saves softmax computation when averaging across models/TTA rounds
+            if isinstance(logits, dict):
+                logits = logits['sign_logits']
             all_logits.append(logits.cpu().detach().numpy()[0])
             num_forward_passes += 1
 

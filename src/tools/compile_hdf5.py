@@ -7,7 +7,7 @@ import numpy as np
 import h5py
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-from config import get_config
+from src.core.config import get_config
 
 def get_dir_hash(directory):
     """Compute a lightweight hash based on file names, sizes, and modification times."""

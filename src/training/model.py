@@ -7,7 +7,7 @@ and optional face-proximity biased attention.
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from config import get_config
+from src.core.config import get_config
 
 
 class GradientReversalLayer(torch.autograd.Function):

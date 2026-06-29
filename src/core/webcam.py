@@ -27,7 +27,7 @@ import threading
 
 from src.utils.profiling import get_profiler, profile_section, start_frame, end_frame, record_inference
 
-from config import get_config
+from src.core.config import get_config
 from src.inference.pseudo_buffer import PseudoLabelBuffer
 from src.training.adapter_model import AdapterModel, AdapterTrainer
 from src.training.adapter_training import AdapterTrainingManager
@@ -57,7 +57,7 @@ DYNAMIC_THRESHOLD_MIN = cfg.motion.dynamic_threshold_min
 TRANSITION_HYSTERESIS = cfg.inference.transition_hysteresis
 AMBIGUITY_MARGIN_THRESHOLD = cfg.inference.ambiguity_margin_threshold
 AMBIGUITY_DELAY_FRAMES = cfg.inference.ambiguity_delay_frames
-TRANSITION_MOVEMENT_THRESHOLD = 0.02
+TRANSITION_MOVEMENT_THRESHOLD = 0.06
 TRANSITION_STABLE_FRAMES = 3
 
 # ════════════════════════════════════════════════════════════════════════════════════
@@ -448,7 +448,8 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
     hand_cache = {}  # Cache hand landmarks between detection frames
     face_cache = {}  # Cache face landmarks between frames
     frame_idx = 0
-    sequence_buffer = deque(maxlen=NUM_FRAMES)
+    # Increase sequence buffer to capture a wider time window (e.g. 60 frames for 2s at 30fps)
+    sequence_buffer = deque(maxlen=NUM_FRAMES * 3)
     prediction_history = deque(maxlen=PREDICTION_SMOOTHING_WINDOW)
     prediction_text = "Show a sign"
     confidence_text = ""
@@ -1128,11 +1129,15 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
         # ─────────────────────────────────────────────────────────────────────────
         # [SECTION 4] Model Inference (triggered when buffer is full)
         # ─────────────────────────────────────────────────────────────────────────
-        if valid_for_prediction and len(sequence_buffer) == NUM_FRAMES:
+        if valid_for_prediction and len(sequence_buffer) >= NUM_FRAMES:
             record_inference()  # Record that an inference occurred
             
             with profile_section("preprocessing"):
-                seq = np.array(sequence_buffer, dtype=np.float32)
+                # Sample NUM_FRAMES evenly from the current buffer
+                full_buffer = np.array(sequence_buffer, dtype=np.float32)
+                indices = np.linspace(0, len(full_buffer) - 1, NUM_FRAMES, dtype=int)
+                seq = full_buffer[indices]
+
                 with profile_section("normalization"):
                     seq = _normalize_landmarks(seq)
                 

@@ -21,7 +21,7 @@ from typing import List, Optional
 import numpy as np
 from scipy import interpolate
 
-from config import get_config
+from src.core.config import get_config
 
 cfg = get_config()
 

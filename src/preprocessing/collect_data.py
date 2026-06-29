@@ -22,7 +22,7 @@ import time
 import numpy as np
 import mediapipe as mp
 
-from config import get_config
+from src.core.config import get_config
 from src.utils.pipeline_logger import PipelineLogger
 
 cfg = get_config()

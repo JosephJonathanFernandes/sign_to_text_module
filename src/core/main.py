@@ -121,7 +121,7 @@ def run_train_word(
 ):
     """Train single word model."""
     """Train single word model."""
-    from config import get_config
+    from src.core.config import get_config
 
     cfg = get_config()
     PROCESSED_DIR = cfg.paths.processed_dir
@@ -256,7 +256,7 @@ def run_kfold_word(
     Args:
         neg_root: optional path to negatives root to include during K-fold training
     """
-    from config import get_config
+    from src.core.config import get_config
 
     cfg = get_config()
     PROCESSED_DIR = cfg.paths.processed_dir
@@ -390,7 +390,7 @@ def run_predict_word(video_path: str, model_artifact_path: str | None = None):
 
 
 def _default_quantized_model_path() -> str:
-    from config import MODEL_SAVE_PATH
+    from src.core.config import MODEL_SAVE_PATH
 
     model_path = Path(MODEL_SAVE_PATH)
     return str(model_path.with_name(f"{model_path.stem}_quantized.pt"))

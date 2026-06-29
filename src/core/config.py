@@ -13,7 +13,7 @@ logical sections: Paths, Feature Dimensions, Model Architecture, Training, Infer
 - **Research-Grade**: CONFIG_VERSION tracks changes, DEBUG mode aids development
 
 ## Usage
-    from config import get_config
+    from src.core.config import get_config
     cfg = get_config()
     print(cfg.summary())  # Print dimension breakdown
     cfg.validate()        # Validate consistency (auto-called at module load)

@@ -24,7 +24,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from config import get_config
+from src.core.config import get_config
 from src.training.model import SignLanguageGRU
 
 cfg = get_config()
@@ -144,7 +144,7 @@ def build_model_from_checkpoint(checkpoint: dict) -> SignLanguageGRU:
 
     if model_kwargs:
         model = SignLanguageGRU(num_classes=num_classes, **model_kwargs)
-        model.load_state_dict(state_dict)
+        model.load_state_dict(state_dict, strict=False)
         model.eval()
         return model
 
@@ -168,7 +168,7 @@ def build_model_from_checkpoint(checkpoint: dict) -> SignLanguageGRU:
         num_layers=num_layers,
         bidirectional=bidirectional,
     )
-    model.load_state_dict(checkpoint["model_state_dict"])
+    model.load_state_dict(checkpoint["model_state_dict"], strict=False)
     model.eval()
     return model
 

@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader, Dataset
 # Adjust paths to allow imports if run directly from src
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from config import get_config
+from src.core.config import get_config
 cfg = get_config()
 
 # Monkey-patch config to save the continuous model in a separate file
@@ -23,8 +23,8 @@ from src.training.train import (
     _disjoint_stratified_split
 )
 from src.preprocessing.dataset import ISLDataset
-from src.augmentations.boundary_noise import apply_boundary_noise
-from src.augmentations.transition_generator import generate_transition_dataset
+from src.augmentations1.boundary_noise import apply_boundary_noise
+from src.augmentations1.transition_generator import generate_transition_dataset
 from src.config.continuous_signing import (
     BOUNDARY_NOISE_PROB,
     BOUNDARY_EDGE_FRAMES,

@@ -9,7 +9,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from config import get_config
+from src.core.config import get_config
 
 cfg = get_config()
 

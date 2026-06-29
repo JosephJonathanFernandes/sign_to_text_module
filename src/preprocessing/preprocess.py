@@ -23,7 +23,7 @@ from mediapipe.tasks.python.vision import (
     FaceLandmarkerOptions,
     RunningMode,
 )
-from config import get_config
+from src.core.config import get_config
 
 cfg = get_config()
 

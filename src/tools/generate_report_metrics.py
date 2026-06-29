@@ -9,7 +9,7 @@ import json
 import h5py
 
 sys.path.insert(0, str(Path.cwd()))
-from config import get_config
+from src.core.config import get_config
 from src.preprocessing.dataset import ISLDataset
 from src.training.model import SignLanguageGRU
 from collections import defaultdict
