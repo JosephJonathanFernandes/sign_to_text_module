@@ -3,10 +3,14 @@
 This repository contains the full pipeline for the ISL Sign-to-Text Recognition system. The core approach utilizes a BiGRU neural network trained on MediaPipe hand/face landmarks extracted from video inputs.
 
 ### Folder Structure
-* `api/` – Scripts for running the system as an API server.
-* `assets/` – Static files and resources.
+* `api/` – Scripts for running the system as an API server (FastAPI).
+* `assets/` – Static files and resources (compiled models and HDF5 datasets).
 * `data/` – Usually contains the raw video datasets (may need to be created manually if `.gitignore` is used).
+* `docs/` – Technical documentation and architecture diagrams.
+* `experimental/` – Experimental scripts and notebooks.
+* `logs/` – Execution and training logs.
 * `models/` – Contains saved PyTorch checkpoints and ONNX model files.
+* `pseudo_data/` – Synthetic or temporary data storage.
 * `scripts/` – Utility scripts for augmentations, quantization, evaluation, and exporting.
 * `src/` – The core application codebase.
   * `src/augmentations/` – Specialized scripts for continuous sign training data generation (`boundary_noise.py`, `transition_generator.py`).
@@ -14,10 +18,13 @@ This repository contains the full pipeline for the ISL Sign-to-Text Recognition 
   * `src/core/` – Central logic, model configuration, and pipeline integrations. `main.py` here handles parsing CLI arguments.
   * `src/inference/` – Post-processing, ensemble logic, ONNX loading.
   * `src/preprocessing/` – MediaPipe landmark extraction, data loaders, cleaning.
+  * `src/shared/` – Shared utilities and feature extractors.
+  * `src/tools/` – Development utilities inside the source package.
   * `src/training/` – Model architecture (`model.py`), loss functions, training loops.
   * `src/ui/` – Any UI components.
   * `src/utils/` – Logging and helpers.
-* `tests/` – Unit tests for the pipeline.
+* `tests/` – Unit, API, integration, and e2e test suites.
+* `tools/` – Root-level development and CI utilities.
 * `venv/` – Python Virtual Environment.
 
 ### Data Flow Through The Project
@@ -195,7 +202,25 @@ Data augmentation generates synthetic variation to improve model robustness.
 
 ---
 
-# 8. Live Inference Commands
+# 8. Testing Commands
+
+The project uses `pytest` for running unit, API, integration, and end-to-end tests.
+
+### Run Unit Tests
+**Command:** `pytest tests/unit/`
+**Purpose:** Run lightweight unit tests that don't depend on network or model files.
+
+### Run API Tests
+**Command:** `pytest tests/api/`
+**Purpose:** Run tests for API endpoint schemas (uses mocked models).
+
+### Run All Tests with Coverage
+**Command:** `pytest tests/ -v --cov=src --cov=api`
+**Purpose:** Execute the entire test suite and generate a coverage report for the `src` and `api` directories.
+
+---
+
+# 9. Live Inference Commands
 
 ### Webcam Inference (Standard)
 **Command:** `python main.py --webcam`
@@ -208,7 +233,7 @@ Data augmentation generates synthetic variation to improve model robustness.
 
 ---
 
-# 9. Continuous Signing Extension Commands
+# 10. Continuous Signing Extension Commands
 
 The continuous extension generates synthetic "transition" noise and boundary frames to help the model ignore the space between signs.
 
@@ -229,7 +254,7 @@ python src\train_continuous.py
 
 ---
 
-# 10. Full Beginner Workflow
+# 11. Full Beginner Workflow
 
 If you just cloned the repository and want to train and test a model from scratch:
 
@@ -268,7 +293,7 @@ python main.py --webcam
 
 ---
 
-# 11. Common Errors + Fixes
+# 12. Common Errors + Fixes
 
 **Error:** `ModuleNotFoundError: No module named 'src'`
 **Cause:** Attempting to run a script inside a subfolder (like `src/augmentations/`) where python cannot resolve the root package structure.
@@ -288,7 +313,7 @@ python main.py --webcam
 
 ---
 
-# 12. Quick Cheat Sheet
+# 13. Quick Cheat Sheet
 
 **SETUP**
 ```powershell
@@ -310,6 +335,12 @@ python main.py --kfold
 python main.py --augment-landmarks
 python main.py --merge
 python scripts\augment_pipeline.py
+```
+
+**TESTING**
+```powershell
+pytest tests/unit/
+pytest tests/ -v --cov=src --cov=api
 ```
 
 **EVALUATE**
