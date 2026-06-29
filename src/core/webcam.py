@@ -112,6 +112,7 @@ from src.preprocessing.preprocess import (
 from src.inference.sentence_builder import SentenceBuilder
 from src.inference.temporal_postprocessor import TemporalPostProcessor
 from src.inference.hand_selector import HandSelector
+from src.config.continuous_signing import HYSTERESIS_MARGIN, COMMIT_THRESHOLD
 
 from src.core.camera_manager import CameraThread
 from src.core.inference_engine import PredictionMomentum
@@ -469,7 +470,7 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
     
     # ── Sentence Builder (continuous translation) ──
     sentence_builder = SentenceBuilder(
-        confidence_threshold=CONFIDENCE_THRESHOLD,
+        confidence_threshold=COMMIT_THRESHOLD,
         stability_frames=6,  # Reduced from 12 for faster response (~0.2s at 30fps)
         ambiguity_margin_threshold=AMBIGUITY_MARGIN_THRESHOLD,
         ambiguity_delay_frames=AMBIGUITY_DELAY_FRAMES,
@@ -483,7 +484,7 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
             temporal_postprocessor = TemporalPostProcessor(
                 window_size=LIVE_TEMPORAL_WINDOW,
                 patience=LIVE_TEMPORAL_PATIENCE,
-                delta=LIVE_TEMPORAL_DELTA,
+                delta=HYSTERESIS_MARGIN,
                 enable_decay=True,
                 decay_factor=LIVE_TEMPORAL_DECAY,
             )
@@ -1173,6 +1174,7 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
                     print(f"[ERROR] Inference failed: {e}")
                     idx = -1
                     conf = 0.0
+                    classes = word_classes or []
                     probs = np.zeros(len(classes)) if classes else []
                     predicted = "ERROR"
                     result = {
@@ -1193,7 +1195,7 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
                 confidence_gap = float(top_two[1] - top_two[0])
             
             with profile_section("temporal_smoothing"):
-                if temporal_postprocessor_enabled:
+                if temporal_postprocessor_enabled and len(probs_array) > 0:
                     # Use smooth_raw_prediction for confidence smoothing ONLY (no class lock)
                     # This allows the existing prediction_history smoothing to work properly
                     idx, conf = temporal_postprocessor.smooth_raw_prediction(probs_array)
@@ -1227,9 +1229,10 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
             
             # Debug: Log confidence details for low-confidence predictions
             if conf < 0.15:
+                top_prob = float(np.max(probs)) if len(probs) > 0 else 0.0
                 print(f"[DEBUG] Low confidence: word={predicted}, conf={conf:.4f} ({conf:.1%}), "
                       f"ensemble_conf={result['confidence']:.4f}, "
-                      f"top_prob={np.max(probs):.4f}, threshold={effective_threshold:.4f}")
+                      f"top_prob={top_prob:.4f}, threshold={effective_threshold:.4f}")
             
             # ── Motion Gating ──
             motion_gated = is_motion_gating_active(motion_magnitude, frames_in_motion, MOTION_GATING_ENABLED, MOTION_THRESHOLD)
