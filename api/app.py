@@ -336,14 +336,18 @@ async def validate_features(request: ValidateFeaturesRequest) -> dict:
         }
 
     # Compare only the first 253 features (ignore velocity for this frame-by-frame check)
-    incoming = np.array(request.features[:253], dtype=np.float32)
-    difference = float(np.mean(np.abs(reference - incoming)))
-    
-    mae_tolerance = 1e-5
-    valid = difference < mae_tolerance and dimension_check and range_check
+    if not dimension_check:
+        difference = -1.0
+        valid = False
+    else:
+        incoming = np.array(request.features[:253], dtype=np.float32)
+        difference = float(np.mean(np.abs(reference - incoming)))
+        
+        mae_tolerance = 1e-5
+        valid = difference < mae_tolerance and range_check
 
-    if not valid and difference >= mae_tolerance:
-        errors.append(f"MAE {difference:.6f} exceeds tolerance {mae_tolerance}")
+        if not valid and difference >= mae_tolerance:
+            errors.append(f"MAE {difference:.6f} exceeds tolerance {mae_tolerance}")
 
     return {
         "valid": valid,
