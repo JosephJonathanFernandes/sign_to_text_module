@@ -13,7 +13,7 @@ import os
 import sys
 import json
 import argparse
-from config import get_config
+from src.core.config import get_config
 from src.utils.pipeline_logger import setup_pipeline_logger
 
 

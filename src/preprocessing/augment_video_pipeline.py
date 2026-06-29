@@ -22,7 +22,7 @@ Usage:
 import argparse
 import sys
 import os
-from config import get_config
+from src.core.config import get_config
 from src.preprocessing.preprocess import augment_video_dataset
 from src.utils.pipeline_logger import setup_pipeline_logger
 
