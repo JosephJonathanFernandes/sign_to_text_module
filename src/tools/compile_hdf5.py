@@ -70,12 +70,12 @@ def compile_hdf5():
     domains_list_str = []
     
     def _get_domain_idx(filename: str) -> int:
-        if filename.startswith("webcam_") or filename.startswith("MVI_") or filename.startswith("cvae_"):
-            parts = filename.split("_")
-            if len(parts) >= 2:
-                d_str = f"{parts[0]}_{parts[1]}"
-            else:
-                d_str = "unknown"
+        if filename.startswith("webcam_"):
+            d_str = "webcam"
+        elif filename.startswith("MVI_"):
+            d_str = "MVI"
+        elif filename.startswith("cvae_"):
+            d_str = "cvae"
         else:
             d_str = "unknown"
             
