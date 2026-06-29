@@ -1,0 +1,534 @@
+{
+  "0": {
+    "hand_count_confidence": 0.53,
+    "movement_confidence": 0.4,
+    "location_confidence": 0.64,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.53
+  },
+  "1": {
+    "hand_count_confidence": 0.87,
+    "movement_confidence": 0.37,
+    "location_confidence": 0.88,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.87
+  },
+  "2": {
+    "hand_count_confidence": 0.84,
+    "movement_confidence": 0.47,
+    "location_confidence": 0.82,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.84
+  },
+  "alive": {
+    "hand_count_confidence": 0.82,
+    "movement_confidence": 0.77,
+    "location_confidence": 0.56,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.82
+  },
+  "alright": {
+    "hand_count_confidence": 1.0,
+    "movement_confidence": 0.82,
+    "location_confidence": 0.99,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.94
+  },
+  "bad": {
+    "hand_count_confidence": 0.51,
+    "movement_confidence": 0.93,
+    "location_confidence": 0.63,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.51
+  },
+  "beautiful": {
+    "hand_count_confidence": 0.77,
+    "movement_confidence": 0.51,
+    "location_confidence": 0.61,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.77
+  },
+  "big_large": {
+    "hand_count_confidence": 0.54,
+    "movement_confidence": 0.66,
+    "location_confidence": 0.56,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.54
+  },
+  "blind": {
+    "hand_count_confidence": 0.74,
+    "movement_confidence": 0.64,
+    "location_confidence": 0.75,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.74
+  },
+  "cheap": {
+    "hand_count_confidence": 0.78,
+    "movement_confidence": 0.72,
+    "location_confidence": 0.54,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.78
+  },
+  "clean": {
+    "hand_count_confidence": 0.6,
+    "movement_confidence": 0.97,
+    "location_confidence": 0.83,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.6
+  },
+  "cold": {
+    "hand_count_confidence": 0.71,
+    "movement_confidence": 0.58,
+    "location_confidence": 0.55,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.71
+  },
+  "cool": {
+    "hand_count_confidence": 0.52,
+    "movement_confidence": 0.91,
+    "location_confidence": 0.75,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.52
+  },
+  "curved": {
+    "hand_count_confidence": 0.62,
+    "movement_confidence": 0.86,
+    "location_confidence": 0.47,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.62
+  },
+  "dead": {
+    "hand_count_confidence": 0.59,
+    "movement_confidence": 0.56,
+    "location_confidence": 0.47,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.59
+  },
+  "deaf": {
+    "hand_count_confidence": 0.65,
+    "movement_confidence": 0.59,
+    "location_confidence": 0.52,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.65
+  },
+  "deep": {
+    "hand_count_confidence": 0.81,
+    "movement_confidence": 0.89,
+    "location_confidence": 0.55,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.81
+  },
+  "dirty": {
+    "hand_count_confidence": 0.82,
+    "movement_confidence": 0.99,
+    "location_confidence": 0.81,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.82
+  },
+  "dry": {
+    "hand_count_confidence": 0.76,
+    "movement_confidence": 0.95,
+    "location_confidence": 0.7,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.75
+  },
+  "expensive": {
+    "hand_count_confidence": 0.79,
+    "movement_confidence": 0.65,
+    "location_confidence": 0.7,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.79
+  },
+  "famous": {
+    "hand_count_confidence": 0.57,
+    "movement_confidence": 0.88,
+    "location_confidence": 0.75,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.57
+  },
+  "fast": {
+    "hand_count_confidence": 0.51,
+    "movement_confidence": 0.59,
+    "location_confidence": 0.51,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.51
+  },
+  "female": {
+    "hand_count_confidence": 0.71,
+    "movement_confidence": 0.41,
+    "location_confidence": 0.53,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.71
+  },
+  "flat": {
+    "hand_count_confidence": 0.65,
+    "movement_confidence": 0.5,
+    "location_confidence": 0.59,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.65
+  },
+  "happy": {
+    "hand_count_confidence": 0.55,
+    "movement_confidence": 0.53,
+    "location_confidence": 0.64,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.55
+  },
+  "hard": {
+    "hand_count_confidence": 0.52,
+    "movement_confidence": 0.76,
+    "location_confidence": 0.74,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.49
+  },
+  "he": {
+    "hand_count_confidence": 0.57,
+    "movement_confidence": 0.96,
+    "location_confidence": 0.96,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.57
+  },
+  "healthy": {
+    "hand_count_confidence": 0.71,
+    "movement_confidence": 0.91,
+    "location_confidence": 0.55,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.71
+  },
+  "heavy": {
+    "hand_count_confidence": 0.52,
+    "movement_confidence": 0.78,
+    "location_confidence": 0.67,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.52
+  },
+  "hello": {
+    "hand_count_confidence": 0.56,
+    "movement_confidence": 0.87,
+    "location_confidence": 0.67,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.55
+  },
+  "high": {
+    "hand_count_confidence": 0.74,
+    "movement_confidence": 0.93,
+    "location_confidence": 0.64,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.73
+  },
+  "hot": {
+    "hand_count_confidence": 0.51,
+    "movement_confidence": 0.79,
+    "location_confidence": 0.52,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.51
+  },
+  "how_are_you": {
+    "hand_count_confidence": 0.96,
+    "movement_confidence": 1.0,
+    "location_confidence": 0.83,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.96
+  },
+  "i": {
+    "hand_count_confidence": 0.55,
+    "movement_confidence": 0.9,
+    "location_confidence": 0.51,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.55
+  },
+  "idle": {
+    "hand_count_confidence": 0.98,
+    "movement_confidence": 0.58,
+    "location_confidence": 0.99,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.93
+  },
+  "it": {
+    "hand_count_confidence": 0.52,
+    "movement_confidence": 0.76,
+    "location_confidence": 0.63,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.52
+  },
+  "light": {
+    "hand_count_confidence": 0.51,
+    "movement_confidence": 0.76,
+    "location_confidence": 0.85,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.51
+  },
+  "long": {
+    "hand_count_confidence": 0.59,
+    "movement_confidence": 0.74,
+    "location_confidence": 0.62,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.58
+  },
+  "loose": {
+    "hand_count_confidence": 0.53,
+    "movement_confidence": 0.83,
+    "location_confidence": 0.69,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.53
+  },
+  "loud": {
+    "hand_count_confidence": 0.62,
+    "movement_confidence": 0.81,
+    "location_confidence": 0.85,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.61
+  },
+  "low": {
+    "hand_count_confidence": 0.65,
+    "movement_confidence": 0.85,
+    "location_confidence": 0.52,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.65
+  },
+  "male": {
+    "hand_count_confidence": 0.53,
+    "movement_confidence": 0.73,
+    "location_confidence": 0.91,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.49
+  },
+  "mean": {
+    "hand_count_confidence": 0.6,
+    "movement_confidence": 0.52,
+    "location_confidence": 0.5,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.6
+  },
+  "morning": {
+    "hand_count_confidence": 0.65,
+    "movement_confidence": 0.48,
+    "location_confidence": 0.56,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.65
+  },
+  "narrow": {
+    "hand_count_confidence": 0.59,
+    "movement_confidence": 0.86,
+    "location_confidence": 0.63,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.59
+  },
+  "new": {
+    "hand_count_confidence": 0.52,
+    "movement_confidence": 0.9,
+    "location_confidence": 0.54,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.52
+  },
+  "nice": {
+    "hand_count_confidence": 0.77,
+    "movement_confidence": 0.46,
+    "location_confidence": 0.65,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.77
+  },
+  "old": {
+    "hand_count_confidence": 0.51,
+    "movement_confidence": 0.91,
+    "location_confidence": 0.72,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.51
+  },
+  "pleased": {
+    "hand_count_confidence": 0.6,
+    "movement_confidence": 0.55,
+    "location_confidence": 0.5,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.6
+  },
+  "poor": {
+    "hand_count_confidence": 0.55,
+    "movement_confidence": 0.63,
+    "location_confidence": 0.46,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.55
+  },
+  "quiet": {
+    "hand_count_confidence": 0.62,
+    "movement_confidence": 0.38,
+    "location_confidence": 0.62,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.62
+  },
+  "rich": {
+    "hand_count_confidence": 0.74,
+    "movement_confidence": 0.91,
+    "location_confidence": 0.76,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.74
+  },
+  "sad": {
+    "hand_count_confidence": 0.58,
+    "movement_confidence": 0.52,
+    "location_confidence": 0.56,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.58
+  },
+  "shallow": {
+    "hand_count_confidence": 0.66,
+    "movement_confidence": 0.95,
+    "location_confidence": 0.77,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.66
+  },
+  "she": {
+    "hand_count_confidence": 0.54,
+    "movement_confidence": 0.9,
+    "location_confidence": 0.74,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.54
+  },
+  "short": {
+    "hand_count_confidence": 0.89,
+    "movement_confidence": 0.94,
+    "location_confidence": 0.74,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.89
+  },
+  "sick": {
+    "hand_count_confidence": 0.82,
+    "movement_confidence": 0.76,
+    "location_confidence": 0.58,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.81
+  },
+  "slow": {
+    "hand_count_confidence": 0.53,
+    "movement_confidence": 0.7,
+    "location_confidence": 0.63,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.53
+  },
+  "small_little": {
+    "hand_count_confidence": 0.61,
+    "movement_confidence": 0.72,
+    "location_confidence": 0.5,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.61
+  },
+  "soft": {
+    "hand_count_confidence": 0.97,
+    "movement_confidence": 0.98,
+    "location_confidence": 0.86,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.96
+  },
+  "strong": {
+    "hand_count_confidence": 0.57,
+    "movement_confidence": 0.61,
+    "location_confidence": 0.5,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.57
+  },
+  "tall": {
+    "hand_count_confidence": 0.52,
+    "movement_confidence": 0.73,
+    "location_confidence": 0.38,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.52
+  },
+  "thank_you": {
+    "hand_count_confidence": 0.5,
+    "movement_confidence": 0.71,
+    "location_confidence": 0.78,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.5
+  },
+  "they": {
+    "hand_count_confidence": 0.52,
+    "movement_confidence": 0.9,
+    "location_confidence": 0.63,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.52
+  },
+  "thick": {
+    "hand_count_confidence": 0.64,
+    "movement_confidence": 0.67,
+    "location_confidence": 0.54,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.64
+  },
+  "thin": {
+    "hand_count_confidence": 0.74,
+    "movement_confidence": 0.61,
+    "location_confidence": 0.47,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.74
+  },
+  "tight": {
+    "hand_count_confidence": 0.56,
+    "movement_confidence": 0.85,
+    "location_confidence": 0.74,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.56
+  },
+  "ugly": {
+    "hand_count_confidence": 0.67,
+    "movement_confidence": 0.5,
+    "location_confidence": 0.53,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.67
+  },
+  "warm": {
+    "hand_count_confidence": 0.54,
+    "movement_confidence": 0.85,
+    "location_confidence": 0.44,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.54
+  },
+  "we": {
+    "hand_count_confidence": 0.51,
+    "movement_confidence": 0.87,
+    "location_confidence": 0.54,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.51
+  },
+  "weak": {
+    "hand_count_confidence": 0.54,
+    "movement_confidence": 0.86,
+    "location_confidence": 0.85,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.54
+  },
+  "wet": {
+    "hand_count_confidence": 0.59,
+    "movement_confidence": 0.95,
+    "location_confidence": 0.79,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.59
+  },
+  "wide": {
+    "hand_count_confidence": 0.52,
+    "movement_confidence": 0.75,
+    "location_confidence": 0.44,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.52
+  },
+  "you": {
+    "hand_count_confidence": 0.6,
+    "movement_confidence": 0.89,
+    "location_confidence": 0.53,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.6
+  },
+  "young": {
+    "hand_count_confidence": 0.63,
+    "movement_confidence": 0.85,
+    "location_confidence": 0.56,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.63
+  },
+  "you_all": {
+    "hand_count_confidence": 0.55,
+    "movement_confidence": 0.86,
+    "location_confidence": 0.65,
+    "orientation_confidence": 1.0,
+    "symmetry_confidence": 0.54
+  }
+}

@@ -1,257 +1,537 @@
 {
-  "description": "Verified hand-based sign classification mapping for ISL vocabulary.",
-  "axes": {
-    "hand_count": {
-      "one_hand": [
-        "0",
-        "1",
-        "2",
-        "bad",
-        "beautiful",
-        "deaf",
-        "dry",
-        "female",
-        "he",
-        "high",
-        "hot",
-        "i",
-        "it",
-        "low",
-        "male",
-        "mean",
-        "old",
-        "poor",
-        "quiet",
-        "sad",
-        "she",
-        "short",
-        "sick",
-        "tall",
-        "they",
-        "thin",
-        "ugly",
-        "warm",
-        "we",
-        "you",
-        "you_all",
-        "young",
-        "blind"
-      ],
-      "two_hands": [
-        "thank_you",
-        "loud",
-        "alive",
-        "alright",
-        "big_large",
-        "cheap",
-        "clean",
-        "cold",
-        "cool",
-        "curved",
-        "dead",
-        "deep",
-        "dirty",
-        "expensive",
-        "famous",
-        "fast",
-        "flat",
-        "happy",
-        "hard",
-        "healthy",
-        "heavy",
-        "hello",
-        "how_are_you",
-        "idle",
-        "light",
-        "long",
-        "loose",
-        "morning",
-        "narrow",
-        "new",
-        "nice",
-        "pleased",
-        "rich",
-        "shallow",
-        "slow",
-        "small_little",
-        "soft",
-        "strong",
-        "thick",
-        "tight",
-        "weak",
-        "wet",
-        "wide"
-      ]
+  "description": "ISL classification generated from dataset observations",
+  "signs": {
+    "0": {
+      "hand_count": "one_hand",
+      "movement": "small_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
     },
-    "movement": {
-      "static_hold": [
-        "0",
-        "1",
-        "2",
-        "blind",
-        "female",
-        "he",
-        "high",
-        "i",
-        "idle",
-        "it",
-        "low",
-        "male",
-        "quiet",
-        "she",
-        "short",
-        "tall",
-        "you"
-      ],
-      "small_motion": [
-        "alive",
-        "bad",
-        "cold",
-        "cool",
-        "deaf",
-        "dry",
-        "hard",
-        "hot",
-        "loose",
-        "mean",
-        "narrow",
-        "new",
-        "nice",
-        "old",
-        "poor",
-        "sad",
-        "sick",
-        "slow",
-        "small_little",
-        "soft",
-        "thin",
-        "tight",
-        "warm",
-        "wet",
-        "young"
-      ],
-      "medium_motion": [
-        "alright",
-        "beautiful",
-        "clean",
-        "dead",
-        "dirty",
-        "famous",
-        "fast",
-        "happy",
-        "healthy",
-        "heavy",
-        "hello",
-        "how_are_you",
-        "light",
-        "loud",
-        "morning",
-        "pleased",
-        "rich",
-        "strong",
-        "thank_you",
-        "they",
-        "ugly",
-        "we",
-        "weak",
-        "you_all"
-      ],
-      "large_motion": [
-        "big_large",
-        "cheap",
-        "curved",
-        "deep",
-        "expensive",
-        "flat",
-        "long",
-        "shallow",
-        "thick",
-        "wide"
-      ]
+    "1": {
+      "hand_count": "one_hand",
+      "movement": "medium_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
     },
-    "location": {
-      "face_near": [
-        "beautiful",
-        "blind",
-        "deaf",
-        "dry",
-        "famous",
-        "female",
-        "hot",
-        "loud",
-        "male",
-        "mean",
-        "morning",
-        "old",
-        "quiet",
-        "sad",
-        "sick",
-        "thank_you",
-        "ugly",
-        "warm",
-        "young"
-      ],
-      "body_near": [
-        "alive",
-        "bad",
-        "cold",
-        "cool",
-        "happy",
-        "healthy",
-        "heavy",
-        "i",
-        "light",
-        "nice",
-        "pleased",
-        "poor",
-        "strong",
-        "we",
-        "weak"
-      ],
-      "neutral_space": [
-        "0",
-        "1",
-        "2",
-        "alright",
-        "big_large",
-        "cheap",
-        "clean",
-        "curved",
-        "dead",
-        "deep",
-        "dirty",
-        "expensive",
-        "fast",
-        "flat",
-        "hard",
-        "he",
-        "hello",
-        "high",
-        "how_are_you",
-        "idle",
-        "it",
-        "long",
-        "loose",
-        "low",
-        "narrow",
-        "new",
-        "rich",
-        "shallow",
-        "she",
-        "short",
-        "slow",
-        "small_little",
-        "soft",
-        "tall",
-        "they",
-        "thick",
-        "thin",
-        "tight",
-        "wet",
-        "wide",
-        "you",
-        "you_all"
-      ]
+    "2": {
+      "hand_count": "one_hand",
+      "movement": "medium_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "alive": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "alright": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric"
+    },
+    "bad": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric"
+    },
+    "beautiful": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "big_large": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "blind": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "cheap": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "clean": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric"
+    },
+    "cold": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "cool": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric"
+    },
+    "curved": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "face_near",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "dead": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "deaf": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "deep": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric"
+    },
+    "dirty": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "dry": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric"
+    },
+    "expensive": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "famous": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "fast": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "female": {
+      "hand_count": "one_hand",
+      "movement": "medium_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "flat": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "happy": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "hard": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric"
+    },
+    "he": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "healthy": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric"
+    },
+    "heavy": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric"
+    },
+    "hello": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric"
+    },
+    "high": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "face_near",
+      "orientation": "unknown",
+      "symmetry": "asymmetric"
+    },
+    "hot": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "how_are_you": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric"
+    },
+    "i": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "idle": {
+      "hand_count": "two_hands",
+      "movement": "small_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "symmetric"
+    },
+    "it": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric"
+    },
+    "light": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "long": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric"
+    },
+    "loose": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric"
+    },
+    "loud": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric"
+    },
+    "low": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "face_near",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "male": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric"
+    },
+    "mean": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "morning": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "narrow": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric"
+    },
+    "new": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "nice": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "old": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "pleased": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "poor": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "quiet": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "rich": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric"
+    },
+    "sad": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "shallow": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "she": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "short": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric"
+    },
+    "sick": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric"
+    },
+    "slow": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "small_little": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "soft": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric"
+    },
+    "strong": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "tall": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric"
+    },
+    "thank_you": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "they": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric"
+    },
+    "thick": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "thin": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "tight": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric"
+    },
+    "ugly": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "warm": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "face_near",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "we": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "weak": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric"
+    },
+    "wet": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric"
+    },
+    "wide": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "you": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "young": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "unknown"
+    },
+    "you_all": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric"
     }
   }
 }
