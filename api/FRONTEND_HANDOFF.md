@@ -79,3 +79,19 @@ The architecture is strictly separated:
 * `FEATURE_CONTRACT.md` (root directory)
 * `README.md`
 * `api/simulate_frontend.py` (example integration script)
+
+## Debugging the Stream
+
+If you encounter issues where the model gets "stuck" on a single prediction or fails to detect new signs, you can run the API server in debug mode to see exactly what the frontend is sending:
+
+```bash
+LOG_LEVEL=DEBUG python run_api.py
+```
+
+This will output real-time `temporal_debug` logs containing:
+- `sequence_hash`: A jitter-resistant hash of the 20-frame buffer you are sending. If this stays identical, your frontend stream is frozen.
+- `frame_delta`: The numeric difference between the last two frames. If this is `0.0`, the landmarks are static.
+- `raw_prediction`: What the ML model sees based on your landmarks.
+- `stable_prediction`: What the API will actually return to you (after temporal smoothing).
+
+See the **Debugging & Observability** section in `api/README.md` for a full diagnostic matrix on how to interpret these logs.

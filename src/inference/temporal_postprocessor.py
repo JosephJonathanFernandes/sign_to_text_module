@@ -122,8 +122,13 @@ class ConfidenceSmoother:
         total_weight = 0.0
         weighted_sum = None
         
+        buffer_len = len(self.buffer)
+        
         # Iterate from oldest (index 0) to newest (index -1)
-        for age, (probs, conf) in enumerate(self.buffer):
+        for i, (probs, conf) in enumerate(self.buffer):
+            # Calculate age (0 for newest, buffer_len-1 for oldest)
+            age = (buffer_len - 1) - i
+            
             # Apply exponential decay if enabled
             decay = self.decay_factor ** age
             weight = conf * decay
@@ -263,10 +268,28 @@ class StablePredictor:
             return False
         
         # Must exceed hysteresis threshold
-        if new_confidence <= self.current_confidence + self.delta:
-            return False
+        # Scale with current confidence, ensuring it never becomes unreachable
+        threshold = max(
+            self.current_confidence + self.delta,
+            self.current_confidence * 1.10
+        )
         
-        return True
+        switch = new_confidence > min(threshold, 0.98)
+        
+        import logging
+        logger = logging.getLogger("sign_to_text.temporal_postprocessor")
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                "switch_debug",
+                extra={
+                    "current_conf": float(self.current_confidence),
+                    "new_conf": float(new_confidence),
+                    "threshold": float(threshold),
+                    "switch": switch
+                }
+            )
+        
+        return switch
     
     def reset(self) -> None:
         """Reset to initial state (useful between video clips)."""
