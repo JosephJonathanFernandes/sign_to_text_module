@@ -132,15 +132,20 @@ The preprocessing pipeline converts raw `.mp4` or video files into coordinate da
 **Expected generated files:** Populated `processed/` directory.
 
 ### Dataset Cleanup
-**Command:** `python main.py --cleanup --cleanup-max-aug 50`
-**Purpose:** Scans the `processed/` directory and removes duplicate or excessive augmentations to balance dataset size.
+**Command:** `python -m src.preprocessing.cleanup_dataset_npy`
+**Purpose:** Scans the dataset directories and standardizes/cleans up the `.npy` files. Can also be invoked via `main.py --cleanup`.
+
+### Dataset Quality & Diversity Filtering
+**Command:** `python -m src.preprocessing.quality_filter_hybrid`
+**Purpose:** Deep-learning powered filter that evaluates sample quality (hand visibility, motion) and diversity. Automatically moves low-quality and redundant samples into a `processed_del` archive folder.
+**Note:** To run on a specific class, append `--class [CLASS_NAME]`.
 
 ### Dataset Downsampling
-**Command:** `python src\preprocessing\random_downsample_processed.py`
+**Command:** `python -m src.preprocessing.random_downsample_processed`
 **Purpose:** Randomly downsamples class folders inside the processed directory to a fixed threshold to prevent large class imbalances.
 
 ### Dataset Balancing
-**Command:** `python src\preprocessing\balance_processed_dataset.py`
+**Command:** `python -m src.preprocessing.balance_processed_dataset`
 **Purpose:** Balances the processed class folders to a fixed target count, prioritizing webcam captures when duplicating.
 
 ---
@@ -191,8 +196,8 @@ Data augmentation generates synthetic variation to improve model robustness.
 
 ### Continuous-Sign Extension Training
 
-**Command:** `python src\train_continuous.py`
-**Purpose:** Trains the continuous signing variant using the boundary noise and synthetic transition features. Note that this script is nested inside `src/`.
+**Command:** `python src/train_continuous.py --archived-weight 0.25`
+**Purpose:** Trains the continuous signing variant using the boundary noise and synthetic transition features. It runs in two phases: Phase 1 trains on clean data, and Phase 2 fine-tunes on the archived data from `processed_del/` using the specified weight.
 **Output model path:** Usually saved as `models/sign_language_continuous.pth`.
 **Approximate runtime:** Same as normal training, slightly longer due to dynamic noise injection.
 
