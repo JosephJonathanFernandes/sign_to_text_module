@@ -103,13 +103,9 @@ class ONNXModelWrapper:
             return
 
         try:
-            from src.training.model import ISLModel
+            from src.utils.quantization_utils import load_model_artifact
 
-            ckpt = torch.load(self.pytorch_checkpoint, map_location=self.device)
-            model_dict = ckpt.get("model_state_dict", ckpt)
-            model = ISLModel()
-            if isinstance(model_dict, dict):
-                model.load_state_dict(model_dict, strict=False)
+            model, _, _, _, _ = load_model_artifact(self.pytorch_checkpoint, map_location=self.device)
             self.pytorch_model = model.to(self.device).eval()
             self.pytorch_loaded = True
             logger.info(f"PyTorch model loaded: {self.pytorch_checkpoint}")
@@ -188,8 +184,12 @@ class ONNXModelWrapper:
                         input_seq = np.expand_dims(input_seq, axis=0)
                     # ensure proximity has batch dim as well
                     if proximity is not None and proximity.ndim == 2:
-                        # proximity likely (seq,1) -> make (1,seq,1)
-                        proximity = np.expand_dims(proximity, axis=0)
+                        if proximity.shape[1] == 1 and proximity.shape[0] == input_seq.shape[1]:
+                            # proximity is (seq,1) -> make (1,seq,1)
+                            proximity = np.expand_dims(proximity, axis=0)
+                        elif proximity.shape[0] != input_seq.shape[0]:
+                            # batch size doesn't match, assume missing batch dim
+                            proximity = np.expand_dims(proximity, axis=0)
 
                 # Final sanity: if proximity batch doesn't match input batch, try to broadcast when safe
                 try:
