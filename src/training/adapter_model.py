@@ -40,7 +40,7 @@ class AdapterModel(nn.Module):
         
         # Initialize weights
         nn.init.kaiming_uniform_(self.fc1.weight, a=0.01)
-        nn.init.kaiming_uniform_(self.fc2.weight, a=0.01)
+        nn.init.zeros_(self.fc2.weight)
         nn.init.zeros_(self.fc1.bias)
         nn.init.zeros_(self.fc2.bias)
     

@@ -386,16 +386,16 @@ class InferenceConfig:
     After disabling temporal smoothing and adapter which were tanking confidence.
     Can be tuned up if getting false positives."""
 
-    prediction_smoothing_window: int = 3
+    prediction_smoothing_window: int = 2
     """Majority vote window size for temporal smoothing (smaller = faster transitions)."""
 
-    transition_hysteresis: float = 0.12
+    transition_hysteresis: float = 0.10
     """Minimum confidence delta to trigger prediction switch (prevents jitter)."""
 
     ambiguity_margin_threshold: float = 0.05
     """Minimum top1-top2 confidence gap required to commit a sign immediately."""
 
-    ambiguity_delay_frames: int = 4
+    ambiguity_delay_frames: int = 2
     """Extra frames to wait when the top predictions are too close."""
 
     sign_idle_timeout: int = 30
@@ -739,13 +739,13 @@ class LiveInferenceConfig:
     temporal_smoothing_enabled: bool = True
     """Enable temporal post-processing during live inference."""
 
-    temporal_window_size: int = 8
+    temporal_window_size: int = 4
     """Temporal smoothing window size (frames). Increased for smoother transitions."""
 
-    temporal_patience: int = 3
+    temporal_patience: int = 1
     """Frames required to confirm a transition in temporal post-processing."""
 
-    temporal_delta: float = 0.12
+    temporal_delta: float = 0.10
     """Confidence margin used by temporal anti-flicker logic. Higher -> harder to switch."""
 
     temporal_decay_factor: float = 0.3
@@ -773,10 +773,10 @@ class LiveInferenceConfig:
             "momentum_min_avg_conf must be in (0, 1)"
 
     # Prediction momentum parameters for live inference (majority + confidence commit)
-    momentum_window: int = 5
+    momentum_window: int = 3
     """Number of recent predictions to keep for momentum majority voting."""
 
-    momentum_commit_count: int = 3
+    momentum_commit_count: int = 2
     """Minimum occurrences of the same class within `momentum_window` required to commit (3-of-5)."""
 
     momentum_min_avg_conf: float = 0.60

@@ -574,9 +574,9 @@ def create_landmarker(
         for_webcam: If True, use higher confidence thresholds for speed
         force_image_mode: If True, always create an IMAGE-mode landmarker.
     """
-    # For webcam: raise confidence to filter false positives and reduce stale tracks
-    min_conf = 0.5 if for_webcam else 0.3
-    tracking_conf = 0.7 if for_webcam else min_conf
+    # For webcam: use lower confidence to prevent dropping hands near face/chest
+    min_conf = 0.35 if for_webcam else 0.3
+    tracking_conf = 0.4 if for_webcam else min_conf
     
     running_mode = RunningMode.IMAGE if force_image_mode else (
         RunningMode.VIDEO if for_webcam else RunningMode.IMAGE
@@ -604,8 +604,8 @@ def create_face_landmarker(for_webcam: bool = False) -> FaceLandmarker | None:
     """
     global _FACE_WARNING_SHOWN
     try:
-        # For webcam: raise confidence to speed up, reduce false positives
-        min_conf = 0.6 if for_webcam else 0.3
+        # For webcam: lower confidence so face is not dropped when hands pass over chin
+        min_conf = 0.35 if for_webcam else 0.3
         
         running_mode = RunningMode.VIDEO if for_webcam else RunningMode.IMAGE
 

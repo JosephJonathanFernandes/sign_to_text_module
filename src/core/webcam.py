@@ -72,8 +72,8 @@ LIVE_TEMPORAL_PATIENCE = cfg.live_inference.temporal_patience
 LIVE_TEMPORAL_DELTA = cfg.live_inference.temporal_delta
 LIVE_TEMPORAL_DECAY = cfg.live_inference.temporal_decay_factor
 HAND_FORCE_REDETECT_INTERVAL = cfg.preprocessing.forced_hand_redetect_interval
-HAND_DRIFT_JUMP_RATIO = 0.08
-HAND_DRIFT_MIN_JUMP_PX = 40
+HAND_DRIFT_JUMP_RATIO = 0.10  # Increased from 0.08 to prevent false positives
+HAND_DRIFT_MIN_JUMP_PX = 40  # Increased from 40 to prevent false positives
 
 # ── Pseudo-Label Collection (PART A) ──
 PSEUDO_BUFFER_ENABLED = True  # Toggle pseudo-label collection
@@ -508,11 +508,11 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
 
     # ── Hand Selector (single-person hand filtering via MediaPipe face landmarks) ──
     hand_selector = HandSelector(
-        distance_threshold=300,  # Pixel distance threshold for hand-to-face
-        roi_width_ratio=0.5,  # 50% of frame width (centered at face)
-        roi_height_ratio=0.5,  # 50% of frame height (centered at face)
-        use_roi_filtering=True,  # Use ROI-based filtering (more reliable than pure distance)
-        enable_debugging=False  # Set to True for debug logging
+        distance_threshold=400,  # Increased distance threshold
+        roi_width_ratio=0.8,     # 80% of frame width to allow wide gestures
+        roi_height_ratio=1.0,    # 100% of frame height to ensure hands near chest are included
+        use_roi_filtering=True,  # Use ROI-based filtering
+        enable_debugging=False   # Set to True for debug logging
     )
 
     # ── PART A: Pseudo-Label Collection ──
@@ -619,7 +619,11 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
                 ])
                 if files:
                     latest_adapter = os.path.join(ADAPTER_WEIGHTS_DIR, files[-1])
-                    adapter_trainer.load_model(latest_adapter)
+                    try:
+                        adapter_trainer.load_model(latest_adapter)
+                    except Exception as e:
+                        print(f"[WARN] Failed to load adapter weights from {latest_adapter} (likely size mismatch). Starting with fresh adapter. Error: {e}")
+                        latest_adapter = None
             
             print(f"[Adapter] Initialized: {num_classes} classes, {DEVICE}")
             if latest_adapter:
@@ -902,6 +906,21 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
                 continue
 
             frame = cv2.flip(frame, 1)
+            
+            # Crop live frame to exactly match the 4:3 aspect ratio of the 640x480 training data
+            # taking the maximum possible area to avoid zooming in and cutting off the chin.
+            h_raw, w_raw = frame.shape[:2]
+            target_aspect = 640 / 480.0
+            current_aspect = w_raw / float(h_raw)
+            
+            if current_aspect > target_aspect:
+                new_w = int(h_raw * target_aspect)
+                x_offset = (w_raw - new_w) // 2
+                frame = frame[:, x_offset:x_offset+new_w]
+            elif current_aspect < target_aspect:
+                new_h = int(w_raw / target_aspect)
+                y_offset = (h_raw - new_h) // 2
+                frame = frame[y_offset:y_offset+new_h, :]
 
         frame_timestamp_ms = int(time.perf_counter() * 1000)
         
@@ -1207,25 +1226,23 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
                     predicted = classes[idx] if idx < len(classes) else "?"
             
             # ── PART B: Adapter Model Application ──
-            # DISABLED: Adapter model is producing near-uniform distributions
-            # (converting 0.94 confidence to 0.02). Model needs retraining or investigation.
-            # Temporarily disabled to verify ensemble baseline works correctly.
             original_probs = probs_array.copy()
-            # if adapter_model is not None:
-            #     try:
-            #         with torch.no_grad():
-            #             probs_tensor = torch.from_numpy(
-            #                 probs_array.astype(np.float32)
-            #             ).unsqueeze(0).to(DEVICE)
-            #             adapted_probs_tensor = adapter_model(probs_tensor)
-            #             adapted_probs = adapted_probs_tensor.squeeze(0).cpu().numpy()
-            #             probs_array = adapted_probs
-            #             probs = probs_array
-            #             idx = int(np.argmax(probs_array))
-            #             conf = float(probs_array[idx])
-            #             predicted = classes[idx] if idx < len(classes) else "?"
-            #     except Exception as e:
-            #         print(f"[Adapter] Error: {e}")
+            if adapter_model is not None:
+                try:
+                    with torch.no_grad():
+                        probs_tensor = torch.from_numpy(
+                            probs_array.astype(np.float32)
+                        ).unsqueeze(0).to(DEVICE)
+                        adapted_logits_tensor = adapter_model(probs_tensor)
+                        adapted_probs_tensor = torch.nn.functional.softmax(adapted_logits_tensor, dim=1)
+                        adapted_probs = adapted_probs_tensor.squeeze(0).cpu().numpy()
+                        probs_array = adapted_probs
+                        probs = probs_array
+                        idx = int(np.argmax(probs_array))
+                        conf = float(probs_array[idx])
+                        predicted = classes[idx] if idx < len(classes) else "?"
+                except Exception as e:
+                    print(f"[Adapter] Error: {e}")
             
             # ── Dynamic Threshold Calculation ──
             is_transition = (last_output_prediction is not None and 

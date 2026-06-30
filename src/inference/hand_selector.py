@@ -133,12 +133,6 @@ class HandSelector:
             'filtered_hands': [],
         }
         
-        # Edge case: no face detected
-        if face_landmarks is None or len(face_landmarks) == 0:
-            if self.enable_debugging:
-                print("[HandSelector] No face detected, skipping hand selection")
-            return result
-        
         # Edge case: no hands detected
         if hand_landmarks is None or len(hand_landmarks) == 0:
             if self.enable_debugging:
@@ -146,7 +140,14 @@ class HandSelector:
             return result
         
         # Step 1: Compute face center
-        face_center = self._compute_face_center(face_landmarks)
+        if face_landmarks is None or len(face_landmarks) == 0:
+            # Fallback to frame center if face is obscured by hand
+            height, width = frame_shape
+            face_center = (width / 2.0, height / 2.0)
+            if self.enable_debugging:
+                print("[HandSelector] No face detected, using frame center fallback")
+        else:
+            face_center = self._compute_face_center(face_landmarks)
         result['face_center'] = face_center
         
         if self.enable_debugging:

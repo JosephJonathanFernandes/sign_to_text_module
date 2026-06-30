@@ -1,7 +1,20 @@
 {
   "pairs": [
-    ["nice", "beautiful"],
-    ["ugly", "beautiful"],
-    ["0", "male"]
+    [
+      "nice",
+      "beautiful"
+    ],
+    [
+      "ugly",
+      "beautiful"
+    ],
+    [
+      "0",
+      "male"
+    ],
+    [
+      "hello",
+      "curved"
+    ]
   ]
 }
