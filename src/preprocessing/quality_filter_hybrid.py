@@ -39,10 +39,17 @@ except Exception:  # pragma: no cover - torch is expected but optional
 
 try:
     from src.training.model import SignLanguageGRU
-except Exception:  # pragma: no cover - importing the model should usually work
+except Exception as e:  # pragma: no cover
+    import sys
+    print("=" * 80, file=sys.stderr)
+    print("[WARNING] Failed to import SignLanguageGRU from src.training.model!", file=sys.stderr)
+    print("          You are probably not running this script as a module from the root directory.", file=sys.stderr)
+    print("          The script will fall back to basic statistical features instead of deep embeddings.", file=sys.stderr)
+    print("          To fix this, run: python -m src.preprocessing.quality_filter_hybrid", file=sys.stderr)
+    print("=" * 80, file=sys.stderr)
     SignLanguageGRU = None
 
-ROOT_DIR = "processed"
+ROOT_DIR = os.path.join("assets", "processed")
 DEFAULT_QUALITY_COVERAGE = 0.85
 DEFAULT_SHORTLIST_MULTIPLIER = 3.0
 DEFAULT_DUPLICATE_MODE = "relaxed"
@@ -309,12 +316,16 @@ def _safe_delete(path: str, class_dir: str, dry_run: bool, archive_root: str | N
         return False
 
     if not dry_run:
-        if archive_root:
-            archive_class_dir = os.path.join(os.path.abspath(archive_root), os.path.basename(class_dir))
-            os.makedirs(archive_class_dir, exist_ok=True)
-            archive_path = os.path.join(archive_class_dir, os.path.basename(path_abs))
-            shutil.copy2(path_abs, archive_path)
-        os.remove(path_abs)
+        try:
+            if archive_root:
+                archive_class_dir = os.path.join(os.path.abspath(archive_root), os.path.basename(class_dir))
+                os.makedirs(archive_class_dir, exist_ok=True)
+                archive_path = os.path.join(archive_class_dir, os.path.basename(path_abs))
+                shutil.copy2(path_abs, archive_path)
+            os.remove(path_abs)
+        except OSError as e:
+            print(f"    [WARN] Failed to delete or archive {path_abs}: {e}")
+            return False
     return True
 
 
@@ -505,9 +516,9 @@ def _hash_paths_for_cache(paths: list[str], checkpoint_path: str | None, embeddi
             digest.update(os.path.abspath(path).encode("utf-8"))
             digest.update(str(stat.st_mtime_ns).encode("utf-8"))
             digest.update(str(stat.st_size).encode("utf-8"))
-        except FileNotFoundError:
+        except OSError:
             digest.update(os.path.abspath(path).encode("utf-8"))
-            digest.update(b"missing")
+            digest.update(b"missing_or_corrupted")
     return digest.hexdigest()
 
 
@@ -608,14 +619,17 @@ def _save_embedding_cache(
     metadata: dict[str, Any],
 ) -> None:
     npz_path, json_path = _cache_file_paths(cache_dir, class_name, cache_key)
-    os.makedirs(os.path.dirname(npz_path), exist_ok=True)
-    np.savez_compressed(
-        npz_path,
-        embeddings=np.asarray(embeddings, dtype=np.float32),
-        paths=np.asarray(paths, dtype=object),
-    )
-    with open(json_path, "w", encoding="utf-8") as f:
-        json.dump(metadata, f, indent=2)
+    try:
+        os.makedirs(os.path.dirname(npz_path), exist_ok=True)
+        np.savez_compressed(
+            npz_path,
+            embeddings=np.asarray(embeddings, dtype=np.float32),
+            paths=np.asarray(paths, dtype=object),
+        )
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(metadata, f, indent=2)
+    except OSError as e:
+        print(f"    [WARN] Failed to save embedding cache: {e}")
     try:
         EMBEDDING_CACHE_STATS["saves"] += 1
     except Exception:

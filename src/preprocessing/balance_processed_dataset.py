@@ -16,7 +16,7 @@ import uuid
 from dataclasses import dataclass
 
 
-ROOT_DIR = "processed"
+ROOT_DIR = os.path.join("assets", "processed")
 TARGET_SAMPLES = 600
 WEBCAM_PREFIX = "webcam_"
 DUPLICATE_PREFIX = "webcam_dup_"

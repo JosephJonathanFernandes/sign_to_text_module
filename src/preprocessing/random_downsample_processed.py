@@ -20,7 +20,7 @@ import random
 from dataclasses import dataclass
 
 
-ROOT_DIR = "processed"
+ROOT_DIR = os.path.join("assets", "processed")
 DEFAULT_THRESHOLD = 600
 
 
