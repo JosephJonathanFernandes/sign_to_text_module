@@ -11,17 +11,17 @@ from src.inference.onnx_ensemble import load_onnx_model, EnsembleModel
 from src.utils.quantization_utils import load_model_artifact
 from src.core.config import get_config
 
-def benchmark_latency(model, model_name, sequence, iterations=500):
+def benchmark_latency(model, model_name, sequence, proximity=None, iterations=500):
     print(f"\n--- Benchmarking {model_name} ---")
     
     # 1. Warm-up phase (forces runtime to initialize memory/caches)
     for _ in range(10):
-        model.infer(sequence)
+        model.infer(sequence, proximity)
             
     # 2. Timed inference loop
     start_time = time.time()
     for _ in range(iterations):
-        model.infer(sequence)
+        model.infer(sequence, proximity)
     end_time = time.time()
     
     # Calculate average latency in milliseconds
@@ -69,19 +69,22 @@ def main():
     feat_dim = cfg.frame_features.input_sequence_dim
     dummy_sequence = torch.randn(1, num_frames, feat_dim, dtype=torch.float32).to(device)
     
+    # Provide a 3D dummy proximity tensor to bypass the ONNX wrapper broadcasting bug
+    dummy_proximity = torch.zeros(1, num_frames, 1, dtype=torch.float32).to(device)
+    
     print("\nStarting Latency Profiling (500 iterations each)...")
-    benchmark_latency(pt_model, "PyTorch Baseline (.pth)", dummy_sequence, iterations=500)
-    benchmark_latency(onnx_fp32_model, "ONNX FP32 (.onnx)", dummy_sequence, iterations=500)
-    benchmark_latency(onnx_int8_model, "ONNX INT8 Quantized (_int8.onnx)", dummy_sequence, iterations=500)
+    benchmark_latency(pt_model, "PyTorch Baseline (.pth)", dummy_sequence, dummy_proximity, iterations=500)
+    benchmark_latency(onnx_fp32_model, "ONNX FP32 (.onnx)", dummy_sequence, dummy_proximity, iterations=500)
+    benchmark_latency(onnx_int8_model, "ONNX INT8 Quantized (_int8.onnx)", dummy_sequence, dummy_proximity, iterations=500)
     
     print("\n=========================================")
     print("   Precision & Accuracy Deviation Test")
     print("=========================================\n")
     
     # Inference on same dummy tensor
-    pt_logits = pt_model.infer(dummy_sequence)
-    onnx_fp32_logits = onnx_fp32_model.infer(dummy_sequence)
-    onnx_int8_logits = onnx_int8_model.infer(dummy_sequence)
+    pt_logits = pt_model.infer(dummy_sequence, dummy_proximity)
+    onnx_fp32_logits = onnx_fp32_model.infer(dummy_sequence, dummy_proximity)
+    onnx_int8_logits = onnx_int8_model.infer(dummy_sequence, dummy_proximity)
     
     # Helper to convert logits to probabilities
     def softmax(x):
