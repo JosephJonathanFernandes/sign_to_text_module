@@ -44,7 +44,7 @@ def _validation_accuracy_for_single_model(model) -> float | None:
     correct = 0
     total = 0
     with torch.inference_mode():
-        for sequences, proximity, labels in val_loader:
+        for sequences, proximity, labels, _weights, _domains in val_loader:
             logits = model(sequences.to("cpu"), proximity=proximity.to("cpu"))
             if isinstance(logits, dict):
                 logits = logits["sign_logits"]

@@ -471,7 +471,13 @@ class _BalancedAugSubset(torch.utils.data.Dataset):
         import numpy as np
         real_idx = self.balanced_indices[idx]
         fpath, label, weight, domain_idx = self.parent.samples[real_idx]
-        seq = np.load(fpath).astype(np.float32)
+        
+        if getattr(self.parent, 'use_hdf5', False):
+            self.parent._ensure_open()
+            seq = self.parent.h5["features"][real_idx].copy()
+        else:
+            seq = np.load(fpath).astype(np.float32)
+            
         seq, proximity = ISLDataset._prepare_sequence(seq, augment=True)
         return (
             torch.from_numpy(seq),
@@ -494,8 +500,15 @@ class _PlainSubset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         import numpy as np
-        fpath, label, weight, domain_idx = self.parent.samples[self.indices[idx]]
-        seq = np.load(fpath).astype(np.float32)
+        real_idx = self.indices[idx]
+        fpath, label, weight, domain_idx = self.parent.samples[real_idx]
+        
+        if getattr(self.parent, 'use_hdf5', False):
+            self.parent._ensure_open()
+            seq = self.parent.h5["features"][real_idx].copy()
+        else:
+            seq = np.load(fpath).astype(np.float32)
+            
         seq, proximity = ISLDataset._prepare_sequence(seq, augment=False)
         return (
             torch.from_numpy(seq),

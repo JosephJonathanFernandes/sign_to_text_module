@@ -391,7 +391,7 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
                         word_models_fallback = []
                         word_use_onnx = True
                     else:
-                        print("Loading merged 10+2 ensemble...")
+                        print("Loading ensemble...")
                         from src.inference.ensemble import load_merged_ensemble_10_2
                         word_models, word_models_fallback, word_classes, _ = load_merged_ensemble_10_2()
                         word_use_onnx = False
