@@ -73,7 +73,7 @@ def main():
     dummy_proximity = torch.zeros(1, num_frames, 1, dtype=torch.float32).to(device)
     
     print("\nStarting Latency Profiling (500 iterations each)...")
-    benchmark_latency(pt_model, "PyTorch Baseline (.pth)", dummy_sequence, dummy_proximity, iterations=500)
+    benchmark_latency(pt_model, "PyTorch Baseline (.pth)", dummy_sequence, proximity=None, iterations=500)
     benchmark_latency(onnx_fp32_model, "ONNX FP32 (.onnx)", dummy_sequence, dummy_proximity, iterations=500)
     benchmark_latency(onnx_int8_model, "ONNX INT8 Quantized (_int8.onnx)", dummy_sequence, dummy_proximity, iterations=500)
     
@@ -82,7 +82,7 @@ def main():
     print("=========================================\n")
     
     # Inference on same dummy tensor
-    pt_logits = pt_model.infer(dummy_sequence, dummy_proximity)
+    pt_logits = pt_model.infer(dummy_sequence, proximity=None)
     onnx_fp32_logits = onnx_fp32_model.infer(dummy_sequence, dummy_proximity)
     onnx_int8_logits = onnx_int8_model.infer(dummy_sequence, dummy_proximity)
     
