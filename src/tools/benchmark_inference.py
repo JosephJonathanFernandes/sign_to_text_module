@@ -36,7 +36,7 @@ def benchmark_latency(model, model_name, sequence, iterations=500):
 
 def main():
     cfg = get_config()
-    model_dir = os.path.join(cfg.paths.base_dir, "models")
+    model_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'models'))
     
     pth_path = os.path.join(model_dir, "model.pth")
     onnx_fp32_path = os.path.join(model_dir, "model.onnx")
