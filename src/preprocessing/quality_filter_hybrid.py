@@ -1099,6 +1099,15 @@ def filter_quality_class_folder(
             fill_ratio=0.0,
             avg_final_similarity=0.0,
             effective_duplicate_threshold=_duplicate_mode_threshold(duplicate_mode, duplicate_threshold),
+            novelty_weight=0.5,
+            adaptive_relaxed=False,
+            removed_by_quality=0,
+            removed_by_duplicate=0,
+            removed_by_novelty=0,
+            collapse_signer=False,
+            collapse_motion=False,
+            collapse_overcompression=False,
+            collapse_reason="none",
         )
         return summary, [], {"rows": [], "embeddings": np.zeros((0, 0), dtype=np.float32), "pca_coords": np.zeros((0, 0), dtype=np.float32), "paths": []}
 
