@@ -83,11 +83,13 @@ class ContinuousDataset(Dataset):
 
 def main():
     parser = argparse.ArgumentParser(description="Train Continuous Sign Language Model")
+    parser.add_argument("--archived-weight", type=float, default=0.25, help="Weight for archived samples")
     args = parser.parse_args()
 
-    print("[Continuous] Loading base dataset...")
+    print("[Continuous] Loading base dataset (Phase 1)...")
     # Load base dataset without internal augmentation (we apply it in ContinuousDataset)
-    full_ds = ISLDataset(augment=False)
+    neg_root_p1 = os.path.join(os.path.dirname(cfg.paths.processed_dir), "processed_negatives")
+    full_ds = ISLDataset(augment=False, neg_root=neg_root_p1)
     
     # Extract labels for stratified split
     if getattr(full_ds, 'use_hdf5', False):
@@ -145,10 +147,10 @@ def main():
     if reject_idx == full_ds.num_classes:
         classes_list.append("__reject__")
         
-    print(f"[Continuous] Starting training with {num_classes} classes...")
+    print(f"[Continuous] Starting Phase 1 training with {num_classes} classes...")
     print(f"[Continuous] Will save model to: {cfg.paths.model_save_path}")
     
-    # Run the existing train loop
+    # Run Phase 1 train loop
     train(
         train_loader=train_loader,
         val_loader=val_loader,
@@ -156,6 +158,65 @@ def main():
         class_weights=class_weights,
         classes_list=classes_list
     )
+
+    # --- PHASE 2 ---
+    finetune_epochs = getattr(cfg.training, 'finetune_archived_epochs', 0)
+    if finetune_epochs and int(finetune_epochs) > 0:
+        processed_del = os.path.join(os.path.dirname(cfg.paths.processed_dir), "processed_del")
+        neg_del = os.path.join(os.path.dirname(cfg.paths.processed_dir), "processed_negatives_del")
+        
+        if os.path.isdir(processed_del) or os.path.isdir(neg_del):
+            print(f"\n[Continuous Phase 2] Loading archived datasets...")
+            full_ds_p2 = ISLDataset(
+                augment=False, 
+                neg_root=neg_root_p1,
+                archived_root=processed_del, 
+                archived_neg_root=neg_del,
+                archived_weight=args.archived_weight
+            )
+            
+            # Map Phase 1 train files to Phase 2 indices to keep validation strictly clean
+            clean_train_paths = set(full_ds.samples[i][0] for i in train_idx)
+            
+            train_idx_p2 = []
+            for i, s in enumerate(full_ds_p2.samples):
+                if s[0] in clean_train_paths or processed_del in s[0] or neg_del in s[0]:
+                    train_idx_p2.append(i)
+                    
+            print(f"[Continuous Phase 2] Fine-tuning on {len(train_idx_p2)} samples (including archived) for {finetune_epochs} epochs.")
+            
+            train_ds_p2 = ContinuousDataset(full_ds_p2, train_idx_p2, train_transitions, is_train=True)
+            train_loader_p2 = DataLoader(
+                train_ds_p2, 
+                batch_size=cfg.training.batch_size, 
+                shuffle=True, 
+                num_workers=0
+            )
+            
+            # Recompute weights for Phase 2
+            p2_labels = np.array([s[1] for s in full_ds_p2.samples])
+            all_train_labels_p2 = np.concatenate([
+                p2_labels[train_idx_p2],
+                np.array([lbl for _, lbl in train_transitions])
+            ])
+            class_weights_p2 = _compute_inverse_class_weights(all_train_labels_p2, num_classes)
+            
+            ft_lr = getattr(cfg.training, 'finetune_archived_lr', None)
+            if ft_lr is not None:
+                ft_lr = float(ft_lr)
+                
+            train(
+                train_loader=train_loader_p2,
+                val_loader=val_loader,  # Re-use strictly clean Phase 1 val_loader!
+                num_classes=num_classes,
+                class_weights=class_weights_p2,
+                classes_list=classes_list,
+                epochs=int(finetune_epochs),
+                pretrained_checkpoint=cfg.paths.model_save_path,
+                lr=ft_lr
+            )
+        else:
+            print('\n[Continuous Phase 2] Archived folders not found; skipping fine-tune.')
 
 if __name__ == "__main__":
     main()

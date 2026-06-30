@@ -43,6 +43,7 @@ class ISLDataset(Dataset):
         neg_root: str | None = None,
         neg_label: str = "__reject__",
         archived_root: str | None = None,
+        archived_neg_root: str | None = None,
         archived_weight: float = 0.25,
     ):
         """
@@ -157,6 +158,7 @@ class ISLDataset(Dataset):
                 if neg_label not in self.classes:
                     self.class_to_idx[neg_label] = len(self.classes)
                     self.classes.append(neg_label)
+        self.archived_neg_root = archived_neg_root
 
         # Collect all .npy file paths with labels, grouped by class
         # Validate files during collection to skip corrupt ones
@@ -195,6 +197,19 @@ class ISLDataset(Dataset):
                                     corrupt_files.append((fpath, "Empty file"))
                             except Exception as e:
                                 corrupt_files.append((fpath, str(e)))
+                # Optionally include archived negative samples
+                if self.archived_neg_root and os.path.isdir(self.archived_neg_root):
+                    for _root, _dirs, files in os.walk(self.archived_neg_root):
+                        for fname in files:
+                            if fname.endswith(".npy"):
+                                afpath = os.path.join(_root, fname)
+                                try:
+                                    test_data = np.load(afpath)
+                                    if test_data.size > 0:
+                                        d_idx = _get_domain_idx(fname)
+                                        class_samples[cls_idx].append((afpath, cls_idx, float(archived_weight), d_idx))
+                                except Exception:
+                                    pass
             else:
                 cls_dir = os.path.join(root_dir, cls_name)
                 cls_idx = self.class_to_idx[cls_name]
