@@ -22,7 +22,7 @@ import subprocess
 import sys
 import time
 import os
-from config import get_config
+from src.core.config import get_config
 
 cfg = get_config()
 

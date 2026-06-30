@@ -27,7 +27,7 @@ from typing import Any
 import numpy as np
 import torch
 
-from config import get_config
+from src.core.config import get_config
 from src.inference.onnx_ensemble import detect_and_load_models, ensemble_predict_mixed
 
 logger = logging.getLogger(__name__)

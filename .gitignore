@@ -33,6 +33,7 @@ processed_negatives_del/
 dataset.h5
 *.h5
 validation_report.json
+keypoints.csv
 
 # Model weights & checkpoints
 adapter_weights/

@@ -10,7 +10,7 @@ import numpy as np
 from pathlib import Path
 
 sys.path.insert(0, str(Path.cwd()))
-from config import get_config
+from src.core.config import get_config
 from src.preprocessing.dataset import ISLDataset
 from src.training.train import train_one_epoch, validate
 from src.training.model import SignLanguageGRU

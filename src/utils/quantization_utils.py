@@ -24,7 +24,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from config import get_config
+from src.core.config import get_config
 from src.training.model import SignLanguageGRU
 
 cfg = get_config()

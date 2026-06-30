@@ -17,7 +17,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-from config import get_config
+from src.core.config import get_config
 from src.utils.pipeline_logger import PipelineLogger
 
 cfg = get_config()
@@ -68,10 +68,19 @@ def _compute_inverse_class_weights(
     power=0.0: uniform weights
     """
     class_counts = np.bincount(labels, minlength=num_classes)
-    # Apply power transformation for smoother weighting
-    class_weights = (1.0 / (class_counts.astype(float) + 1e-6)) ** CLASS_WEIGHT_POWER
-    # Normalize to have mean weight = 1
-    class_weights = class_weights / class_weights.sum() * num_classes
+    
+    # Create mask of classes that actually exist in the dataset
+    valid_mask = class_counts > 0
+    class_weights = np.zeros(num_classes, dtype=float)
+    
+    # Apply power transformation only for valid classes
+    class_weights[valid_mask] = (1.0 / class_counts[valid_mask].astype(float)) ** CLASS_WEIGHT_POWER
+    
+    # Normalize so average weight of valid classes is exactly 1.0
+    num_valid = valid_mask.sum()
+    if num_valid > 0:
+        class_weights = class_weights / class_weights.sum() * num_valid
+        
     return torch.FloatTensor(class_weights).to(DEVICE)
 
 
@@ -462,7 +471,13 @@ class _BalancedAugSubset(torch.utils.data.Dataset):
         import numpy as np
         real_idx = self.balanced_indices[idx]
         fpath, label, weight, domain_idx = self.parent.samples[real_idx]
-        seq = np.load(fpath).astype(np.float32)
+        
+        if getattr(self.parent, 'use_hdf5', False):
+            self.parent._ensure_open()
+            seq = self.parent.h5["features"][real_idx].copy()
+        else:
+            seq = np.load(fpath).astype(np.float32)
+            
         seq, proximity = ISLDataset._prepare_sequence(seq, augment=True)
         return (
             torch.from_numpy(seq),
@@ -485,8 +500,15 @@ class _PlainSubset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         import numpy as np
-        fpath, label, weight, domain_idx = self.parent.samples[self.indices[idx]]
-        seq = np.load(fpath).astype(np.float32)
+        real_idx = self.indices[idx]
+        fpath, label, weight, domain_idx = self.parent.samples[real_idx]
+        
+        if getattr(self.parent, 'use_hdf5', False):
+            self.parent._ensure_open()
+            seq = self.parent.h5["features"][real_idx].copy()
+        else:
+            seq = np.load(fpath).astype(np.float32)
+            
         seq, proximity = ISLDataset._prepare_sequence(seq, augment=False)
         return (
             torch.from_numpy(seq),

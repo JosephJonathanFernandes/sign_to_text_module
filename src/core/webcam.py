@@ -27,7 +27,7 @@ import threading
 
 from src.utils.profiling import get_profiler, profile_section, start_frame, end_frame, record_inference
 
-from config import get_config
+from src.core.config import get_config
 from src.inference.pseudo_buffer import PseudoLabelBuffer
 from src.training.adapter_model import AdapterModel, AdapterTrainer
 from src.training.adapter_training import AdapterTrainingManager
@@ -57,7 +57,7 @@ DYNAMIC_THRESHOLD_MIN = cfg.motion.dynamic_threshold_min
 TRANSITION_HYSTERESIS = cfg.inference.transition_hysteresis
 AMBIGUITY_MARGIN_THRESHOLD = cfg.inference.ambiguity_margin_threshold
 AMBIGUITY_DELAY_FRAMES = cfg.inference.ambiguity_delay_frames
-TRANSITION_MOVEMENT_THRESHOLD = 0.02
+TRANSITION_MOVEMENT_THRESHOLD = 0.06
 TRANSITION_STABLE_FRAMES = 3
 
 # ════════════════════════════════════════════════════════════════════════════════════
@@ -72,15 +72,15 @@ LIVE_TEMPORAL_PATIENCE = cfg.live_inference.temporal_patience
 LIVE_TEMPORAL_DELTA = cfg.live_inference.temporal_delta
 LIVE_TEMPORAL_DECAY = cfg.live_inference.temporal_decay_factor
 HAND_FORCE_REDETECT_INTERVAL = cfg.preprocessing.forced_hand_redetect_interval
-HAND_DRIFT_JUMP_RATIO = 0.08
-HAND_DRIFT_MIN_JUMP_PX = 40
+HAND_DRIFT_JUMP_RATIO = 0.10  # Increased from 0.08 to prevent false positives
+HAND_DRIFT_MIN_JUMP_PX = 40  # Increased from 40 to prevent false positives
 
 # ── Pseudo-Label Collection (PART A) ──
 PSEUDO_BUFFER_ENABLED = True  # Toggle pseudo-label collection
 PSEUDO_THRESHOLD = 0.85  # Minimum confidence to collect
 MIN_BUFFER_SIZE = 20  # Minimum samples before auto-save
 PER_CLASS_CAP = 50  # Max samples per class
-PSEUDO_SAVE_DIR = "pseudo_data/"
+PSEUDO_SAVE_DIR = cfg.paths.pseudo_data_dir
 AUTO_SAVE_PSEUDO = True  # Auto-save when MIN_BUFFER_SIZE is reached
 PSEUDO_SAVE_INTERVAL = 50  # Save every N predictions
 
@@ -93,7 +93,7 @@ ADAPTER_HIDDEN_DIM = 128
 ADAPTER_TRAIN_MIN_SAMPLES = cfg.live_inference.adapter_train_min_samples
 ADAPTER_MIN_CLASSES = cfg.live_inference.adapter_min_classes
 ADAPTER_MIN_SAMPLES_PER_CLASS = cfg.live_inference.adapter_min_samples_per_class
-ADAPTER_WEIGHTS_DIR = "adapter_weights/"
+ADAPTER_WEIGHTS_DIR = cfg.paths.adapter_weights_dir
 ADAPTER_TRAINING_INTERVAL = cfg.live_inference.adapter_training_interval
 ADAPTER_POLL_INTERVAL = 50  # Poll adapter_weights/ for new models every N predictions
 ADAPTER_MIN_SAVED_SAMPLES = cfg.live_inference.adapter_min_saved_samples
@@ -112,6 +112,7 @@ from src.preprocessing.preprocess import (
 from src.inference.sentence_builder import SentenceBuilder
 from src.inference.temporal_postprocessor import TemporalPostProcessor
 from src.inference.hand_selector import HandSelector
+from src.config.continuous_signing import HYSTERESIS_MARGIN, COMMIT_THRESHOLD
 
 from src.core.camera_manager import CameraThread
 from src.core.inference_engine import PredictionMomentum
@@ -390,7 +391,7 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
                         word_models_fallback = []
                         word_use_onnx = True
                     else:
-                        print("Loading merged 10+2 ensemble...")
+                        print("Loading ensemble...")
                         from src.inference.ensemble import load_merged_ensemble_10_2
                         word_models, word_models_fallback, word_classes, _ = load_merged_ensemble_10_2()
                         word_use_onnx = False
@@ -447,7 +448,8 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
     hand_cache = {}  # Cache hand landmarks between detection frames
     face_cache = {}  # Cache face landmarks between frames
     frame_idx = 0
-    sequence_buffer = deque(maxlen=NUM_FRAMES)
+    # Increase sequence buffer to capture a wider time window (e.g. 60 frames for 2s at 30fps)
+    sequence_buffer = deque(maxlen=NUM_FRAMES * 3)
     prediction_history = deque(maxlen=PREDICTION_SMOOTHING_WINDOW)
     prediction_text = "Show a sign"
     confidence_text = ""
@@ -469,7 +471,7 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
     
     # ── Sentence Builder (continuous translation) ──
     sentence_builder = SentenceBuilder(
-        confidence_threshold=CONFIDENCE_THRESHOLD,
+        confidence_threshold=COMMIT_THRESHOLD,
         stability_frames=6,  # Reduced from 12 for faster response (~0.2s at 30fps)
         ambiguity_margin_threshold=AMBIGUITY_MARGIN_THRESHOLD,
         ambiguity_delay_frames=AMBIGUITY_DELAY_FRAMES,
@@ -483,7 +485,7 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
             temporal_postprocessor = TemporalPostProcessor(
                 window_size=LIVE_TEMPORAL_WINDOW,
                 patience=LIVE_TEMPORAL_PATIENCE,
-                delta=LIVE_TEMPORAL_DELTA,
+                delta=HYSTERESIS_MARGIN,
                 enable_decay=True,
                 decay_factor=LIVE_TEMPORAL_DECAY,
             )
@@ -506,11 +508,11 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
 
     # ── Hand Selector (single-person hand filtering via MediaPipe face landmarks) ──
     hand_selector = HandSelector(
-        distance_threshold=300,  # Pixel distance threshold for hand-to-face
-        roi_width_ratio=0.5,  # 50% of frame width (centered at face)
-        roi_height_ratio=0.5,  # 50% of frame height (centered at face)
-        use_roi_filtering=True,  # Use ROI-based filtering (more reliable than pure distance)
-        enable_debugging=False  # Set to True for debug logging
+        distance_threshold=400,  # Increased distance threshold
+        roi_width_ratio=0.8,     # 80% of frame width to allow wide gestures
+        roi_height_ratio=1.0,    # 100% of frame height to ensure hands near chest are included
+        use_roi_filtering=True,  # Use ROI-based filtering
+        enable_debugging=False   # Set to True for debug logging
     )
 
     # ── PART A: Pseudo-Label Collection ──
@@ -617,7 +619,11 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
                 ])
                 if files:
                     latest_adapter = os.path.join(ADAPTER_WEIGHTS_DIR, files[-1])
-                    adapter_trainer.load_model(latest_adapter)
+                    try:
+                        adapter_trainer.load_model(latest_adapter)
+                    except Exception as e:
+                        print(f"[WARN] Failed to load adapter weights from {latest_adapter} (likely size mismatch). Starting with fresh adapter. Error: {e}")
+                        latest_adapter = None
             
             print(f"[Adapter] Initialized: {num_classes} classes, {DEVICE}")
             if latest_adapter:
@@ -900,6 +906,21 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
                 continue
 
             frame = cv2.flip(frame, 1)
+            
+            # Crop live frame to exactly match the 4:3 aspect ratio of the 640x480 training data
+            # taking the maximum possible area to avoid zooming in and cutting off the chin.
+            h_raw, w_raw = frame.shape[:2]
+            target_aspect = 640 / 480.0
+            current_aspect = w_raw / float(h_raw)
+            
+            if current_aspect > target_aspect:
+                new_w = int(h_raw * target_aspect)
+                x_offset = (w_raw - new_w) // 2
+                frame = frame[:, x_offset:x_offset+new_w]
+            elif current_aspect < target_aspect:
+                new_h = int(w_raw / target_aspect)
+                y_offset = (h_raw - new_h) // 2
+                frame = frame[y_offset:y_offset+new_h, :]
 
         frame_timestamp_ms = int(time.perf_counter() * 1000)
         
@@ -1127,11 +1148,15 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
         # ─────────────────────────────────────────────────────────────────────────
         # [SECTION 4] Model Inference (triggered when buffer is full)
         # ─────────────────────────────────────────────────────────────────────────
-        if valid_for_prediction and len(sequence_buffer) == NUM_FRAMES:
+        if valid_for_prediction and len(sequence_buffer) >= NUM_FRAMES:
             record_inference()  # Record that an inference occurred
             
             with profile_section("preprocessing"):
-                seq = np.array(sequence_buffer, dtype=np.float32)
+                # Sample NUM_FRAMES evenly from the current buffer
+                full_buffer = np.array(sequence_buffer, dtype=np.float32)
+                indices = np.linspace(0, len(full_buffer) - 1, NUM_FRAMES, dtype=int)
+                seq = full_buffer[indices]
+
                 with profile_section("normalization"):
                     seq = _normalize_landmarks(seq)
                 
@@ -1173,6 +1198,7 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
                     print(f"[ERROR] Inference failed: {e}")
                     idx = -1
                     conf = 0.0
+                    classes = word_classes or []
                     probs = np.zeros(len(classes)) if classes else []
                     predicted = "ERROR"
                     result = {
@@ -1193,32 +1219,30 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
                 confidence_gap = float(top_two[1] - top_two[0])
             
             with profile_section("temporal_smoothing"):
-                if temporal_postprocessor_enabled:
+                if temporal_postprocessor_enabled and len(probs_array) > 0:
                     # Use smooth_raw_prediction for confidence smoothing ONLY (no class lock)
                     # This allows the existing prediction_history smoothing to work properly
                     idx, conf = temporal_postprocessor.smooth_raw_prediction(probs_array)
                     predicted = classes[idx] if idx < len(classes) else "?"
             
             # ── PART B: Adapter Model Application ──
-            # DISABLED: Adapter model is producing near-uniform distributions
-            # (converting 0.94 confidence to 0.02). Model needs retraining or investigation.
-            # Temporarily disabled to verify ensemble baseline works correctly.
             original_probs = probs_array.copy()
-            # if adapter_model is not None:
-            #     try:
-            #         with torch.no_grad():
-            #             probs_tensor = torch.from_numpy(
-            #                 probs_array.astype(np.float32)
-            #             ).unsqueeze(0).to(DEVICE)
-            #             adapted_probs_tensor = adapter_model(probs_tensor)
-            #             adapted_probs = adapted_probs_tensor.squeeze(0).cpu().numpy()
-            #             probs_array = adapted_probs
-            #             probs = probs_array
-            #             idx = int(np.argmax(probs_array))
-            #             conf = float(probs_array[idx])
-            #             predicted = classes[idx] if idx < len(classes) else "?"
-            #     except Exception as e:
-            #         print(f"[Adapter] Error: {e}")
+            if adapter_model is not None:
+                try:
+                    with torch.no_grad():
+                        probs_tensor = torch.from_numpy(
+                            probs_array.astype(np.float32)
+                        ).unsqueeze(0).to(DEVICE)
+                        adapted_logits_tensor = adapter_model(probs_tensor)
+                        adapted_probs_tensor = torch.nn.functional.softmax(adapted_logits_tensor, dim=1)
+                        adapted_probs = adapted_probs_tensor.squeeze(0).cpu().numpy()
+                        probs_array = adapted_probs
+                        probs = probs_array
+                        idx = int(np.argmax(probs_array))
+                        conf = float(probs_array[idx])
+                        predicted = classes[idx] if idx < len(classes) else "?"
+                except Exception as e:
+                    print(f"[Adapter] Error: {e}")
             
             # ── Dynamic Threshold Calculation ──
             is_transition = (last_output_prediction is not None and 
@@ -1227,9 +1251,10 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
             
             # Debug: Log confidence details for low-confidence predictions
             if conf < 0.15:
+                top_prob = float(np.max(probs)) if len(probs) > 0 else 0.0
                 print(f"[DEBUG] Low confidence: word={predicted}, conf={conf:.4f} ({conf:.1%}), "
                       f"ensemble_conf={result['confidence']:.4f}, "
-                      f"top_prob={np.max(probs):.4f}, threshold={effective_threshold:.4f}")
+                      f"top_prob={top_prob:.4f}, threshold={effective_threshold:.4f}")
             
             # ── Motion Gating ──
             motion_gated = is_motion_gating_active(motion_magnitude, frames_in_motion, MOTION_GATING_ENABLED, MOTION_THRESHOLD)

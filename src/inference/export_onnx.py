@@ -98,9 +98,23 @@ def export_to_onnx(
     dummy_input = torch.randn(1, seq_len, feature_dim, dtype=torch.float32, device=device)
     dummy_proximity = torch.randn(1, seq_len, dtype=torch.float32, device=device)
 
+    class ONNXExportWrapper(torch.nn.Module):
+        def __init__(self, base_model):
+            super().__init__()
+            self.base_model = base_model
+
+        def forward(self, input_seq, proximity):
+            out = self.base_model(input_seq, proximity=proximity)
+            if isinstance(out, dict):
+                return out["sign_logits"]
+            return out
+
+    wrapped_model = ONNXExportWrapper(model)
+    wrapped_model.eval()
+
     try:
         torch.onnx.export(
-            model,
+            wrapped_model,
             (dummy_input, dummy_proximity),
             output_path,
             input_names=["input_seq", "proximity"],

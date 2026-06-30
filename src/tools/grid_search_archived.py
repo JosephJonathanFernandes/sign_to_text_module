@@ -13,7 +13,8 @@ import numpy as np
 import torch
 
 # Ensure project root is on sys.path so local modules import correctly
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+# (__file__ is in src/tools, so project root is two directories up)
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 

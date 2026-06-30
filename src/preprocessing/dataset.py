@@ -9,7 +9,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from config import get_config
+from src.core.config import get_config
 
 cfg = get_config()
 
@@ -89,6 +89,16 @@ class ISLDataset(Dataset):
                 else:
                     self.domains = ["unknown"]
                     self.domain_to_idx = {"unknown": 0}
+
+                # Populate dummy samples list to satisfy train.py which iterates over it
+                # to extract labels and domains for stratification and balancing.
+                labels = f["labels"][:]
+                weights = f["weights"][:]
+                domains = f["domains"][:] if "domains" in f else [0] * self.num_samples
+                
+                # List of (filepath, label, weight, domain_idx)
+                # filepath is not needed when reading from HDF5.
+                self.samples = [(None, int(l), float(w), int(d)) for l, w, d in zip(labels, weights, domains)]
 
             print(f"[Dataset] HDF5 loaded: {self.num_samples} samples, {len(self.classes)} classes, {len(self.domains)} domains (augment={self.augment})")
             return

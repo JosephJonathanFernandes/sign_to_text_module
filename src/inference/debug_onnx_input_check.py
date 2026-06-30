@@ -7,7 +7,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from src.inference.onnx_inference import ONNXModelWrapper
-from config import PreprocessingConfig
+from src.core.config import PreprocessingConfig
 
 MODEL = os.path.join(ROOT, "model_fp32.onnx")
 print("Model path:", MODEL)

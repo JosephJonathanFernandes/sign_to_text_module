@@ -21,7 +21,7 @@ def _load_sample(sample_npy: str | None) -> tuple[np.ndarray, np.ndarray | None]
         proximity = sample[:, -1] if sample.shape[1] > 0 else None
         return sample, proximity
 
-    from config import get_config
+    from src.core.config import get_config
 
     cfg = get_config()
     sample = np.zeros((cfg.preprocessing.num_frames, cfg.frame_features.input_sequence_dim), dtype=np.float32)
@@ -44,8 +44,10 @@ def _validation_accuracy_for_single_model(model) -> float | None:
     correct = 0
     total = 0
     with torch.inference_mode():
-        for sequences, proximity, labels in val_loader:
+        for sequences, proximity, labels, _weights, _domains in val_loader:
             logits = model(sequences.to("cpu"), proximity=proximity.to("cpu"))
+            if isinstance(logits, dict):
+                logits = logits["sign_logits"]
             predictions = logits.argmax(dim=1)
             correct += (predictions == labels.to("cpu")).sum().item()
             total += labels.size(0)

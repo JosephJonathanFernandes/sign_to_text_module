@@ -24,7 +24,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-from config import get_config
+from src.core.config import get_config
 
 cfg = get_config()
 

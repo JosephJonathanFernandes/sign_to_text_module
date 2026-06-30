@@ -32,7 +32,7 @@ def _load_sample(sample_path: str | None) -> tuple[np.ndarray, np.ndarray | None
         proximity = sample[:, -1] if sample.shape[1] > 0 else None
         return sample, proximity
 
-    from config import get_config
+    from src.core.config import get_config
 
     cfg = get_config()
     sample = np.zeros((cfg.preprocessing.num_frames, cfg.frame_features.input_sequence_dim), dtype=np.float32)
