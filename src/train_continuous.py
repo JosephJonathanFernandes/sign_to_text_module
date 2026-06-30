@@ -53,7 +53,10 @@ class ContinuousDataset(Dataset):
             if self.is_train:
                 seq_np = seq_t.numpy()
                 lbl = lbl_t.item()
-                # Apply boundary noise augmentation
+                # Apply standard spatial and temporal augmentations first!
+                seq_np = ISLDataset._augment(seq_np)
+                
+                # Apply continuous-specific boundary noise augmentation
                 seq_np = apply_boundary_noise(
                     sequence=seq_np, 
                     label=lbl, 
@@ -61,7 +64,11 @@ class ContinuousDataset(Dataset):
                     edge_frames=BOUNDARY_EDGE_FRAMES, 
                     probability=BOUNDARY_NOISE_PROB
                 )
+                
+                # Because we mutated the sequence, we MUST re-extract proximity
+                proximity = ISLDataset._extract_proximity(seq_np)
                 seq_t = torch.from_numpy(seq_np)
+                prox_t = torch.from_numpy(proximity)
                 
             return seq_t, prox_t, lbl_t, weight_t, domain_t
         else:
@@ -69,8 +76,8 @@ class ContinuousDataset(Dataset):
             trans_idx = idx - len(self.indices)
             seq_np, lbl = self.transitions[trans_idx]
             
-            # Align input size and compute proximity if needed
-            seq_np, proximity = ISLDataset._prepare_sequence(seq_np, augment=False)
+            # Align input size, apply standard augmentations if training, and compute proximity
+            seq_np, proximity = ISLDataset._prepare_sequence(seq_np, augment=self.is_train)
             
             return (
                 torch.from_numpy(seq_np),
