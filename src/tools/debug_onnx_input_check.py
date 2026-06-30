@@ -2,14 +2,15 @@ import os
 import sys
 import numpy as np
 
-# Ensure project root is on path
+# Ensure project root is on path (two levels up from src/tools)
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(ROOT)
 sys.path.insert(0, ROOT)
 
 from src.inference.onnx_inference import ONNXModelWrapper
-from config import PreprocessingConfig
+from src.core.config import get_config
 
-MODEL = os.path.join(ROOT, "model_fp32.onnx")
+MODEL = os.path.join(ROOT, "models", "model.onnx")
 print("Model path:", MODEL)
 
 w = ONNXModelWrapper(MODEL)
@@ -23,7 +24,8 @@ for inp in w.session.get_inputs():
     print(" -", inp.name, inp.shape, inp.type)
 
 # Heuristic values from logs
-num_frames = PreprocessingConfig().num_frames
+cfg = get_config()
+num_frames = cfg.preprocessing.num_frames
 
 # Simulate the 'live' input shape observed in logs (feat_dim=253)
 live_feat = 253
