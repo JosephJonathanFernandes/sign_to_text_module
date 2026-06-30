@@ -1,12 +1,13 @@
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Append project root to sys.path (two levels up from src/tools)
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 import torch
 from src.utils.quantization_utils import build_model_from_checkpoint
 
 def check_keys():
-    model_path = os.path.join(os.path.dirname(__file__), '..', 'models', 'model.pth')
+    model_path = os.path.join(os.path.dirname(__file__), '..', '..', 'models', 'model.pth')
     ckpt = torch.load(model_path, map_location='cpu')
     
     num_classes = int(ckpt["num_classes"])
