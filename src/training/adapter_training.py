@@ -102,10 +102,12 @@ class AdapterTrainingManager:
         ensemble_probs_list: list,
         class_indices_list: list,
         min_samples_per_class: int = 5,
+        max_samples_per_class: int = 100,
     ) -> tuple:
         """
-        Build a balanced training set by undersampling each eligible class to
-        the smallest class count.
+        Build a balanced training set by capping each eligible class to
+        max_samples_per_class, instead of strictly downsampling everything
+        to the smallest class size.
 
         Returns:
             (balanced_probs, balanced_targets, counts)
@@ -127,16 +129,14 @@ class AdapterTrainingManager:
         if len(eligible) < 3:
             return [], [], counts
 
-        target_count = min(len(samples) for samples in eligible.values())
-        if target_count < min_samples_per_class:
-            return [], [], counts
-
         balanced_probs = []
         balanced_targets = []
         for class_idx in sorted(eligible):
             samples = eligible[class_idx]
-            if len(samples) > target_count:
-                chosen = np.random.choice(len(samples), target_count, replace=False)
+            limit = min(len(samples), max_samples_per_class)
+            
+            if len(samples) > limit:
+                chosen = np.random.choice(len(samples), limit, replace=False)
                 selected = [samples[i] for i in chosen]
             else:
                 selected = list(samples)
