@@ -186,7 +186,25 @@ Data augmentation generates synthetic variation to improve model robustness.
 
 ---
 
-# 7. Evaluation Commands
+# 7. Optimization & Export Commands
+
+To optimize your trained PyTorch models for faster CPU inference, you can export them to ONNX or apply INT8 Dynamic Quantization.
+
+### PyTorch Native Quantization
+**Command:** `python -m src.inference.quantize_model --ensemble-dir "models/ensemble" --output "models/ensemble_quantized"`
+**Purpose:** Shrinks the PyTorch model size and improves CPU speed using PyTorch's native INT8 Dynamic Quantization. You can also quantize a single model by passing `--checkpoint` instead.
+
+### Export to ONNX (Recommended)
+**Command:** `python -m src.inference.export_onnx --checkpoint "models/ensemble/model_0.pth" --output "models/ensemble_onnx/model_0.onnx"`
+**Purpose:** Exports the PyTorch model to ONNX format, which runs significantly faster by stripping Python overhead and using a highly optimized C++ backend. *(Run this for each model in your ensemble).*
+
+### ONNX INT8 Quantization
+**Command:** `python -m src.inference.quantize_onnx --model "models/ensemble_onnx/model_0.onnx" --output "models/ensemble_onnx/model_0_int8.onnx"`
+**Purpose:** Takes an exported ONNX model and compresses it to INT8 for the absolute smallest file size and fastest inference.
+
+---
+
+# 8. Evaluation Commands
 
 ### Inference Benchmarking
 **Command:** `python scripts\benchmark_inference.py`
@@ -202,7 +220,7 @@ Data augmentation generates synthetic variation to improve model robustness.
 
 ---
 
-# 8. Testing Commands
+# 9. Testing Commands
 
 The project uses `pytest` for running unit, API, integration, and end-to-end tests.
 
@@ -220,7 +238,7 @@ The project uses `pytest` for running unit, API, integration, and end-to-end tes
 
 ---
 
-# 9. Live Inference Commands
+# 10. Live Inference Commands
 
 ### Webcam Inference (Standard)
 **Command:** `python main.py --webcam`
@@ -233,7 +251,7 @@ The project uses `pytest` for running unit, API, integration, and end-to-end tes
 
 ---
 
-# 10. Continuous Signing Extension Commands
+# 11. Continuous Signing Extension Commands
 
 The continuous extension generates synthetic "transition" noise and boundary frames to help the model ignore the space between signs.
 
@@ -254,7 +272,7 @@ python src\train_continuous.py
 
 ---
 
-# 11. Full Beginner Workflow
+# 12. Full Beginner Workflow
 
 If you just cloned the repository and want to train and test a model from scratch:
 
@@ -293,7 +311,7 @@ python main.py --webcam
 
 ---
 
-# 12. Common Errors + Fixes
+# 13. Common Errors + Fixes
 
 **Error:** `ModuleNotFoundError: No module named 'src'`
 **Cause:** Attempting to run a script inside a subfolder (like `src/augmentations/`) where python cannot resolve the root package structure.
@@ -313,7 +331,7 @@ python main.py --webcam
 
 ---
 
-# 13. Quick Cheat Sheet
+# 14. Quick Cheat Sheet
 
 **SETUP**
 ```powershell
@@ -335,6 +353,13 @@ python main.py --kfold
 python main.py --augment-landmarks
 python main.py --merge
 python scripts\augment_pipeline.py
+```
+
+**OPTIMIZE & EXPORT**
+```powershell
+python -m src.inference.quantize_model --ensemble-dir "models/ensemble" --output "models/ensemble_quantized"
+python -m src.inference.export_onnx --checkpoint "models/ensemble/model_0.pth" --output "models/ensemble_onnx/model_0.onnx"
+python -m src.inference.quantize_onnx --model "models/ensemble_onnx/model_0.onnx" --output "models/ensemble_onnx/model_0_int8.onnx"
 ```
 
 **TESTING**
