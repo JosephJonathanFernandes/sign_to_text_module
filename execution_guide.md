@@ -135,6 +135,14 @@ The preprocessing pipeline converts raw `.mp4` or video files into coordinate da
 **Command:** `python main.py --cleanup --cleanup-max-aug 50`
 **Purpose:** Scans the `processed/` directory and removes duplicate or excessive augmentations to balance dataset size.
 
+### Dataset Downsampling
+**Command:** `python src\preprocessing\random_downsample_processed.py`
+**Purpose:** Randomly downsamples class folders inside the processed directory to a fixed threshold to prevent large class imbalances.
+
+### Dataset Balancing
+**Command:** `python src\preprocessing\balance_processed_dataset.py`
+**Purpose:** Balances the processed class folders to a fixed target count, prioritizing webcam captures when duplicating.
+
 ---
 
 # 5. Augmentation Commands
@@ -159,8 +167,12 @@ Data augmentation generates synthetic variation to improve model robustness.
 **Purpose:** Uses OpenCV to generate variations of raw videos (brightness, crop, blur) before MediaPipe extraction.
 
 ### Full Pipeline Scripts
-**Command:** `python scripts\augment_pipeline.py`
-**Purpose:** Orchestrates the entire augmentation flow (landmark aug -> merge aug -> cleanup).
+**Command:** `python -m src.preprocessing.augment_pipeline`
+**Purpose:** Orchestrates the entire augmentation flow (landmark aug -> merge aug -> cleanup). Run this as a module from the project root.
+
+### Full Video Augmentation Pipeline
+**Command:** `python -m src.preprocessing.augment_video_pipeline`
+**Purpose:** Orchestrates systematic video augmentations covering spatial crops and visual effects. Run this as a module from the project root.
 
 ---
 
@@ -352,7 +364,8 @@ python main.py --kfold
 ```powershell
 python main.py --augment-landmarks
 python main.py --merge
-python scripts\augment_pipeline.py
+python -m src.preprocessing.augment_pipeline
+python -m src.preprocessing.augment_video_pipeline
 ```
 
 **OPTIMIZE & EXPORT**
