@@ -63,19 +63,19 @@ def main():
         "--augment-iterations",
         type=int,
         default=2,
-        help="Number of times to run augmentation (default: 4)"
+        help="Number of times to run augmentation (default: 2)"
     )
     parser.add_argument(
         "--merge-iterations",
         type=int,
         default=1,
-        help="Number of times to run merge (default: 7)"
+        help="Number of times to run merge (default: 1)"
     )
     parser.add_argument(
         "--augment-n",
         type=int,
         default=4,
-        help="Number of augmentations per iteration (default: 2)"
+        help="Number of augmentations per iteration (default: 4)"
     )
     parser.add_argument(
         "--skip-cleanup",
