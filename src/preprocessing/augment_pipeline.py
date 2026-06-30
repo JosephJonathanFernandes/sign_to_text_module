@@ -124,6 +124,8 @@ def main():
                 sys.executable,
                 "main.py",
                 "--augment-landmarks",
+                "--augment-landmarks-dir",
+                cfg.paths.processed_dir,
                 "--augment-landmarks-cls",
                 class_name,
                 "--augment-landmarks-n",
@@ -153,10 +155,11 @@ def main():
             for i in range(1, args.merge_iterations + 1):
                 cmd = [
                     sys.executable,
-                    "merge_augmentations.py",
-                    "processed",
+                    "-m",
+                    "src.preprocessing.merge_augmentations",
+                    cfg.paths.processed_dir,
                     "--output_dir",
-                    "processed",
+                    cfg.paths.processed_dir,
                     "--n",
                     "2",
                     "--mode",
@@ -172,7 +175,10 @@ def main():
             print(f"\n### Phase 3: Cleanup ###")
             cmd = [
                 sys.executable,
-                "cleanup_dataset_npy.py",
+                "-m",
+                "src.preprocessing.cleanup_dataset_npy",
+                "--root",
+                cfg.paths.processed_dir,
                 "--class",
                 class_name
             ]
