@@ -36,3 +36,31 @@ This document tracks significant architectural decisions made during the develop
 **Decision:** Extract all constants into a strict Pydantic/Dataclass-style configuration file (`src/core/config.py`).
 **Reason:** 
 - Changing a hyperparameter in one place guarantees it propagates everywhere, preventing shape mismatch errors (`E001`) during inference.
+
+## ADR-005: Soft Heuristic Adjustment Layer
+**Date:** 2026-07-01
+**Context:** The GRU model sometimes predicts anatomically impossible signs (e.g., predicting a two-handed sign when only one hand is visible) due to out-of-distribution noise or motion blur. Hard-filtering candidates causes cascading errors if a hand is momentarily occluded.
+**Decision:** We implemented a Soft Heuristic Adjustment Layer that applies multiplicative penalties to raw model probabilities based on real-time observations vs JSON metadata (`data/hand_sign_classification.json`).
+**Reason:** 
+- Multiplicative adjustment allows the GRU to remain dominant while safely down-weighting impossible classes.
+- Confidence gating (e.g., `> 0.7`) prevents noisy heuristic misdetections from ruining valid predictions.
+
+## ADR-006: Rejection of Generative Adversarial Networks (GANs)
+**Status:** Accepted
+**Date:** 2026-07-01
+**Context:** The dataset is limited in size for specific minority classes. We investigated whether a GAN (or TimeGAN) should be introduced to generate synthetic time-series landmark data to expand the dataset.
+**Decision:** We will NOT use Generative Adversarial Networks for data augmentation. Instead, we rely on deterministic mathematical perturbations (scaling, rotation, translation, temporal masking, scattered dropout) and Phase 2 noise injection.
+**Consequences:** 
+- The project avoids the massive computational overhead and complexity of training a sequence GAN.
+- Temporal patterns remain strictly anchored to human-recorded motion, preventing the GRU from learning synthetic distribution artifacts.
+**Alternatives considered:** 
+- TimeGAN/VRAE: Overly complex for skeletal data, high risk of generating temporally inconsistent signs.
+- Hardcoded interpolation: Can lead to cheating if the model learns the interpolation algorithm.
+
+## ADR-007: SentenceBuilder State Machine
+**Date:** 2026-07-01
+**Context:** Continuous live inference frequently produced duplicate words or falsely triggered `__transition__` classes as independent words during the chaotic movement between signs.
+**Decision:** We implemented a strict debouncing state machine (`separator_counter`) inside `SentenceBuilder` that requires `__transition__` or `__reject__` to be stable for at least 3 frames before they are permitted to "break" a continuous sign block.
+**Reason:** 
+- Prevents stuttering (e.g., `HELLO HELLO`).
+- Suppresses mid-air transition noise while preserving the ability to recognize rapid, distinct signs.

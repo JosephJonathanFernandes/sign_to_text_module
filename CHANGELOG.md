@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.0] - 2026-07-01
+
+### Added
+- **Soft Heuristic Adjustment Layer:** Introduced multiplicative penalty system to dynamically down-weight anatomically impossible signs based on live visual confidence, replacing unstable hierarchical classifiers.
+- **Advanced Temporal Augmentations:** Added `TimeMasking` (simulates contiguous frame dropping / webcam lag) and `Scattered Dropout` to prevent the model from learning artificial interpolation logic.
+
+### Changed
+- **State Machine Debouncing:** Upgraded `SentenceBuilder` with a strict 3-frame `separator_counter` to suppress noise from `__transition__` and `__reject__` classes during continuous signing.
+- **Augmentation Strategy:** Formally rejected Generative Adversarial Networks (GANs) for sequence augmentation in favor of deterministic mathematical perturbations, ensuring temporal dynamics remain strictly anchored to human motion.
+
 ## [2.1.0] - 2026-06-28
 
 ### Added

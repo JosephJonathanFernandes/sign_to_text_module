@@ -65,8 +65,9 @@ Each `.npy` file is a NumPy array of shape `(20, 506)` and dtype `float32`.
 
 | Metric | Value |
 |---|---|
-| Sign classes | 78 ISL words |
-| Total processed sequences | ~5,683+ |
+| Sign classes | 89 (includes `__reject__` and `__transition__`) |
+| Total stored sequences | 54,420 (processed, processed_del, processed_negatives) |
+| Effective training diversity | > 100,000 (after Mixup & Phase 2 noise injection) |
 | Average samples per class | ~73 (before augmentation) |
 | Target samples per class | 850 (after balancing) |
 | Sequence shape | (20, 506) |
@@ -108,7 +109,7 @@ It measures what percentage of frames in each class have both hands active (non-
 | Gaussian noise injection (σ=0.015) | 70% |
 | Random scaling (0.88–1.12×) | 60% |
 | Temporal frame shift (±3 frames) | 50% |
-| Frame dropout (1–3 frames zeroed) | 30% |
+| TimeMasking (contiguous drops) & Scattered Dropout | 30% |
 | XY rotation (±15°) | 40% |
 | Time warping (0.75–1.25× speed) | 40% |
 | Per-hand dropout | 20% |

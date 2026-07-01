@@ -80,7 +80,7 @@ python main.py --augment-landmarks \
 
 Applies 14 of 20 available deterministic augmentations to each `.npy` file:
 - 3D rotation (±15°), scaling (0.88–1.12×), translation
-- Temporal: speed warp, time shift, frame dropout (1–3 frames)
+- Temporal: speed warp, time shift, TimeMasking (contiguous drops), Scattered Dropout
 - Occlusion: per-hand dropout, fog noise, coarse dropout
 - Recomputes proximity scalar and velocity after coordinate changes
 

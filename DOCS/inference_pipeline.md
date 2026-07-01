@@ -13,8 +13,9 @@ The live inference pipeline runs at 30 FPS and delivers end-to-end predictions i
 | MediaPipe (cached frame) | < 5 ms | Reused landmarks |
 | Feature construction | < 2 ms | Pre-allocated buffers |
 | ONNX INT8 inference | 15–30 ms | Full 20-frame window |
+| Heuristic adjustment | < 1 ms | Multiplicative penalty |
 | Temporal post-processing | < 1 ms | Sliding window |
-| Sentence builder | < 1 ms | Deque + string ops |
+| Sentence builder | < 1 ms | Deque + state machine |
 | **Total (detect frame)** | **~80–120 ms** | |
 | **Total (cached frame)** | **~30–50 ms** | |
 
@@ -68,7 +69,18 @@ Output: logits `(1, 78)` → softmax → probability vector `(78,)`
 
 **Ensemble mode:** `src/inference/onnx_ensemble_integration.py` averages predictions from up to 5 fold checkpoints (configured via `LiveInferenceConfig.ensemble_size`).
 
-## Stage 5 — Temporal Post-Processing
+## Stage 5 — Soft Heuristic Adjustment Layer
+
+**File:** `src/core/webcam.py`
+
+Before temporal smoothing, the raw GRU probabilities are adjusted via deterministic heuristic rules based on JSON metadata (`data/hand_sign_classification.json`):
+
+1. **Feature Extraction:** Live webcam features (e.g., hand count) are continuously tracked.
+2. **Confidence Gating:** Heuristics are only applied if the live visual confidence (e.g., MediaPipe hand presence) exceeds `0.7`.
+3. **Multiplicative Penalty:** If the live feature mismatches the expected sign feature (e.g., seeing 1 hand for a `two_hands` sign), a multiplicative penalty (e.g., `0.6`) is applied to that sign's probability.
+4. **Dominance:** This soft penalty ensures the model remains the primary decider, safely reshaping probabilities without catastrophic hard-filtering.
+
+## Stage 6 — Temporal Post-Processing
 
 **File:** `src/inference/temporal_postprocessor.py`
 
@@ -86,7 +98,7 @@ Output: logits `(1, 78)` → softmax → probability vector `(78,)`
   - Same class predicted for **3 consecutive frames**
   - Smoothed confidence exceeds current stable class by **≥ 0.12** (hysteresis)
 
-## Stage 6 — Momentum Commit
+## Stage 7 — Momentum Commit
 
 **File:** `src/core/webcam.py`
 
@@ -95,13 +107,15 @@ A sign is committed to the sentence when:
 - **Minimum confidence:** average confidence of agreeing predictions ≥ 0.60
 - **Ambiguity delay:** if top-1 minus top-2 probability < 0.05, wait 4 additional frames
 
-## Stage 7 — Sentence Builder + NLP
+## Stage 8 — Sentence Builder + NLP
 
 **File:** `src/inference/sentence_builder.py`, `src/inference/nlp_postprocessor.py`
 
-- `SentenceBuilder` appends committed labels to a running word list
-- Prevents consecutive duplicate appends
-- `sign_idle_timeout = 30 frames` resets builder when hands absent
+The `SentenceBuilder` uses a debouncing state machine to prevent noise during rapid gesture sequences:
+
+- **State Machine Debounce:** `__reject__` or `__transition__` classes are ignored unless they persist for ≥ 3 consecutive frames (`separator_counter`).
+- **Duplicate Suppression:** Prevents appending the exact same word consecutively.
+- **Idle Timeout:** If no hands are detected for `30 frames`, the state resets.
 - `nlp_postprocessor` applies: capitalization, grammatical connectors, punctuation normalization
 
 ## Confidence Threshold System

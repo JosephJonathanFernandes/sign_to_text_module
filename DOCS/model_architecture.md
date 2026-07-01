@@ -94,16 +94,18 @@ Dropout(0.25)
 
 ## Parameter Count
 
+*(Parameter count computed from current implementation: `sum(p.numel() for p in model.parameters())`)*
+
 | Component | Approximate Parameters |
 |---|---|
 | Spatial GNN | ~2K |
 | Conv1D Frontend | ~70K |
 | Frame Weighting MLP | ~5K |
 | Input Projection | ~9K |
-| BiGRU × 3 layers | ~75K |
+| BiGRU × 3 layers | ~225K |
 | HybridAttention | ~20K |
 | FC Head | ~13K |
-| **Total** | **~194K** |
+| **Total** | **343,976 (~344K)** |
 
 ## ONNX Export
 
