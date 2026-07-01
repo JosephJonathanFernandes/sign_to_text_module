@@ -91,6 +91,9 @@ class ContinuousDataset(Dataset):
 def main():
     parser = argparse.ArgumentParser(description="Train Continuous Sign Language Model")
     parser.add_argument("--archived-weight", type=float, default=0.25, help="Weight for archived samples")
+    parser.add_argument("--finetune-archived-epochs", type=int, default=10, help="Number of epochs for Phase 2 fine-tuning")
+    parser.add_argument("--finetune-archived-lr", type=float, default=1.5e-4, help="Learning rate for Phase 2 fine-tuning")
+    parser.add_argument("--phase2-only", action="store_true", help="Skip Phase 1 and run only Phase 2 using the existing saved model")
     args = parser.parse_args()
 
     print("[Continuous] Loading base dataset (Phase 1)...")
@@ -154,21 +157,24 @@ def main():
     if reject_idx == full_ds.num_classes:
         classes_list.append("__reject__")
         
-    print(f"[Continuous] Starting Phase 1 training with {num_classes} classes...")
-    print(f"[Continuous] Will save model to: {cfg.paths.model_save_path}")
-    
-    # Run Phase 1 train loop
-    train(
-        train_loader=train_loader,
-        val_loader=val_loader,
-        num_classes=num_classes,
-        class_weights=class_weights,
-        classes_list=classes_list
-    )
+    if not args.phase2_only:
+        print(f"[Continuous] Starting Phase 1 training with {num_classes} classes...")
+        print(f"[Continuous] Will save model to: {cfg.paths.model_save_path}")
+        
+        # Run Phase 1 train loop
+        train(
+            train_loader=train_loader,
+            val_loader=val_loader,
+            num_classes=num_classes,
+            class_weights=class_weights,
+            classes_list=classes_list
+        )
+    else:
+        print(f"[Continuous] Skipping Phase 1 (--phase2-only). Existing model at {cfg.paths.model_save_path} will be used.")
 
     # --- PHASE 2 ---
-    finetune_epochs = getattr(cfg.training, 'finetune_archived_epochs', 0)
-    if finetune_epochs and int(finetune_epochs) > 0:
+    finetune_epochs = args.finetune_archived_epochs
+    if finetune_epochs > 0:
         processed_del = os.path.join(os.path.dirname(cfg.paths.processed_dir), "processed_del")
         neg_del = os.path.join(os.path.dirname(cfg.paths.processed_dir), "processed_negatives_del")
         
@@ -208,7 +214,7 @@ def main():
             ])
             class_weights_p2 = _compute_inverse_class_weights(all_train_labels_p2, num_classes)
             
-            ft_lr = getattr(cfg.training, 'finetune_archived_lr', None)
+            ft_lr = args.finetune_archived_lr
             if ft_lr is not None:
                 ft_lr = float(ft_lr)
                 
