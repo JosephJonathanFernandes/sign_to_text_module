@@ -7,10 +7,16 @@ All notable changes to this project will be documented in this file.
 ### Added
 - **Soft Heuristic Adjustment Layer:** Introduced multiplicative penalty system to dynamically down-weight anatomically impossible signs based on live visual confidence, replacing unstable hierarchical classifiers.
 - **Advanced Temporal Augmentations:** Added `TimeMasking` (simulates contiguous frame dropping / webcam lag) and `Scattered Dropout` to prevent the model from learning artificial interpolation logic.
+- **Spatial GNN Branch:** Integrated a lightweight Spatial Graph Neural Network to process explicit finger-joint connectivity for complex topologies.
+- **Adapter Safety Safeguards:** Introduced strict thresholds (`>40 samples`, `>3 classes`) constraining when adaptation is allowed during live inference to prevent confirmation bias.
+- **Experimental CVAE Pipeline:** Added research scripts for Conditional Variational Autoencoder synthetic landmark generation.
 
 ### Changed
-- **State Machine Debouncing:** Upgraded `SentenceBuilder` with a strict 3-frame `separator_counter` to suppress noise from `__transition__` and `__reject__` classes during continuous signing.
+- **State Machine Debouncing:** Upgraded `SentenceBuilder` with a strict 3-frame `separator_counter` and an aggressive 45-frame identical-word cooldown (~1.5s) to suppress noise and stuttering.
 - **Augmentation Strategy:** Formally rejected Generative Adversarial Networks (GANs) for sequence augmentation in favor of deterministic mathematical perturbations, ensuring temporal dynamics remain strictly anchored to human motion.
+- **Latency Optimization:** Intentionally disabled HOG-based person detection (`disable_hog_detection = True`), shaving ~8ms of latency per frame at the acceptable trade-off of reduced person-aware filtering.
+- **Hyperparameter Evolution:** Reduced learning rate to `3e-4` and early stopping patience to `10` to ensure stable convergence on current datasets.
+- **Low Confidence Regime:** Standardized baseline acceptance confidence threshold to `~0.12`, relying on temporal momentum and state logic over absolute confidence peaks.
 
 ## [2.1.0] - 2026-06-28
 

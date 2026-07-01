@@ -132,3 +132,9 @@ Frame-splicing between same-class recordings:
 | `scripts/random_downsample_processed.py` | Safe class downsampling (protects originals) |
 | `scripts/quality_filter_hybrid.py` | Remove near-duplicates + select diverse subset |
 | `main.py --cleanup` | Integrated cleanup via pipeline CLI |
+
+## Synthetic Data Evolution (CVAE vs GAN)
+
+The team evaluated methods to combat data scarcity using synthetic skeleton generation:
+- **GAN Rejection:** GAN-based approaches were considered but ultimately not adopted. Deterministic augmentation already addressed most variability requirements while avoiding the additional training complexity and high risk of temporally inconsistent sequences.
+- **CVAE Experiments:** An experimental Conditional Variational Autoencoder (CVAE) pipeline (`experimental/cvae_landmarks.py`, `experimental/quality_discriminator.py`) is used strictly as a research direction for exploring synthetic landmark generation. It allows generating class-balanced synthetic sequences by sampling from the latent space, but relies heavily on a separate GRU-based quality discriminator to filter out unrealistic samples before they can be considered for training.

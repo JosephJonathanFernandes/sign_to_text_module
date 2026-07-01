@@ -162,13 +162,18 @@ All hyperparameters are in `src/core/config.py` → `TrainingConfig`:
 | Parameter | Default | Notes |
 |---|---|---|
 | `batch_size` | 8 | Small batches for limited per-class counts |
-| `learning_rate` | 3e-4 | Reduced for stability |
-| `weight_decay` | 5e-4 | L2 regularization |
+| `learning_rate` | 3e-4 | Reduced from 5e-4 for stability on current dataset boundaries |
+| `weight_decay` | 5e-4 | Increased for better regularization |
 | `grad_clip` | 1.0 | Gradient norm clipping |
 | `num_epochs` | 50 | With early stopping |
-| `patience` | 10 | Early stopping patience |
+| `patience` | 10 | Reduced from 20 to ensure stable convergence |
 | `val_split` | 0.30 | Stratified 70/30 split |
 | `label_smoothing` | 0.05 | Prevents overconfident predictions |
 | `use_class_weights` | True | Inverse frequency, power=1.0 |
-| `use_mixup` | True | α=0.3, probability=0.5 |
 | `lr_scheduler` | cosine | ReduceLROnPlateau with cosine decay |
+
+## Continuous Learning (Adapter)
+
+The continuous learning `AdapterModel` trains on live pseudo-labels. Strict safety thresholds (`adapter_min_saved_samples = 40`, `adapter_min_classes = 3`) constrain when adaptation is allowed during live operation. 
+
+*Rationale:* This acts as a safeguard intended to reduce the risk of unstable adaptation from pseudo-labeled live data.

@@ -41,6 +41,19 @@ The ML pipeline is a hybrid spatial-temporal model:
 
 FastAPI wraps the inference engine using a WebSocket (`/ws/translate`). The frontend client extracts MediaPipe landmarks natively via WebAssembly and transmits only the lightweight coordinate vectors, maintaining low network latency.
 
+**API Versioning (v1 Contract):**
+- All endpoints in `api/app.py` and `api/schemas.py` follow the `v1` contract.
+- Changing `feature_dimension` (e.g. 506 to 620), `sequence_length`, core URL paths, or JSON fields will necessitate a `v2` bump.
+- Minor version additions (e.g., adding `/metrics` or optional payload fields) are permitted.
+
+**Error Handling:**
+Common errors include:
+- `E001` (Feature dimension mismatch)
+- `E002` (Invalid schema version)
+- `E003` (Missing sequence frames)
+- `E004` (Flood protection, dropped WebSocket frames)
+- `E006` (Invalid normalization values)
+
 ## Storage Optimization (HDF5)
 
 During training, dataset loading bottlenecked GPU utilization. The system compiles millions of single-frame `.npy` arrays into a single `dataset.h5` file.
@@ -55,3 +68,9 @@ graph LR
 ```
 
 This reduces File I/O operations from $O(N)$ to $O(1)$, yielding a 200× faster initialization latency.
+
+## Latency vs. Accuracy Trade-offs
+
+To guarantee real-time performance on edge CPUs (under 200 ms end-to-end), intentional compromises were made:
+- **HOG Person Detection Disabled:** HOG-based person detection was removed (`disable_hog_detection = True`) to shave off ~8ms of latency per frame. The team accepted a trade-off between lower latency and reduced person-aware filtering capability, assuming the background will mostly have a single signer.
+- **ONNX INT8 Quantization:** PyTorch models are explicitly exported and quantized to INT8 to maintain high FPS, preferring throughput over minimal precision losses.

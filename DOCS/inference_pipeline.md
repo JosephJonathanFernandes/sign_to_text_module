@@ -114,7 +114,7 @@ A sign is committed to the sentence when:
 The `SentenceBuilder` uses a debouncing state machine to prevent noise during rapid gesture sequences:
 
 - **State Machine Debounce:** `__reject__` or `__transition__` classes are ignored unless they persist for ≥ 3 consecutive frames (`separator_counter`).
-- **Duplicate Suppression:** Prevents appending the exact same word consecutively.
+- **Duplicate Suppression:** Prevents appending the exact same word consecutively via an aggressive 45-frame cooldown (~1.5 s at 30 FPS) before the same word can be predicted again (`same_word_cooldown_frames = 45`).
 - **Idle Timeout:** If no hands are detected for `30 frames`, the state resets.
 - `nlp_postprocessor` applies: capitalization, grammatical connectors, punctuation normalization
 
@@ -125,7 +125,7 @@ The `SentenceBuilder` uses a debouncing state machine to prevent noise during ra
 | Base | 0.12 | Minimum confidence to accept any prediction |
 | Hysteresis | 0.12 | Minimum delta to switch stable class |
 | Ambiguity margin | 0.05 | Top-1 minus Top-2 gap; triggers ambiguity delay below |
-| Similar-class penalty | +0.08 | Extra threshold for visually confusable sign pairs |
+| Similar-class penalty | 1.3x multiplier | Transition requirement is multiplied for known confusable sign pairs |
 | Momentum confidence | 0.60 | Min average confidence to commit a sign |
 
 ## Running Live Inference

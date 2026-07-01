@@ -64,3 +64,24 @@ This document tracks significant architectural decisions made during the develop
 **Reason:** 
 - Prevents stuttering (e.g., `HELLO HELLO`).
 - Suppresses mid-air transition noise while preserving the ability to recognize rapid, distinct signs.
+
+## ADR-008: Adapter Model Safety Safeguards
+**Date:** 2026-07-01
+**Context:** The continuous learning `AdapterModel` trains on live pseudo-labels gathered during inference, which poses a high risk of catastrophic confirmation bias if the base model hallucinates.
+**Decision:** We introduced strict thresholds (`adapter_min_saved_samples = 40`, `adapter_min_classes = 3`) that constrain when adaptation is allowed during live operation.
+**Reason:** 
+- Reduces unstable adaptation from pseudo-labeled data.
+
+## ADR-009: HOG Person Detection Disabled
+**Date:** 2026-07-01
+**Context:** Real-time webcam inference needed additional CPU headroom to maintain stable 30 FPS.
+**Decision:** We intentionally disabled HOG-based person detection (`disable_hog_detection = True`).
+**Reason:** 
+- Shaves off ~8ms of latency per frame. We accepted a trade-off between lower latency and reduced person-aware filtering capability, assuming the background will mostly have a single signer.
+
+## ADR-010: Spatial GNN Integration
+**Date:** 2026-07-01
+**Context:** The standard BiGRU model struggled to capture complex joint-to-joint spatial topologies (e.g., specific finger curls).
+**Decision:** We introduced a lightweight Spatial Graph Neural Network (GNN) branch that processes explicit finger-joint connectivity.
+**Reason:** 
+- Improves accuracy for topologically complex signs while maintaining a relatively small parameter footprint.
