@@ -398,3 +398,55 @@ python scripts\evaluate_quantized_model.py
 python main.py --webcam
 python main.py --webcam --quantized
 ```
+
+---
+
+# 15. Developer Guide (Merged)
+
+**Quick verification**
+- Run a smoke forward pass (synthetic) to validate model import and shapes: `python scripts/smoke_gnn_test.py`
+- Run a short benchmark (synthetic or webcam) with the benchmarking harness: `python scripts/benchmark_gnn.py --mode synthetic --use_gnn 1 --iters 100`
+
+**Checkpoints & naming**
+- Canonical single model: `model.pth`
+- K-fold checkpoints: `ensemble/fold_{n}.pth`
+- Adapter weights live in `adapter_weights/` and are named by timestamp.
+
+**Pseudo-labeling and User-Specific Live Adapter**
+- `AdapterModel`: A lightweight MLP that corrects ensemble probability vectors in log-probability space without modifying the base models.
+- `AdapterTrainer`: Threads asynchronous training in the background. Downsamples data, uses inverse-frequency class weights, and strictly validates that adaptation does not degrade ensemble confidence.
+
+---
+
+# 16. API Versioning Contract
+
+The backend guarantees stability for frontend integration through a strict versioning policy. All endpoints in `api/app.py` and `api/schemas.py` are considered **v1** and are frozen.
+
+### Breaking Changes (Requires `v2` migration)
+- Changing `feature_dimension` (e.g. 506 to 620).
+- Changing `sequence_length` (e.g. 20 to 30).
+- Renaming or removing JSON fields.
+- Altering core URL paths.
+
+### Non-Breaking Additions (Minor Version Bump)
+- Adding new REST endpoints (e.g. `/metrics`).
+- Adding optional fields to JSON request payloads.
+- Adding fields to JSON response payloads.
+- Adding new message types to the WebSocket protocol.
+
+---
+
+# 17. API Error Catalog
+
+| Code | Name | Description | Suggested Frontend Action |
+|------|------|-------------|---------------------------|
+| **E001** | `Feature dimension mismatch` | Incoming vector does not match 506 shape. | Ensure MediaPipe output is 253 points + velocity. |
+| **E002** | `Invalid schema version` | Payload's `schema_version` is unsupported. | Check `/health` to verify supported schema. |
+| **E003** | `Missing sequence frames` | Sequence lacked minimum required frames. | Ensure buffer is full before `/predict`. |
+| **E004** | `Flood protection` | Too many WebSocket requests. Frame dropped. | None. Normal during fast streaming. |
+| **E005** | `Internal inference failure` | Unhandled PyTorch exception. | Check backend logs. |
+| **E006** | `Invalid normalization` | Features significantly outside expected range. | Check camera calibration. |
+| **E007** | `NaN or Inf detected` | Features contain NaN or Infinity. | Ensure frontend division by zero is handled. |
+| **E008** | `Model not loaded` | Inference requested before model loaded. | Wait for WebSocket connection. |
+| **E009** | `HDF5 loading failure` | Dataset asset failed to load. | Contact backend engineering. |
+| **E010** | `Unsupported API version` | Endpoint or WS version is deprecated. | Upgrade frontend to current API version. |
