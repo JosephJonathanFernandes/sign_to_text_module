@@ -469,9 +469,16 @@ class ISLDataset(Dataset):
             shift = np.random.randint(-3, 4)
             seq = np.roll(seq, shift, axis=0)
 
-        # 4) Random frame dropout (30% chance)
-        #    Zero out 1-3 random frames
-        if np.random.rand() < 0.3:
+        # 4) TimeMasking / Temporal Cutout (30% chance)
+        #    Zero out a contiguous block of 2-5 frames to simulate webcam stutter
+        if np.random.rand() < 0.30 and num_frames > 10:
+            mask_len = np.random.randint(2, 6)
+            start_idx = np.random.randint(0, num_frames - mask_len)
+            seq[start_idx:start_idx + mask_len] = 0.0
+
+        # 4b) Random scattered frame dropout (25% chance)
+        #     Zero out 1-3 random non-consecutive frames to simulate MediaPipe tracking glitches
+        if np.random.rand() < 0.25:
             n_drop = np.random.randint(1, 4)
             drop_idx = np.random.choice(num_frames, n_drop, replace=False)
             seq[drop_idx] = 0.0
