@@ -224,11 +224,11 @@ To optimize your trained PyTorch models for faster CPU inference, you can export
 # 8. Evaluation Commands
 
 ### Inference Benchmarking
-**Command:** `python scripts\benchmark_inference.py`
+**Command:** `python -m src.tools.benchmark_inference`
 **Purpose:** Benchmarks the current ensemble/model for throughput (FPS) and latency.
 
 ### Evaluate Quantized Model
-**Command:** `python scripts\evaluate_quantized_model.py`
+**Command:** `python -m src.inference.evaluate_quantized_model`
 **Purpose:** Runs validation checks against a quantized Int8 ONNX model to verify accuracy hasn't degraded during quantization.
 
 ### Video Evaluation
@@ -386,11 +386,13 @@ pytest tests/unit/
 pytest tests/ -v --cov=src --cov=api
 ```
 
-**EVALUATE**
+**EVALUATE & TOOLS**
 ```powershell
 python main.py --predict "data\my_video.mp4"
-python scripts\benchmark_inference.py
-python scripts\evaluate_quantized_model.py
+python -m src.tools.benchmark_inference
+python -m src.inference.evaluate_quantized_model
+python -m src.tools.compile_hdf5
+python -m src.tools.generate_report_metrics
 ```
 
 **LIVE INFERENCE**
@@ -450,3 +452,33 @@ The backend guarantees stability for frontend integration through a strict versi
 | **E008** | `Model not loaded` | Inference requested before model loaded. | Wait for WebSocket connection. |
 | **E009** | `HDF5 loading failure` | Dataset asset failed to load. | Contact backend engineering. |
 | **E010** | `Unsupported API version` | Endpoint or WS version is deprecated. | Upgrade frontend to current API version. |
+
+---
+
+# 18. Developer Tools (`src/tools/`)
+
+The repository includes several advanced utilities inside `src/tools/` for dataset management, reporting, and debugging.
+
+### HDF5 Dataset Compilation
+**Command:** `python -m src.tools.compile_hdf5`
+**Purpose:** Compiles millions of `.npy` arrays into a single `dataset.h5` file for 200x faster I/O.
+
+### Generate Report Metrics
+**Command:** `python -m src.tools.generate_report_metrics`
+**Purpose:** Generates latency profiling reports (e.g. `PROFILING_LATENCY_REPORT.md`) by aggregating evaluation logs.
+
+### Check Model Weights
+**Command:** `python -m src.tools.check_weights`
+**Purpose:** Validates the weight distributions of a trained `.pth` checkpoint.
+
+### Benchmark Dataset Loading
+**Command:** `python -m src.tools.benchmark_dataset`
+**Purpose:** Benchmarks the loading speed differences between raw `.npy` loading and the `dataset.h5` engine.
+
+### Validate NPY Files
+**Command:** `python -m src.tools.validate_npy`
+**Purpose:** Deep-scans the dataset for corrupt, empty, or incorrectly shaped `.npy` arrays.
+
+### Generate Architecture Diagrams
+**Command:** `python -m src.tools.generate_mermaid`
+**Purpose:** Auto-generates mermaid diagrams based on the latest codebase structure.
