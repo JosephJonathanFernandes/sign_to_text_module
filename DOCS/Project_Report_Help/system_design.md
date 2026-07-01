@@ -29,7 +29,7 @@ Webcam Frame
     ▼
 [Stage 4] Deep Learning Inference (ONNX INT8 → PyTorch fallback)
     │  Input: (1, 20, 506)
-    │  Output: logits over 78 sign classes → softmax probabilities
+    │  Output: logits over 89 sign classes → softmax probabilities
     │
     ▼
 [Stage 5] Temporal Post-Processing

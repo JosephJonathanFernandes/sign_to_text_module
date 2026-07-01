@@ -89,7 +89,7 @@ Dropout(0.25)
 → ReLU
 → Dropout(0.25)
 → Linear(96 → num_classes)
-→ logits (78 classes)
+→ logits (89 classes)
 ```
 
 ## Parameter Count

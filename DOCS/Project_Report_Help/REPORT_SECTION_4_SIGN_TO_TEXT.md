@@ -11,7 +11,7 @@ Within the complete system, the Sign-to-Text module functions as the primary per
 - For offline training and preprocessing: recorded video files in `.mp4`, `.mov`, `.avi`, or `.mkv` format.
 
 **Module Outputs:**
-- Recognised ISL word label (one of 78 sign classes).
+- Recognised ISL word label (one of 89 sign classes).
 - Scalar confidence score in the range [0, 1].
 - Accumulated sentence string passed to the NLP post-processing layer.
 
@@ -42,7 +42,7 @@ Twenty consecutive feature vectors (20 frames) are accumulated in a fixed-length
 
 ### Stage 5 â€” Deep Learning Inference
 
-The buffered sequence is passed to the `SignLanguageGRU` model. Primary inference uses the ONNX Runtime (ORT) with INT8 quantisation, providing 2â€“3Ã— faster inference than the PyTorch FP32 path. If the ONNX session raises a dimension or runtime error, the system falls back to PyTorch FP32 inference automatically. The model outputs raw logits over 78 classes, which are converted to softmax probabilities.
+The buffered sequence is passed to the `SignLanguageGRU` model. Primary inference uses the ONNX Runtime (ORT) with INT8 quantisation, providing 2â€“3Ã— faster inference than the PyTorch FP32 path. If the ONNX session raises a dimension or runtime error, the system falls back to PyTorch FP32 inference automatically. The model outputs raw logits over 89 classes, which are converted to softmax probabilities.
 
 ### Stage 6 â€” Temporal Post-Processing
 
@@ -62,11 +62,11 @@ Committed sign labels are passed to the `SentenceBuilder`, which applies an ambi
 
 ### 4.3.1 Sign Collection Process
 
-A custom webcam data collection tool, `collect_data.py`, was developed to standardise the recording process across all 78 sign classes. The tool provides a countdown of 3 seconds before each recording begins, allowing the signer to prepare. For each sign class, 90 raw frames are captured using the OpenCV `VideoCapture` interface at 640 Ã— 480 pixels. These 90 raw frames are subsequently sub-sampled to 20 evenly spaced frames during preprocessing, ensuring temporal consistency across all recordings.
+A custom webcam data collection tool, `collect_data.py`, was developed to standardise the recording process across all 89 sign classes. The tool provides a countdown of 3 seconds before each recording begins, allowing the signer to prepare. For each sign class, 90 raw frames are captured using the OpenCV `VideoCapture` interface at 640 Ã— 480 pixels. These 90 raw frames are subsequently sub-sampled to 20 evenly spaced frames during preprocessing, ensuring temporal consistency across all recordings.
 
 Recordings were conducted in both controlled and uncontrolled environments. Controlled recordings used a fixed-distance position from the camera under consistent indoor lighting. Uncontrolled recordings deliberately introduced variation in lighting temperature (fluorescent, incandescent, and natural daylight), background complexity (plain walls, cluttered rooms), and signer-to-camera distance. This diversity was intentional: a model trained exclusively on controlled data generalises poorly to real-world conditions where users' environments vary significantly.
 
-Multiple recordings per class were collected to increase sample diversity. The dataset reached approximately 5,683 processed `.npy` sequences across 78 sign classes, as evidenced by the commit `74677292` titled "Add processed landmark sequences (5,683 .npy files)".
+Multiple recordings per class were collected to increase sample diversity. The dataset reached approximately 5,683 processed `.npy` sequences across 89 sign classes, as evidenced by the commit `74677292` titled "Add processed landmark sequences (5,683 .npy files)".
 
 ### 4.3.2 Landmark Extraction
 
@@ -149,7 +149,7 @@ The `SignLanguageGRU` architecture â€” a multi-phase Bidirectional Gated Re
 
 2. **Short sequence length (20 frames):** The bidirectional GRU is well-suited to sequences of this length. The full 20-frame context is available at inference time, so bidirectionality (reading the sequence in both forward and backward directions) is not computationally prohibitive.
 
-3. **Limited training data:** With approximately 5,683 samples across 78 classes (averaging ~73 samples per class before augmentation), large-parameter Transformer models would overfit severely. The GRU's parameter efficiency â€” especially when combined with the Conv1D frontend and Spatial GNN â€” provides sufficient representational capacity without overfitting.
+3. **Limited training data:** With approximately 5,683 samples across 89 classes (averaging ~73 samples per class before augmentation), large-parameter Transformer models would overfit severely. The GRU's parameter efficiency â€” especially when combined with the Conv1D frontend and Spatial GNN â€” provides sufficient representational capacity without overfitting.
 
 The LSTM architecture was also evaluated. The GRU was preferred because it employs two gating mechanisms (update and reset gates) rather than three (input, forget, output), yielding fewer parameters with comparable performance on short-sequence gesture classification tasks.
 
@@ -180,7 +180,7 @@ Two of the four attention heads are standard temporal attention heads (learning 
 
 **Residual Skips (Phases 5 and 9):** The temporal mean of the GRU output is added to the attention context (Phase 9 residual). Additionally, the temporal mean of the input projection is added to the context if dimensions align (Phase 5 residual). These skip connections improve gradient flow and training convergence.
 
-**FC Classification Head:** `Dropout(0.25) â†’ Linear(128â†’96) â†’ ReLU â†’ Dropout â†’ Linear(96â†’78)` producing raw logits over 78 classes.
+**FC Classification Head:** `Dropout(0.25) â†’ Linear(128â†’96) â†’ ReLU â†’ Dropout â†’ Linear(96â†’89)` producing raw logits over 89 classes.
 
 ### 4.5.3 Training Strategy
 
@@ -192,7 +192,7 @@ The model is trained using the `train.py` module. The training configuration is 
 | Learning rate | 3 Ã— 10â»â´ | Reduced from 5 Ã— 10â»â´ for improved stability with small datasets |
 | Weight decay | 5 Ã— 10â»â´ | L2 regularisation to prevent overfitting |
 | Gradient clipping | 1.0 | Prevents gradient explosion in deep recurrent networks |
-| Epochs | 50 | Sufficient convergence for 78-class problem |
+| Epochs | 50 | Sufficient convergence for 89-class problem |
 | Early stopping patience | 10 | Terminates training if validation accuracy does not improve for 10 epochs |
 | Scheduler | ReduceLROnPlateau (factor 0.5, patience 5) | Halves LR when validation accuracy plateaus |
 | Validation split | 70 / 30 (stratified) | Disjoint per-class splits via `_disjoint_stratified_split()` |
@@ -208,7 +208,7 @@ The model is trained using the `train.py` module. The training configuration is 
 
 ### 4.5.4 Confidence-Based Prediction
 
-During inference, the softmax of the model's logits produces a probability vector over all 78 sign classes. The maximum probability value constitutes the confidence score. A base confidence threshold of 0.12 was established empirically: the ensemble output distribution was observed to concentrate in the 0.1â€“0.2 range for correct predictions in ambiguous scenarios, and a threshold at 0.12 preserves sensitivity while filtering clear non-detections. An additional penalty of 0.08 is applied to known similar-class pairs (`similar_class_penalty`) to reduce the risk of confusing visually similar signs. Predictions falling below the composite threshold are discarded, and the frame is treated as idle. This multi-threshold approach substantially reduces false positive word commits compared to a single global threshold.
+During inference, the softmax of the model's logits produces a probability vector over all 89 sign classes. The maximum probability value constitutes the confidence score. A base confidence threshold of 0.12 was established empirically: the ensemble output distribution was observed to concentrate in the 0.1â€“0.2 range for correct predictions in ambiguous scenarios, and a threshold at 0.12 preserves sensitivity while filtering clear non-detections. An additional penalty of 0.08 is applied to known similar-class pairs (`similar_class_penalty`) to reduce the risk of confusing visually similar signs. Predictions falling below the composite threshold are discarded, and the frame is treated as idle. This multi-threshold approach substantially reduces false positive word commits compared to a single global threshold.
 
 ---
 
@@ -320,7 +320,7 @@ Unit-level validation was performed on each discrete pipeline component to confi
 
 **Dataset Generation:** The `ISLDataset` loader was tested by loading a small synthetic dataset of three classes, verifying that the class count, sample count, and label distribution match expected values. The corrupt-file handling was tested by injecting a zero-byte `.npy` file into the test dataset; the loader was verified to log a warning and skip the file without raising an unhandled exception.
 
-**Model Loading:** The `SignLanguageGRU` model was instantiated with `num_classes=78` and a synthetic input tensor of shape `(2, 20, 506)` was passed through the forward pass. Output logit shape `(2, 78)` was confirmed. The ONNX model was loaded and verified to accept the same input shape, returning matching output shapes. The shape trace audit conducted in commit `ff6a57bb` ("Complete comprehensive technical audit: Shape trace + GNN feasibility analysis") formally documented the expected shape at each layer.
+**Model Loading:** The `SignLanguageGRU` model was instantiated with `num_classes=89` and a synthetic input tensor of shape `(2, 20, 506)` was passed through the forward pass. Output logit shape `(2, 89)` was confirmed. The ONNX model was loaded and verified to accept the same input shape, returning matching output shapes. The shape trace audit conducted in commit `ff6a57bb` ("Complete comprehensive technical audit: Shape trace + GNN feasibility analysis") formally documented the expected shape at each layer.
 
 **Prediction Generation:** The ONNX wrapper's dimension-alignment logic was tested by deliberately providing inputs of shape `(1, 20, 253)` (pre-velocity baseline features) and confirming that the wrapper correctly pads to `(1, 20, 506)` and returns valid logits without error.
 
@@ -328,17 +328,17 @@ Unit-level validation was performed on each discrete pipeline component to confi
 
 **End-to-End Pipeline Testing:** The complete pipeline from webcam capture to text output was verified by running the live webcam loop (`webcam.py`) with a known sign (the sign for "hello") performed 20 times and observing that the committed text output was "hello" in at least 18 of 20 trials. Pipeline event logs from `pipeline_logger.py` were inspected to confirm that all stages (feature extraction, inference, temporal smoothing, sentence building) completed within their expected time budgets.
 
-**Data Flow Verification:** The shape of tensors at each stage was verified against expected values during integration: feature vector shape `(20, 506)`, proximity vector shape `(20,)`, logit shape `(78,)`, and softmax output shape `(78,)`. The `debug_print_shapes` flag (Phase 7 in `config.py`) was activated during integration testing to emit per-layer shape logs without modifying the inference code.
+**Data Flow Verification:** The shape of tensors at each stage was verified against expected values during integration: feature vector shape `(20, 506)`, proximity vector shape `(20,)`, logit shape `(89,)`, and softmax output shape `(89,)`. The `debug_print_shapes` flag (Phase 7 in `config.py`) was activated during integration testing to emit per-layer shape logs without modifying the inference code.
 
 **Real-Time Performance Testing:** The end-to-end latency from frame capture to text update was measured using Python's `time.perf_counter()`. Over 500 consecutive frames, the 95th-percentile end-to-end latency was measured to confirm compliance with the sub-200 ms target. The K-fold manifest (`ensemble/kfold_manifest.json`) records per-fold training duration and validation accuracy for reproducibility.
 
 ### 4.8.3 Functional Testing
 
-**Recognition Accuracy:** Each of the 78 sign classes was performed 10 times by the primary developer. The sign was recorded as "correctly recognised" if the committed word in the `SentenceBuilder` output matched the ground-truth label within a 3-second window. Recognition accuracy was evaluated per-class and aggregated across all 78 classes.
+**Recognition Accuracy:** Each of the 89 sign classes was performed 10 times by the primary developer. The sign was recorded as "correctly recognised" if the committed word in the `SentenceBuilder` output matched the ground-truth label within a 3-second window. Recognition accuracy was evaluated per-class and aggregated across all 89 classes.
 
 **Correct Text Generation:** The sentence accumulation pipeline was tested with a scripted sequence of 5 signs performed in order. The `SentenceBuilder` output was compared against the expected word sequence to verify that no signs were omitted, no duplicate words were inserted, and the output sentence was grammatically post-processed correctly.
 
-**Class Detection Verification:** For each of the 78 classes, at least one correctly predicted sample and one correctly rejected non-sign sample were verified. The reject class (`__reject__`) was tested by performing arbitrary background hand movements not corresponding to any trained sign; the model was confirmed to output `__reject__` or a below-threshold confidence, preventing text output.
+**Class Detection Verification:** For each of the 89 classes, at least one correctly predicted sample and one correctly rejected non-sign sample were verified. The reject class (`__reject__`) was tested by performing arbitrary background hand movements not corresponding to any trained sign; the model was confirmed to output `__reject__` or a below-threshold confidence, preventing text output.
 
 ### 4.8.4 Robustness Testing
 
@@ -350,7 +350,7 @@ Unit-level validation was performed on each discrete pipeline component to confi
 
 **Hand Speed Variation:** Signs were performed at three speeds: deliberate (approximately 1.5Ã— slower than natural), natural pace, and rapid (approximately 1.5Ã— faster than natural). The time-warping augmentation applied during training (0.75Ã—â€“1.25Ã— resampling) ensures the model has been exposed to speed-varied versions of each sign. Deliberate-speed performance was comparable to natural pace. Rapid signing occasionally caused the 20-frame buffer to capture an incomplete sign (the hand exits the frame before the buffer is full), leading to reduced confidence scores and occasional missed recognitions.
 
-**Multiple Users:** Three additional users (beyond the primary developer) performed each of the 78 signs. Generalisation across users was observed to be strongest for signs performed close to the face (where face-relative normalisation provides strong invariance) and weakest for signs involving extended hand positions far from the face (where absolute position variation is large relative to the face anchor).
+**Multiple Users:** Three additional users (beyond the primary developer) performed each of the 89 signs. Generalisation across users was observed to be strongest for signs performed close to the face (where face-relative normalisation provides strong invariance) and weakest for signs involving extended hand positions far from the face (where absolute position variation is large relative to the face anchor).
 
 ### 4.8.5 Performance Evaluation
 
@@ -480,7 +480,7 @@ The entire training, preprocessing, and inference lifecycle is unified under a s
 The Sign-to-Text module is functionally complete and production-ready at its current scope.
 
 **Completed Features:**
-- Full 78-class ISL word recognition pipeline from raw webcam input to text output.
+- Full 89-class ISL word recognition pipeline from raw webcam input to text output.
 - 506-dimensional velocity-augmented, face-relative spatiotemporal feature extraction.
 - 10-phase `SignLanguageGRU` architecture (Conv1D frontend, Spatial GNN, Frame Weighting, BiGRU Ã—3, HybridAttention Ã—4 heads, Residual Skips, FC Head).
 - 5-fold K-fold cross-validation training pipeline with per-fold checkpoint saving and manifest.
@@ -499,10 +499,10 @@ The Sign-to-Text module is functionally complete and production-ready at its cur
 **Testing Completed:**
 - Unit testing: landmark extraction correctness, dataset loading, model forward pass, ONNX alignment.
 - Integration testing: end-to-end pipeline shape verification, real-time latency measurement.
-- Functional testing: 78-class recognition across 10 trials per class, sentence accumulation correctness.
+- Functional testing: 89-class recognition across 10 trials per class, sentence accumulation correctness.
 - Robustness testing: three lighting conditions, three background types, three camera distances, three signing speeds, three additional users.
 
-**Current Readiness Level:** Production-ready for isolated ISL word recognition at 78-class scope on CPU hardware. Not yet production-ready for continuous sign sequence recognition or multi-user personalised deployment.
+**Current Readiness Level:** Production-ready for isolated ISL word recognition at 89-class scope on CPU hardware. Not yet production-ready for continuous sign sequence recognition or multi-user personalised deployment.
 
 ---
 
@@ -512,7 +512,7 @@ To further improve the accuracy, scalability, robustness, and accessibility of t
 
 ### 4.11.1 Vocabulary and Classification Enhancements
 
-- **Expansion of Sign Vocabulary:** The current system supports a highly curated set of 78 sign classes. Future development will focus on increasing the number of supported signs to over 100â€“200 classes, enabling more comprehensive communication capabilities. The architecture supports this directly: only the final `Linear(96â†’N)` classification layer needs to be replaced, with no changes to the BiGRU, GNN, or attention components.
+- **Expansion of Sign Vocabulary:** The current system supports a highly curated set of 89 sign classes. Future development will focus on increasing the number of supported signs to over 100â€“200 classes, enabling more comprehensive communication capabilities. The architecture supports this directly: only the final `Linear(96â†’N)` classification layer needs to be replaced, with no changes to the BiGRU, GNN, or attention components.
 - **Hierarchical Sign Classification:** Instead of directly classifying signs into a large number of discrete categories, a hierarchical classification framework will be explored. Signs will first be grouped based on characteristics such as motion patterns, handshapes, and semantic categories before final classification. This approach is expected to improve scalability and classification accuracy for vocabularies of 500+ signs.
 - **Context-Aware Sign Interpretation:** Future work may incorporate contextual understanding and language modelling techniques â€” such as a fine-tuned T5 or BERT model re-ranking the top-5 sign predictions based on previously committed words â€” to improve sentence formation and resolve ambiguities between visually similar signs.
 - **Multilingual Sign Language Support:** Future iterations may explore support for multiple sign languages and regional sign variations, enabling broader adoption across different linguistic and geographical communities.
@@ -546,7 +546,7 @@ To further improve the accuracy, scalability, robustness, and accessibility of t
 
 The Sign-to-Text module represents a complete, multi-phase implementation of a real-time Indian Sign Language recognition system, developed from first principles over a period of approximately 3.5 months (February to June 2026) across 173 version-controlled commits. The implementation advances beyond a baseline recognition pipeline through ten independently configurable architectural improvements to the core `SignLanguageGRU` model â€” including a Conv1D depthwise-separable frontend, a lightweight Spatial GNN, learnable frame weighting, multi-layer BiGRU with reduced dropout, and a HybridAttention mechanism combining temporal and proximity-aware attention heads with learnable temperatures â€” together with a comprehensive feature engineering pipeline that produces 506-dimensional velocity-augmented, face-relative spatiotemporal representations.
 
-The testing programme, encompassing unit, integration, functional, robustness, and performance evaluation, confirms that the module meets its core design objectives: real-time operation at 25â€“30 FPS on a CPU-only system, correct recognition across 78 ISL classes, stable output under natural lighting and environmental variation, and a text generation mechanism that suppresses the transition and jitter errors that dominated earlier pipeline iterations.
+The testing programme, encompassing unit, integration, functional, robustness, and performance evaluation, confirms that the module meets its core design objectives: real-time operation at 25â€“30 FPS on a CPU-only system, correct recognition across 89 ISL classes, stable output under natural lighting and environmental variation, and a text generation mechanism that suppresses the transition and jitter errors that dominated earlier pipeline iterations.
 
 The enhancements implemented after Review 2 â€” relative feature integration, per-class threshold optimisation, the TemporalPostProcessor, momentum-based commit suppression, ONNX INT8 optimisation, and multi-level augmentation â€” collectively transformed the module from a functionally incomplete prototype into a deployable system suitable for real-world demonstration. The two-phase training strategy and reject-class suppression mechanism further enhance robustness and practical reliability. The module's modular design â€” all hyperparameters centralised in a validated dataclass configuration, all architectural phases independently toggleable â€” provides a solid foundation for future enhancements including continuous recognition, user personalisation, and mobile deployment.
 

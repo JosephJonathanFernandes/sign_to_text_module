@@ -25,7 +25,7 @@ This project addresses this accessibility gap by delivering a complete, CPU-depl
 
 ## 2. Research Objectives
 
-1. **O1 — Accurate Isolated Word Recognition:** Achieve reliable recognition of 78 ISL words from standard RGB webcam video using only CPU inference.
+1. **O1 — Accurate Isolated Word Recognition:** Achieve reliable recognition of 89 ISL words from standard RGB webcam video using only CPU inference.
 2. **O2 — Real-Time Performance:** Deliver end-to-end prediction latency under 200 ms at 30 FPS on consumer hardware.
 3. **O3 — Signer-Independent Generalization:** Build a feature representation (face-relative coordinates + velocity) that generalizes across different signers and camera positions.
 4. **O4 — Data-Efficient Training:** Achieve competitive accuracy with limited data (~73 samples/class) through a multi-stage augmentation pipeline (video, landmark, merge) and CVAE synthetic data generation.
@@ -69,7 +69,7 @@ What is genuinely novel in this project beyond standard academic implementations
 - Custom webcam collection tool (`src/preprocessing/collect_data.py`)
 - Controlled + uncontrolled recording environments
 - Multiple recordings per sign to capture signer variation
-- 78 sign classes, ~73 samples/class initial
+- 89 sign classes, ~73 samples/class initial
 
 ### 5.2 Feature Engineering
 
@@ -111,7 +111,7 @@ What is genuinely novel in this project beyond standard academic implementations
 
 | Property | Value |
 |---|---|
-| Total sign classes | 78 |
+| Total sign classes | 89 |
 | Total processed sequences | ~5,683+ |
 | Average per class (before augmentation) | ~73 |
 | Target per class (after balancing) | 850 |

@@ -65,7 +65,7 @@ Pre-allocated module-level buffers (`_LANDMARK_BUFFERS`) avoid per-frame NumPy a
 3. ONNX Runtime session invoke
 4. On failure → automatic PyTorch FP32 fallback
 
-Output: logits `(1, 78)` → softmax → probability vector `(78,)`
+Output: logits `(1, 89)` → softmax → probability vector `(89,)`
 
 **Ensemble mode:** `src/inference/onnx_ensemble_integration.py` averages predictions from up to 5 fold checkpoints (configured via `LiveInferenceConfig.ensemble_size`).
 

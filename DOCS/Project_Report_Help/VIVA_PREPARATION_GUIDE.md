@@ -17,10 +17,10 @@ This guide prepares you to answer any viva question about your project. Every an
 ### Q1: Summarize your project in 2 minutes.
 
 **Sample Answer:**
-> "My project is a real-time Indian Sign Language to text recognition system. It uses two MediaPipe models — one for hand landmarks and one for face landmarks — to extract 506-dimensional spatiotemporal features from live webcam video. These features go through a custom BiGRU model with a Conv1D frontend, Spatial Graph Neural Network, and Hybrid Multi-Head Attention. The system outputs class predictions for 78 ISL signs in real time, uses a momentum-based commit logic to prevent jitter, and runs on a standard CPU at 30 FPS. I also built a complete training pipeline with K-fold cross-validation, ONNX INT8 quantization for deployment, and synthetic data generation using a Conditional VAE."
+> "My project is a real-time Indian Sign Language to text recognition system. It uses two MediaPipe models — one for hand landmarks and one for face landmarks — to extract 506-dimensional spatiotemporal features from live webcam video. These features go through a custom BiGRU model with a Conv1D frontend, Spatial Graph Neural Network, and Hybrid Multi-Head Attention. The system outputs class predictions for 89 ISL signs in real time, uses a momentum-based commit logic to prevent jitter, and runs on a standard CPU at 30 FPS. I also built a complete training pipeline with K-fold cross-validation, ONNX INT8 quantization for deployment, and synthetic data generation using a Conditional VAE."
 
 **Key Numbers to Memorize:**
-- 78 sign classes
+- 89 sign classes
 - 506D feature vectors
 - 20 frames per sign sequence
 - 5 K-fold models in ensemble
@@ -112,8 +112,8 @@ This guide prepares you to answer any viva question about your project. Every an
 > 7. **BiGRU:** 3 layers, hidden=64, bidirectional → 128D output per frame
 > 8. **HybridAttention:** 4 heads (2 standard, 2 proximity-aware with Gaussian bias σ=0.15 learnable). Learns which frames to attend to.
 > 9. **Residual skips:** GRU temporal mean added to attention context (Phase 9); input_proj mean also added (Phase 5)
-> 10. **FC head:** Dropout(0.25) → Linear(128→96) → ReLU → Dropout → Linear(96→78)
-> 11. Output: logits `(batch, 78)`"
+> 10. **FC head:** Dropout(0.25) → Linear(128→96) → ReLU → Dropout → Linear(96→89)
+> 11. Output: logits `(batch, 89)`"
 
 **Reference:** `model.py` `SignLanguageGRU`, `HybridAttention`, `spatial_gnn.py` `LightweightSpatialGNN`
 
@@ -182,7 +182,7 @@ This guide prepares you to answer any viva question about your project. Every an
 ### Q12: How did you train your model?
 
 **Step-by-Step:**
-1. **Dataset:** 78 sign classes, ~5,683 processed .npy files (20×506D each)
+1. **Dataset:** 89 sign classes, ~5,683 processed .npy files (20×506D each)
 2. **Phase 1 training:** `processed/` only, with optional `processed_negatives/` (reject class)
 3. **Phase 2 fine-tune:** Add `processed_del/` archived samples at weight=0.25
 4. **K-fold:** 5 disjoint folds for ensemble; stratified per class
@@ -337,7 +337,7 @@ This guide prepares you to answer any viva question about your project. Every an
 > Each raw video then goes through `preprocess.py` to extract MediaPipe landmarks and save a (20, 506) .npy file per video. I also used `augment_video_pipeline.py` to generate up to 54 augmented variants per original video (17 visual effects × 3 crop positions + 3 spatial-only crops). These augmented videos are also preprocessed into .npy files and merged via `merge_augmentations.py` into `processed/`."
 
 **Key numbers:**
-- 78 sign classes
+- 89 sign classes
 - ~5,683 processed .npy files
 - Up to 54 augmented variants per original video
 
@@ -384,7 +384,7 @@ This guide prepares you to answer any viva question about your project. Every an
 ### Q25: What is the reject/negatives class? Why have it?
 
 **Sample Answer:**
-> "The reject class (label `__reject__`) represents background gestures — when someone is not signing, or making ambiguous hand movements. Without a reject class, the model always outputs one of the 78 sign labels, even when no sign is being performed. This would cause the sentence to fill with random words.
+> "The reject class (label `__reject__`) represents background gestures — when someone is not signing, or making ambiguous hand movements. Without a reject class, the model always outputs one of the 89 sign labels, even when no sign is being performed. This would cause the sentence to fill with random words.
 >
 > The `processed_negatives/` directory contains samples of non-sign gestures. During Phase 1 training, these are loaded alongside the sign classes. The model learns to output `__reject__` for non-sign inputs. The `_BalancedAugSubset` keeps the reject class at its natural count (not oversampled) because it's often a much larger bucket that would otherwise force all sign classes to be repeated thousands of times."
 
@@ -449,13 +449,13 @@ This guide prepares you to answer any viva question about your project. Every an
 
 | System | Approach | Signs | Hardware | Limitation |
 |--------|----------|-------|----------|-----------|
-| **This project** | MediaPipe + Conv1D + GNN + BiGRU + HybridAttn | **78 ISL** | CPU only, webcam | Isolated words |
+| **This project** | MediaPipe + Conv1D + GNN + BiGRU + HybridAttn | **89 ISL** | CPU only, webcam | Isolated words |
 | MediaPipe hands only | Raw coordinates, rule-based | ~10-20 | CPU | No ML generalization |
 | CNN-LSTM (gesture recognition) | Video CNN + LSTM | 20-50 | GPU required | High compute, no ISL |
 | ST-GCN (Yan et al.) | Spatial-temporal GCN | ~60 body pose | GPU, Kinect | Not hand-specific, GPU required |
 | Sign Language Transformers | ViT + temporal | ~1000 | GPU + multiple cameras | Not deployable on CPU |
 
-**Your advantage:** Only CPU + webcam needed; 78 ISL classes; face-relative normalization; full production pipeline (collection → training → inference → sentence building → NLP)
+**Your advantage:** Only CPU + webcam needed; 89 ISL classes; face-relative normalization; full production pipeline (collection → training → inference → sentence building → NLP)
 
 ---
 
@@ -479,7 +479,7 @@ Keep these numbers memorized for rapid-fire questions:
 
 | Topic | Number | Source |
 |-------|--------|--------|
-| Sign classes | **78** | `sign_categories.json` |
+| Sign classes | **89** | `sign_categories.json` |
 | Total git commits | **173** | `.git/logs/HEAD` |
 | Development duration | **3.5 months** | Feb 21 – Jun 5, 2026 |
 | Feature dimension | **506D** | 253 base + 253 velocity |
@@ -525,7 +525,7 @@ Keep these numbers memorized for rapid-fire questions:
 
 ## Section 10: Architecture One-Liner Summary (for intro)
 
-> "My system is a real-time ISL recognition pipeline. It extracts 506-dimensional velocity-augmented face-relative hand landmarks via MediaPipe, classifies 20-frame sequences using a 10-phase BiGRU with a Conv1D frontend, Spatial GNN, and Hybrid Multi-Head Attention, exports to INT8 ONNX for 2-3× faster CPU inference, and uses momentum-based temporal smoothing with a 3-of-5 commit window to produce stable real-time text output from 78 ISL sign classes."
+> "My system is a real-time ISL recognition pipeline. It extracts 506-dimensional velocity-augmented face-relative hand landmarks via MediaPipe, classifies 20-frame sequences using a 10-phase BiGRU with a Conv1D frontend, Spatial GNN, and Hybrid Multi-Head Attention, exports to INT8 ONNX for 2-3× faster CPU inference, and uses momentum-based temporal smoothing with a 3-of-5 commit window to produce stable real-time text output from 89 ISL sign classes."
 
 ---
 
