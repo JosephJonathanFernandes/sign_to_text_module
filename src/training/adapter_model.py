@@ -36,6 +36,7 @@ class AdapterModel(nn.Module):
         # Small MLP: (num_classes,) -> (hidden_dim,) -> (num_classes,)
         self.fc1 = nn.Linear(num_classes, hidden_dim)
         self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(0.2)
         self.fc2 = nn.Linear(hidden_dim, num_classes)
         
         # Initialize weights
@@ -60,6 +61,7 @@ class AdapterModel(nn.Module):
 
         x = self.fc1(logp)
         x = self.relu(x)
+        x = self.dropout(x)
         delta = self.fc2(x)
 
         # Residual: predict a delta to add to the incoming log-probs (stabilizes training)
@@ -114,7 +116,7 @@ class AdapterTrainer:
         
         # Create model
         self.model = AdapterModel(num_classes, hidden_dim).to(device)
-        self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate, weight_decay=1e-5)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate, weight_decay=1e-3)
         # Use CrossEntropyLoss on logits for stability (expects class indices).
         # Class weights can be injected per training run to reduce bias from skewed pseudo-data.
         self.criterion = nn.CrossEntropyLoss()
@@ -236,9 +238,9 @@ class AdapterTrainer:
             for class_idx, weight in class_weights.items():
                 if 0 <= int(class_idx) < self.num_classes:
                     weight_tensor[int(class_idx)] = float(weight)
-            self.criterion = nn.CrossEntropyLoss(weight=weight_tensor)
+            self.criterion = nn.CrossEntropyLoss(weight=weight_tensor, label_smoothing=0.1)
         else:
-            self.criterion = nn.CrossEntropyLoss()
+            self.criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
         
         dataset = self.create_dataset(
             ensemble_probs_list,

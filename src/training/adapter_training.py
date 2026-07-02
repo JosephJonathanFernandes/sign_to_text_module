@@ -139,10 +139,17 @@ class AdapterTrainingManager:
                 selected = list(samples)
 
             # Oversample minority classes to prevent suppression by CE loss
+            # Inject jitter (noise) into duplicated samples to prevent overfitting
             if 0 < len(selected) < min_samples_per_class:
                 shortage = min_samples_per_class - len(selected)
                 chosen = np.random.choice(len(selected), shortage, replace=True)
-                selected.extend([selected[i] for i in chosen])
+                for i in chosen:
+                    base_prob = selected[i]
+                    # Add 2% Gaussian noise to the probability vector
+                    noise = np.random.normal(0, 0.02, size=base_prob.shape)
+                    noisy_prob = np.clip(base_prob + noise, 1e-6, 1.0)
+                    noisy_prob = noisy_prob / noisy_prob.sum() # re-normalize
+                    selected.append(noisy_prob)
 
             balanced_probs.extend(selected)
             balanced_targets.extend([class_idx] * len(selected))
