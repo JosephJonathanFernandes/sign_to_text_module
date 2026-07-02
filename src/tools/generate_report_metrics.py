@@ -104,13 +104,13 @@ def generate_metrics():
     print("\n" + "="*80)
     print("TOP-10 CONFUSION PAIRS (Unseen Data)")
     print("="*80)
-    cm = confusion_matrix(t_t, t_p)
+    cm = confusion_matrix(t_t, t_p, labels=range(model_nc))
     confusion_pairs = []
     for i in range(model_nc):
         for j in range(model_nc):
             if i != j and cm[i, j] > 0:
-                true_name = model_classes[t_t[i]] if t_t[i] < len(model_classes) else str(t_t[i])
-                pred_name = model_classes[t_p[j]] if t_p[j] < len(model_classes) else str(t_p[j])
+                true_name = model_classes[i] if i < len(model_classes) else str(i)
+                pred_name = model_classes[j] if j < len(model_classes) else str(j)
                 confusion_pairs.append((cm[i, j], true_name, pred_name))
                 
     pairs = sorted(confusion_pairs, key=lambda x: x[0], reverse=True)[:10]
