@@ -77,14 +77,14 @@ Balanced Accuracy:    98.20%
 TOP-10 CONFUSION PAIRS (Unseen Data)
 ================================================================================
 
-Traceback (most recent call last):
-  File "<frozen runpy>", line 198, in _run_module_as_main
-  File "<frozen runpy>", line 88, in _run_code
-  File "C:\Users\Joseph\Desktop\projects\sign_to_text\src\tools\generate_report_metrics.py", line 122, in <module>
-    generate_metrics()
-    ~~~~~~~~~~~~~~~~^^
-  File "C:\Users\Joseph\Desktop\projects\sign_to_text\src\tools\generate_report_metrics.py", line 111, in generate_metrics
-    if i != j and cm[i, j] > 0:
-                  ~~^^^^^^
-IndexError: index 86 is out of bounds for axis 1 with size 86
+  nice → good : 408 misclassifications
+  hard → idle : 7 misclassifications
+  blind → female : 6 misclassifications
+  blind → idle : 6 misclassifications
+  happy → idle : 6 misclassifications
+  ugly → beautiful : 6 misclassifications
+  happy → expensive : 5 misclassifications
+  poor → strong : 5 misclassifications
+  0 → idle : 4 misclassifications
+  deaf → idle : 4 misclassifications
 PS C:\Users\Joseph\Desktop\projects\sign_to_text>
