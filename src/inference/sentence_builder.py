@@ -13,7 +13,7 @@ from typing import Optional, List
 from src.inference.nlp_postprocessor import NLPPostProcessor
 
 
-SIMILAR_SIGN_PAIRS_PATH = Path(__file__).parent / "data" / "similar_signs.json"
+SIMILAR_SIGN_PAIRS_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "similar_signs.json"
 
 
 def _load_similar_sign_pairs() -> set[tuple[str, str]]:
