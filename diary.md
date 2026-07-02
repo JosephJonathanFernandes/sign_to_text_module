@@ -51,7 +51,7 @@
 * **July 1-3**: Resolved a critical WebSocket bug where frozen frontend streams stalled the model. Engineered a jitter-resistant sequence hashing mechanism in `api/session.py` to detect and reject static payload loops.
 * **July 5-7**: Deployed the DevOps infrastructure. Engineered a comprehensive `pytest` matrix (`tests/`) spanning unit, integration, e2e, and API tests.
 * **July 8-9**: Configured Continuous Integration via GitHub Actions (`.github/workflows/ci.yml`) to enforce build integrity on push. Wrote cross-platform bootstrapping scripts (`scripts/setup.sh`, `verify_repo.py`).
-* **July 10-11**: Ran final end-to-end WebSocket simulations. Enforced strict code quality via Ruff/Black (`pyproject.toml`, `.pre-commit-config.yaml`). Wrapped up all architectural documentation (`docs/`) and finalized the project phase.
+* **July 10-11**: Ran final end-to-end WebSocket simulations. Enforced strict code quality via Ruff/Black (`pyproject.toml`, `.pre-commit-config.yaml`). Wrapped up all architectural documentation (`docs/`) and compiled extensive Final Year Project (FYP) dissertation chapters and Viva preparation materials (`docs/Project_Report_Help/`).
 
 ---
 
@@ -197,6 +197,10 @@
   * `dataset.md`, `inference_pipeline.md`, `model_architecture.md`, `training_pipeline.md`: Deep-dive component manuals.
   * `execution_guide.md`: End-to-end local deployment guide.
   * `README.md`, `CHANGELOG.md`, `SECURITY.md`, `CONTRIBUTING.md`: Core repository onboarding docs.
+  * `docs/Project_Report_Help/` (Academic & FYP Subdirectory)
+    * Prepared comprehensive dissertation chapters (`REPORT_SECTION_4_SIGN_TO_TEXT.md`, `report_section_6.3.md`, `exhaustive_report_section_6.3.md`, `final_consolidated_dissertation_chapter.md`).
+    * Generated architectural and forensic audits (`system_design.md`, `forensic_implementation_analysis.md`, `final_dissertation_audit.md`).
+    * Structured final academic deliverables (`FYP_REPORT_STRUCTURE.md`, `VIVA_PREPARATION_GUIDE.md`).
 
 ### Repository Artifacts & Data Stores
 
