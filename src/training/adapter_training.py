@@ -120,11 +120,8 @@ class AdapterTrainingManager:
             by_class.setdefault(class_idx, []).append(probs)
 
         counts = {class_idx: len(samples) for class_idx, samples in by_class.items()}
-        eligible = {
-            class_idx: samples
-            for class_idx, samples in by_class.items()
-            if len(samples) >= min_samples_per_class
-        }
+        # Keep all classes present in the buffer to prevent catastrophic forgetting
+        eligible = by_class
 
         if len(eligible) < 3:
             return [], [], counts
@@ -133,13 +130,19 @@ class AdapterTrainingManager:
         balanced_targets = []
         for class_idx in sorted(eligible):
             samples = eligible[class_idx]
-            limit = min(len(samples), max_samples_per_class)
             
-            if len(samples) > limit:
-                chosen = np.random.choice(len(samples), limit, replace=False)
+            # Downsample if too many
+            if len(samples) > max_samples_per_class:
+                chosen = np.random.choice(len(samples), max_samples_per_class, replace=False)
                 selected = [samples[i] for i in chosen]
             else:
                 selected = list(samples)
+
+            # Oversample minority classes to prevent suppression by CE loss
+            if 0 < len(selected) < min_samples_per_class:
+                shortage = min_samples_per_class - len(selected)
+                chosen = np.random.choice(len(selected), shortage, replace=True)
+                selected.extend([selected[i] for i in chosen])
 
             balanced_probs.extend(selected)
             balanced_targets.extend([class_idx] * len(selected))
@@ -223,11 +226,7 @@ class AdapterTrainingManager:
             # These are normalized and clipped so they help with bias without causing instability.
             class_weights = {}
             if use_class_weights:
-                eligible_counts = {
-                    idx: count
-                    for idx, count in raw_counts.items()
-                    if count >= min_samples_per_class
-                }
+                eligible_counts = raw_counts
                 if eligible_counts:
                     exponent = max(0.0, float(class_weight_power))
                     raw_weights = {
