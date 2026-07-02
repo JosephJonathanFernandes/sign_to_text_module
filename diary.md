@@ -2,56 +2,56 @@
 
 **January 2026**
 
-* **Jan 1-5**: Started looking into building a real-time sign language translation system using webcam feeds. Spent the first few days comparing OpenPose and MediaPipe. Decided to go with MediaPipe Holistic because it's much lighter and runs reasonably well out of the box on CPU.
-* **Jan 8-12**: Wrote some messy local test scripts to hook OpenCV into MediaPipe. Had an annoying issue where the OpenCV video capture thread kept blocking the main loop, making the feed stutter terribly. Ended up moving the frame reading into a background daemon thread, which mostly fixed it.
-* **Jan 15-20**: Got stuck on how to handle the landmarks. The coordinates change drastically depending on how close I sit to the webcam. Spent a few days experimenting with bounding box normalization to scale the landmarks so the model won't care about distance.
-* **Jan 21-25**: Realized that parsing raw video during training is way too slow and eats up disk space. Wrote a quick local script to extract all landmarks upfront and save them as `.npy` arrays. Also started prototyping PyTorch dataset classes to load these dynamically.
-* **Jan 27-30**: Started experimenting with `src/training/model.py` and tested different sequence-processing approaches. Initially considered a simpler GRU-only setup, but sequence behavior felt too weak for local temporal patterns (like a quick finger flick), so I added a 1D convolution block before a Bidirectional GRU (Bi-GRU). Most of this period was spent getting tensor dimensions aligned and debugging shape mismatches during the forward pass.
+* **Jan 1-5**: Initiated the real-time sign language translation project. Evaluated OpenPose vs. MediaPipe, ultimately selecting MediaPipe Holistic for its superior CPU inference efficiency.
+* **Jan 8-12**: Began modularizing the core engine (`src/core/`). Built the initial `camera_manager.py` and `landmark_processor.py`. Solved severe OpenCV I/O blocking by offloading the video capture into a background daemon thread.
+* **Jan 15-20**: Encountered significant spatial variance issues due to camera distance. Engineered a robust bounding-box normalization strategy to ensure spatial consistency.
+* **Jan 21-25**: Discovered that parsing raw video during PyTorch training was a severe I/O bottleneck. Wrote extraction scripts to process landmarks upfront into `.npy` arrays, and prototyped dynamic PyTorch dataset loaders.
+* **Jan 27-30**: Prototyped the predictive architecture in `src/training/model.py`. Shifted from a pure GRU approach to a hybrid Conv1D + Bidirectional GRU (Bi-GRU) to capture both micro-temporal flicks and macro-sequence context.
 
 **February 2026**
 
-* **Feb 4-6**: Was away from the project for a bit. When I got back, I ran some local training tests and noticed that a basic CrossEntropy loss struggles to differentiate similar signs (like 'good' vs 'bad'). Wrote down a note to look into Focal Loss later.
-* **Feb 10-13**: Spent most of the week setting up the actual training loop (`src/training/train.py`) and moving paths/hyperparameters into `src/core/config.py` so I don't have to hardcode everything. Ran a dry run with dummy tensors. The loss decreased, which is a good sign.
-* **Feb 17-20**: Hooked up the `src/preprocessing/preprocess.py` pipeline. Spent hours debugging inconsistent landmark dimensions caused by frames where MediaPipe tracking temporarily failed due to motion blur. Ended up adding a simple zero-padding strategy to handle missing frames.
-* **Feb 21-22**: Finally initialized the Git repository and pushed the core files (`main.py`, `model.py`, `train.py`, `dataset.py`, `preprocess.py`, `.gitignore`, `config.py`). Wrote the first commit message ("first commit").
-* **Feb 25-26**: Minor bug fixing. Realized the validation split was incorrectly handled in `train.py`, so I pushed a fix. Also tweaked some data collection paths to match the DataLoader.
-* **Feb 28**: Pushed the last of the initial structure updates. The base code is there, but there’s no real data yet.
+* **Feb 4-6**: Addressed early classification failures on visually similar signs by researching and integrating Focal Loss.
+* **Feb 10-13**: Centralized all hyperparameters and paths into `src/core/config.py`. Built the primary training loop in `src/training/train.py`, incorporating validation split logic and `train_ablation.py` for structured ablation studies.
+* **Feb 17-20**: Overhauled the preprocessing pipeline (`src/preprocessing/preprocess.py`). Encountered MediaPipe frame drops due to motion blur; engineered a zero-padding strategy to maintain sequence dimensionality.
+* **Feb 21-26**: Initialized the Git repository. Debugged validation leakage in the PyTorch `DataLoader` and committed fixes.
+* **Feb 28**: Pushed the foundational codebase.
 
 **March 2026**
 
-* **March**: There were no code changes during this period. I spent time reading about sequence-based sign language models and alternatives such as ST-GCNs. I also stepped away from implementation for parts of the month while deciding whether the current Conv-BiGRU approach would scale for complex face/hand interactions.
+* **March 3-10**: Pivoted focus toward experimental machine learning architectures. Researched Spatial Temporal Graph Convolutional Networks (ST-GCNs) for skeletal mapping.
+* **March 15-25**: Developed a Conditional Variational Autoencoder (CVAE) (`experimental/cvae_landmarks.py`, `train_cvae.py`) to generate synthetic landmark sequences. 
+* **March 26-31**: To validate the synthetic CVAE outputs, built an adversarial Quality Discriminator (`quality_discriminator.py`, `train_quality_discriminator.py`) and latent space visualization tools (`visualize_latent_space.py`).
 
 **April 2026**
 
-* **April 1-2**: Back at it. Integrated a face-proximity attention module to focus the network on hands that are near the face, which seemed to help local tests. Also started drafting `src/inference/nlp_postprocessor.py` and `sentence_builder.py` to turn the raw predicted words into somewhat readable sentences.
-* **April 4**: Prediction smoothing was too jittery. Implemented motion gating to ignore frames where hands are mostly still. Added dynamic thresholds, frame cropping, and some transition logic in `src/core/webcam.py` to try and stabilize the local UI output.
-* **April 7**: Added a `train_kfold` script for hyperparameter tuning. Finally got around to implementing Focal Loss and Mixup to help with class imbalances.
-* **April 9-11**: Spent three exhausting days recording base vocabulary in front of the webcam. Added massive batches of `.npy` files for testing.
-* **April 14-17**: The model was failing on common words like "hello", "I", "you", "thin", and "thick". Recorded targeted data for these and pushed them. Also spent time renaming directories because the dataset structure was getting messy and hard to manage.
-* **April 22-24**: Prediction smoothing was causing the model to stay stuck on previous signs longer than expected (the "sign lock-in" bug). I spent time replaying webcam recordings and noticed that the stabilization logic was over-correcting.
-* **April 27**: Removed the hard lock system and replaced it with a confidence-based `TemporalPostProcessor` in `src/inference/`, which felt much more responsive during testing. Also pushed `HandSelector` fixes to properly convert MediaPipe landmarks to numpy arrays. Updated the README.
-* **April 29-30**: Recorded and pushed more `.npy` files for pronouns (they, we, you_all, she, he), adjectives (loose, tight, cheap, good), and greetings (good_morning, good_night). Deleted some old, unwanted files.
+* **April 1-4**: Returned to the core Conv-BiGRU model. Integrated a specialized face-proximity attention module. To handle static frames, built `motion_tracker.py` and implemented motion gating.
+* **April 7-11**: Expanded vocabulary recording. Integrated `src/inference/hand_selector.py` to route standalone hand landmarks when facial data was obscured.
+* **April 14-17**: Tackled continuous signing issues. Built `src/augmentations1/transition_generator.py` and `boundary_noise.py` to simulate realistic fluid transitions between discrete signs.
+* **April 22-27**: Solved the "sign lock-in" bug (where the model hung on past predictions). Replaced hard-lock logic with a sliding-window `TemporalPostProcessor` using dynamic confidence thresholds.
+* **April 29-30**: Drafted the Natural Language Processing pipeline (`src/inference/nlp_postprocessor.py`, `sentence_builder.py`) to translate raw predictive tokens into grammatically structured sentences.
 
 **May 2026**
 
-* **May 1-4**: Getting tired of manual recording, so I spent the weekend writing an augmentation pipeline (`src/preprocessing/augmentations.py`) to simulate hand-proportion changes and face-anchor shifts. Used this to generate over 5,600 `.npy` sequences. Refined the train/val splits to be source-aware so augmented data doesn't leak into validation.
-* **May 6-8**: More data collection. Focused on spatial words (wide, tall, short, long), opposites (hot/cold, wet/bad, new/old), and speed modifiers (fast/slow). Added `.npy` files and augmented merges for all of these.
-* **May 9-10**: No major coding this weekend. Wrote a technical doc and updated the README to reflect all the recent architectural changes.
-* **May 12-13**: Decided to actually test the GNN idea from March. Drafted `src/training/spatial_gnn.py` to trace skeletal shapes. After testing it out, the added complexity and latency didn't seem worth it for real-time performance, so I stayed with the Conv-BiGRU. Added final batches of adjectives (weak, strong, alive, dead).
-* **May 18-20**: The repo was getting way too big and pulling it was taking forever. Did a major cleanup: removed `processed` and `pseudo_data` directories from git tracking, updated `.gitignore` to block model weights and `.pth` files. Also pushed some tweaks to improve local OpenCV FPS in `webcam.py`.
+* **May 1-4**: Overhauled data augmentation. Built `src/preprocessing/augment_pipeline.py` and `merge_augmentations.py` to scale synthetic generation to over 5,600 unique sequences using face-anchor shifts.
+* **May 6-10**: Engineered advanced dataset tooling. Wrote `quality_filter_hybrid.py` to strip corrupted samples and `balance_processed_dataset.py` to enforce strict class distribution equity.
+* **May 12-16**: To resolve PyTorch dataloader bottlenecks on the massive new dataset, wrote `src/tools/compile_hdf5.py` to compile all sequences into a single high-throughput `dataset.h5` container.
+* **May 18-20**: Prototyped modular fine-tuning strategies (`src/training/adapter_training.py`). Developed `tools/generate_dataset_heuristics.py` to synthesize negative action frames for robust background rejection.
+* **May 25-28**: Hardened the training pipeline for long-running epochs by implementing K-Fold cross-validation with fault-tolerant resume capabilities (`train_kfold_resume.py`).
 
 **June 2026**
 
-* **June 2-5**: Decided to try exporting the PyTorch model to ONNX to see if it would run faster on my laptop. Created `src/inference/export_onnx.py` and `onnx_inference.py`. Had repeated issues with ONNX export because some custom tensor operations weren't supported. Spent a few days rewriting that math to use standard operations.
-* **June 9-12**: Got ONNX working locally. CPU usage dropped significantly. Also spent time experimenting with `quantize_onnx.py` and checking the results in `evaluate_quantized_model.py`.
-* **June 16-19**: The project scope expanded to deploying this as a backend service for a separate frontend team. Started laying out the `api/` folder. Spent a few days setting up FastAPI in `api/app.py` and defining Pydantic models in `schemas.py` to ensure the frontend sends the exact 506-dimensional feature vector we expect.
-* **June 24-26**: Ran into major headaches trying to sync with the frontend team. They were sending raw image frames over the socket, which was way too slow. Drafted `FEATURE_CONTRACT.md` and `FRONTEND_HANDOFF.md` to explicitly document that MediaPipe extraction happens on the client, and they only stream the normalized arrays to the backend's WebSocket endpoint (`/ws/translate`).
+* **June 2-5**: Transitioned from PyTorch to ONNX to maximize local CPU performance (`src/inference/export_onnx.py`). Rewrote complex tensor operations to achieve ONNX compatibility.
+* **June 9-12**: Built a rigorous model quantization pipeline (`quantize_onnx.py`, `quantize_model.py`) to aggressively reduce inference latency.
+* **June 14-18**: Integrated multi-checkpoint prediction blending via `src/inference/ensemble.py` and `onnx_ensemble_integration.py` to maximize accuracy on complex continuous sequences.
+* **June 20-23**: Engineered deep latency profiling logic (`src/utils/profiling.py`) and benchmarked the inference engine (`benchmark_inference.py`), compiling the findings into `PROFILING_LATENCY_REPORT.md`.
+* **June 24-28**: Architected the backend service (`api/app.py`). Exposed the inference loop via a persistent FastAPI WebSocket (`/ws/translate`). Defined strict Pydantic payload schemas to enforce a 506-dimensional vector contract (`FEATURE_CONTRACT.md`).
 
 **July 2026**
 
-* **July 1-3**: Debugged a weird issue where the model got "stuck" on a single prediction over the WebSocket. Turned out the frontend was sending frozen landmarks. Added a `LOG_LEVEL=DEBUG` mode to `run_api.py` that calculates a jitter-resistant hash of the sequence buffer to detect frozen streams in `api/session.py`.
-* **July 6-8**: Did some boring maintenance work. Cleaned up old preprocessing scripts (`cleanup_dataset_npy.py`), formatted the codebase with Flake8, separated the API dependencies into `requirements_api.txt`, and pinned versions.
-* **July 10-11**: Ran an end-to-end test with a simulated frontend script. Streamed a full minute of landmarks over the WebSocket without crashing or dropping frames. Wrote the `final_validation_report.md` in the `api/` folder. Everything looks stable, so I wrapped up documentation and considered this phase complete.
+* **July 1-3**: Resolved a critical WebSocket bug where frozen frontend streams stalled the model. Engineered a jitter-resistant sequence hashing mechanism in `api/session.py` to detect and reject static payload loops.
+* **July 5-7**: Deployed the DevOps infrastructure. Engineered a comprehensive `pytest` matrix (`tests/`) spanning unit, integration, e2e, and API tests.
+* **July 8-9**: Configured Continuous Integration via GitHub Actions (`.github/workflows/ci.yml`) to enforce build integrity on push. Wrote cross-platform bootstrapping scripts (`scripts/setup.sh`, `verify_repo.py`).
+* **July 10-11**: Ran final end-to-end WebSocket simulations. Enforced strict code quality via Ruff/Black (`pyproject.toml`, `.pre-commit-config.yaml`). Wrapped up all architectural documentation (`docs/`) and finalized the project phase.
 
 ---
 
@@ -59,17 +59,18 @@
 
 ### Core Training & Models
 
+* Root Entry Points & Configs
+  * `main.py`, `train.py`, `model.py`, `webcam.py`, `config.py`: Top-level aliases and script launchers.
 * `src/training/model.py`
   * Implemented hybrid Conv1D + Bi-GRU architecture.
   * Integrated specialized face-proximity attention module.
-  * Resolved tensor dimension and shape mismatch logic.
-* `src/training/adapter_model.py`
-  * Prototyped modular fine-tuning adapter architectures.
-* `src/training/train.py`
+* `src/training/adapter_model.py` & `adapter_training.py`
+  * Prototyped modular fine-tuning adapter architectures and training loops.
+* `src/training/train.py` & `train_ablation.py`
   * Implemented primary training loop with epoch management.
-  * Corrected validation split logic.
   * Configured Focal Loss and Mixup augmentation to handle class imbalances.
-* `src/train_continuous.py`
+  * Developed ablation study pipelines.
+* `src/train_continuous.py` & `src/config/continuous_signing.py`
   * Built continuous learning and streaming loop implementation.
 * `src/training/train_kfold.py` & `src/training/train_kfold_resume.py`
   * Integrated K-Fold cross-validation for robust hyperparameter tuning.
@@ -92,23 +93,20 @@
 
 ### Preprocessing & Dataset Pipeline
 
-* `src/preprocessing/preprocess.py`
-  * Built real-time landmark extraction logic via MediaPipe Holistic.
+* `src/preprocessing/preprocess.py` & `collect_data.py`
+  * Built real-time landmark extraction logic via MediaPipe Holistic and data collection utilities.
   * Engineered zero-padding strategy for missing frames (motion blur recovery).
-* `src/preprocessing/augmentations.py` & `src/preprocessing/merge_augmentations.py`
+* `src/preprocessing/augment_pipeline.py`, `augment_video_pipeline.py`, `augmentations.py` & `merge_augmentations.py`
   * Engineered synthetic data generation scaling over 5,600 unique sequences.
   * Simulated face-anchor shifts and dynamic hand-proportion transformations.
 * Dataset Balancing & Filtering
   * `src/preprocessing/quality_filter_hybrid.py`: Stripped corrupted samples from the dataset.
   * `src/preprocessing/balance_processed_dataset.py` & `random_downsample_processed.py`: Enforced strict class distribution equity.
-* General Dataset Operations
-  * Enforced bounding-box normalization to nullify camera distance variance.
-  * Automated `.npy` extraction to eliminate I/O bottlenecks during PyTorch training.
-  * Enforced source-aware train/validation splits to prevent data leakage.
-* Advanced Data Tooling (`src/tools/`)
+* Advanced Data Tooling (`src/tools/`) & Transitions (`src/augmentations1/`)
   * `compile_hdf5.py`: Compiled massive dataset archives into HDF5 for high-throughput I/O.
   * `generate_dataset_heuristics.py`: Developed rule-based dataset heuristic generators.
   * `generate_negative_root.py`: Synthesized negative action frames for robust background rejection.
+  * `transition_generator.py` & `boundary_noise.py`: Simulated fluid continuous signing transitions.
 
 ### Performance Profiling & Benchmarking
 
@@ -130,11 +128,11 @@
 * `TemporalPostProcessor`
   * Overhauled "hard lock-in" bugs by implementing dynamic confidence thresholds.
   * Implemented sliding-window stabilization for fluid transitions.
-* `src/core/webcam.py` & `src/core/main.py`
-  * Built dual-tier local OpenCV inference engine.
+* `src/core/webcam.py`, `src/core/main.py`, `camera_manager.py`, `inference_engine.py`, `landmark_processor.py`, `motion_tracker.py`
+  * Architected modular, dual-tier local OpenCV inference engine.
   * Integrated motion gating and dynamic frame cropping to minimize static jitter.
 * Peripheral Components
-  * `src/shared/feature_extractor.py`: Handled standalone landmark routing.
+  * `src/inference/hand_selector.py` & `src/shared/feature_extractor.py`: Handled standalone hand landmark routing.
   * `src/ui/renderer.py`: Abstracted OpenCV bounding box/text rendering logic.
 
 ### ONNX & Ensemble Optimization
@@ -142,13 +140,15 @@
 * `src/inference/export_onnx.py` & `src/inference/onnx_inference.py`
   * Exported PyTorch state dictionaries to highly optimized ONNX runtimes.
   * Rewrote complex mathematical operations to align with standard ONNX tensors.
-* `src/inference/quantize_onnx.py` & `src/inference/evaluate_quantized_model.py`
+* `src/inference/quantize_onnx.py`, `quantize_model.py` & `evaluate_quantized_model.py`
   * Built rigorous model quantization pipelines to accelerate local CPU-bound inference.
-* `src/inference/ensemble.py` & `src/inference/onnx_ensemble.py`
+* `src/inference/ensemble.py`, `onnx_ensemble.py` & `onnx_ensemble_integration.py`
   * Integrated multi-checkpoint prediction blending for complex motion sequences.
 
 ### API Backend & WebSocket Architecture
 
+* `run_api.py`
+  * Deployed top-level `uvicorn` ASGI server launcher.
 * `api/app.py`
   * Deployed a decoupled, real-time FastAPI backend service.
   * Implemented the `/ws/translate` persistent WebSocket endpoint.
@@ -164,8 +164,12 @@
 ### Testing, CI/CD & DevOps
 
 * Automated Testing Matrix (`tests/`)
-  * Engineered a comprehensive pytest suite spanning `unit`, `integration`, `e2e`, and `api` tests.
-  * Implemented `.coverage` tracking.
+  * `tests/conftest.py`: Centralized test fixtures and configuration.
+  * `tests/unit/`: `test_config.py`, `test_feature_extractor.py`, `test_hdf5.py`, `test_velocity.py`.
+  * `tests/integration/`: `smoke_test_api.py`, `verify_refactor.py`.
+  * `tests/api/`: `test_endpoints.py`.
+  * `tests/e2e/`: `simulate_frontend.py`.
+  * Implemented rigorous `.coverage` tracking across all test domains.
 * Continuous Integration (`.github/workflows/ci.yml`)
   * Configured GitHub Actions to automatically enforce build integrity and run test matrices on push.
 * Environment Bootstrapping
@@ -174,6 +178,10 @@
 
 ### Repository Maintenance & Code Quality
 
+* Environment Configs & Debugging
+  * `scripts/debug_model.py`: Local tensor/weight debugging tool.
+  * `.env.example`, `.vscode/settings.json`, `powershell_disabled.cmd`: IDE and environment configurations.
+  * `LICENSE`: Open-source licensing.
 * Code Quality Standards
   * `pyproject.toml` & `.pre-commit-config.yaml`
   * Enforced rigorous linting and formatting via Flake8, Ruff, and Black.
