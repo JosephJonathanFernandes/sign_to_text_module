@@ -907,7 +907,6 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
             adapter_min_classes=ADAPTER_MIN_CLASSES,
             adapter_min_samples_per_class=ADAPTER_MIN_SAMPLES_PER_CLASS,
         )
-        )
 
     heuristic_flip_count = 0
     heuristic_frame_count = 0
