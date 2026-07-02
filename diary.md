@@ -69,6 +69,8 @@
   * Implemented primary training loop with epoch management.
   * Corrected validation split logic.
   * Configured Focal Loss and Mixup augmentation to handle class imbalances.
+* `src/train_continuous.py`
+  * Built continuous learning and streaming loop implementation.
 * `src/training/train_kfold.py` & `src/training/train_kfold_resume.py`
   * Integrated K-Fold cross-validation for robust hyperparameter tuning.
   * Hardened training pipelines with fault-tolerant resume capabilities.
@@ -76,6 +78,17 @@
   * Evaluated experimental skeletal spatial graph neural networks (ST-GCN variants).
 * `src/core/config.py`
   * Extracted all hardcoded paths and hyperparameters into centralized configs.
+
+### Experimental Generative Modeling (CVAE)
+
+* `experimental/train_cvae.py` & `experimental/cvae_landmarks.py`
+  * Developed a Conditional Variational Autoencoder (CVAE) for synthetic landmark sequence generation.
+* `experimental/train_quality_discriminator.py` & `experimental/quality_discriminator.py`
+  * Implemented an adversarial quality discriminator to score and validate synthetic sequences.
+* `experimental/visualize_latent_space.py` & `experimental/visualize_quality_scores.py`
+  * Built visualization tools to map the CVAE latent space and analyze sample quality.
+* `experimental/generate_cvae_samples.py` & `experimental/filter_synthetic_samples.py`
+  * Automated high-volume synthetic sample generation and strict filtration pipelines.
 
 ### Preprocessing & Dataset Pipeline
 
@@ -92,6 +105,20 @@
   * Enforced bounding-box normalization to nullify camera distance variance.
   * Automated `.npy` extraction to eliminate I/O bottlenecks during PyTorch training.
   * Enforced source-aware train/validation splits to prevent data leakage.
+* Advanced Data Tooling (`src/tools/`)
+  * `compile_hdf5.py`: Compiled massive dataset archives into HDF5 for high-throughput I/O.
+  * `generate_dataset_heuristics.py`: Developed rule-based dataset heuristic generators.
+  * `generate_negative_root.py`: Synthesized negative action frames for robust background rejection.
+
+### Performance Profiling & Benchmarking
+
+* `src/utils/profiling.py`
+  * Engineered deep-level latency profiling logic for the inference pipeline.
+* `src/utils/pipeline_logger.py`
+  * Constructed a robust, centralized structured logger.
+* Benchmarking Scripts (`src/tools/`)
+  * `benchmark_inference.py`: Automated performance testing on the real-time model.
+  * `benchmark_dataset.py`: Dataloader throughput validation.
 
 ### Temporal Inference & Post-Processing
 
@@ -106,6 +133,9 @@
 * `src/core/webcam.py` & `src/core/main.py`
   * Built dual-tier local OpenCV inference engine.
   * Integrated motion gating and dynamic frame cropping to minimize static jitter.
+* Peripheral Components
+  * `src/shared/feature_extractor.py`: Handled standalone landmark routing.
+  * `src/ui/renderer.py`: Abstracted OpenCV bounding box/text rendering logic.
 
 ### ONNX & Ensemble Optimization
 
@@ -152,9 +182,32 @@
   * `scripts/cleanup_dataset_npy.py`: Scripted automated purges of outdated or corrupted dataset samples.
 * Dependency Management
   * Explicitly pinned staging and production environments via `requirements.txt`, `requirements_api.txt`, and `requirements-dev.txt`.
-* Documentation
-  * Authored `README.md`, `CHANGELOG.md`, `SECURITY.md`, `CONTRIBUTING.md`.
-  * Wrote deep architectural guides in `docs/ARCHITECTURE.md` and `docs/execution_guide.md`.
+* Documentation Library (`docs/`)
+  * `ARCHITECTURE.md`: High-level system design.
+  * `DECISIONS.md`: Logged architecture decision records (ADRs).
+  * `PROFILING_LATENCY_REPORT.md`: System latency and performance bottleneck breakdown.
+  * `dataset.md`, `inference_pipeline.md`, `model_architecture.md`, `training_pipeline.md`: Deep-dive component manuals.
+  * `execution_guide.md`: End-to-end local deployment guide.
+  * `README.md`, `CHANGELOG.md`, `SECURITY.md`, `CONTRIBUTING.md`: Core repository onboarding docs.
+
+### Repository Artifacts & Data Stores
+
+* `models/` directory
+  * Final deployed weights (`model.pth`, `model.onnx`, `model.onnx.data`).
+  * MediaPipe standalone task assets (`face_landmarker.task`, `hand_landmarker.task`).
+  * Dedicated directories for `adapter_weights/` and `ensemble/` checkpoints.
+  * Massive `model_metadata.json` for architectural reference.
+* `assets/` directory
+  * Centralized telemetry and statistical maps (`confidence_statistics.json`, `candidate_map.json`).
+  * Core vocabularies (`sign_categories.json`, `similar_signs.json`).
+  * Large-scale keypoint backups (`keypoints.csv`).
+* `data/` directory
+  * Consolidated `dataset.h5` container.
+  * Pipeline output verification via `validation_report.json`.
+* `logs/` directory
+  * Comprehensive telemetry collection for data collection (`collect_*.log`) and real-time testing (`inference_*.log`).
+* `archive/` directory
+  * Retained legacy scripts such as `audit_api.py`.
 
 ---
 
