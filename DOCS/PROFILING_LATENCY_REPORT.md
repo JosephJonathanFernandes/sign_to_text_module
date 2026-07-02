@@ -24,22 +24,22 @@ If you need to fetch updated numbers for your FYP report, here are the exact scr
 
 ## 1. Live Inference Pipeline Profiling
 
-Measurements are taken using Python's `time.perf_counter()` from real-time webcam session logs (e.g., [inference_20260603_104249.log](file:///c:/Users/Joseph/Desktop/projects/sign_to_text/logs/inference_20260603_104249.log)).
+Measurements are taken using Python's `time.perf_counter()` from final real-time webcam session logs (e.g., [inference_20260630_172009.log](file:///c:/Users/Joseph/Desktop/projects/sign_to_text/logs/inference_20260630_172009.log)).
 
 ### 1.1 Frame Statistics (Webcam Loop)
 During live inference, a 20-frame sliding window is evaluated. The target budget for maintaining 30 FPS is **33.33 ms** per frame.
 
 | Metric | Measured Value | Target / Limit | Budget Utilization |
 | :--- | :---: | :---: | :---: |
-| **Average Frame Time** | 33.53 ms | 33.33 ms | 100.6% |
+| **Average Frame Time** | 20.23 ms | 33.33 ms | 60.7% |
 | **Median Frame Time** | 15.47 ms | 33.33 ms | 46.4% |
-| **95th-Percentile Latency** | 123.98 ms | 200.00 ms | 62.0% |
-| **99th-Percentile Latency** | 149.11 ms | 200.00 ms | 74.6% |
-| **Minimum Frame Time** | 3.81 ms | — | — |
-| **Maximum Frame Time** | 306.54 ms | — | — |
-| **Sustained Frame Rate** | 29.83 FPS | 30.00 FPS | 99.4% |
+| **95th-Percentile Latency** | 48.00 ms | 200.00 ms | 24.0% |
+| **99th-Percentile Latency** | 78.46 ms | 200.00 ms | 39.2% |
+| **Minimum Frame Time** | 3.09 ms | — | — |
+| **Maximum Frame Time** | 111.44 ms | — | — |
+| **Sustained Frame Rate** | 49.44 FPS | 30.00 FPS | 164.8% |
 
-*Note: The high maximum frame time is caused by startup warm-up and occasional forced hand re-detections.*
+*Note: The high maximum frame time is strictly limited to the absolute first frame (startup warm-up).*
 
 ---
 
@@ -48,18 +48,12 @@ Components are ranked by their average execution time per frame. The adaptive la
 
 | Rank | Component | Avg Latency (ms) | % of Frame Time | Call Count | Description |
 | :---: | :--- | :---: | :---: | :---: | :--- |
-| 1 | `hand_redetect` | 85.50 | 255.0% | 2 | Occasional forced hand re-detection (every 15 frames) |
-| 2 | `model_inference` | 27.68 | 82.5% | 26 | Deep learning classification forward pass |
-| 3 | `landmark_extraction` | 22.55 | 67.3% | 301 | MediaPipe hand and face detection / caching |
-| 4 | `display` | 4.82 | 14.4% | 301 | OpenCV video rendering and UI overlay drawing |
-| 5 | `rendering` | 2.40 | 7.2% | 301 | Skeletal landmarker drawing on frame |
-| 6 | `preprocessing` | 1.84 | 5.5% | 26 | Preprocessing sequence data (shape padding/interpolation) |
-| 7 | `normalization` | 1.69 | 5.1% | 26 | Face-relative coordinate alignment and scaling |
-| 8 | `frame_capture` | 0.27 | 0.8% | 301 | Webcam frame reading from OpenCV queue |
-| 9 | `temporal_smoothing`| 0.18 | 0.5% | 26 | Post-processor confidence smoothing |
-| 10 | `velocity_features` | 0.09 | 0.3% | 26 | Finite difference computation for velocity vectors |
-| 11 | `prediction_momentum`| 0.04 | 0.1% | 14 | 3-of-5 majority commit filter evaluation |
-| 12 | `sentence_builder` | 0.04 | 0.1% | 14 | Sentence composition and NLP formatting |
+| 1 | `display` | 9.62 | 47.6% | 201 | OpenCV video rendering and UI overlay drawing |
+| 2 | `landmark_extraction` | 8.83 | 43.7% | 201 | MediaPipe hand and face detection / caching |
+| 3 | `rendering` | 1.34 | 6.6% | 201 | Skeletal landmarker drawing on frame |
+| 4 | `frame_capture` | 0.28 | 1.4% | 201 | Webcam frame reading from OpenCV queue |
+| 5 | `hand_detection` | 0.00 | 0.0% | 201 | Fallback MediaPipe isolated hand tracking |
+| 6 | `hand_selection` | 0.00 | 0.0% | 201 | Dynamic switching logic |
 
 ---
 
