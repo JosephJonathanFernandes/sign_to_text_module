@@ -17,7 +17,7 @@ from dataclasses import dataclass
 
 
 ROOT_DIR = os.path.join("assets", "processed")
-TARGET_SAMPLES = 600
+TARGET_SAMPLES = 555
 WEBCAM_PREFIX = "webcam_"
 DUPLICATE_PREFIX = "webcam_dup_"
 
@@ -52,7 +52,9 @@ def _list_npy_files(class_dir: str) -> list[str]:
 
 
 def _is_webcam_sample(path: str) -> bool:
-    return os.path.basename(path).lower().startswith(WEBCAM_PREFIX)
+    """Return True for pure webcam-captured samples (excludes aug/merge)."""
+    basename = os.path.basename(path).lower()
+    return basename.startswith("webcam_") and "_aug_" not in basename and "_merge_" not in basename
 
 
 def _is_duplicate_webcam_sample(path: str) -> bool:
@@ -99,7 +101,8 @@ def balance_class_folder(
         webcam_sources = [path for path in files if _is_webcam_sample(path)]
         source_pool = webcam_sources if webcam_sources else files
         if not source_pool:
-            raise ValueError(f"Class '{class_name}' has no .npy files to duplicate")
+            print(f"[WARN] Class '{class_name}' has no .npy files to duplicate. Skipping.")
+            return ClassSummary(class_name, total, 0, 0, total, dry_run)
 
         needed = target - total
         for _ in range(needed):
@@ -151,7 +154,7 @@ def balance_processed_dataset(
     class_dirs = _list_class_dirs(root_dir)
 
     if class_only:
-        class_dirs = [d for d in class_dirs if os.path.basename(d) == class_only or class_only in os.path.basename(d)]
+        class_dirs = [d for d in class_dirs if os.path.basename(d) == class_only]
         if not class_dirs:
             available = ", ".join(os.path.basename(d) for d in _list_class_dirs(root_dir))
             raise ValueError(f"Class '{class_only}' not found in {os.path.abspath(root_dir)}. Available: {available}")
