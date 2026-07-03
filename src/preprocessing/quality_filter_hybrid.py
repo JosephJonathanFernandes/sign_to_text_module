@@ -304,6 +304,11 @@ def _normalize_class_token(value: str) -> str:
     return value.strip().lower().replace(" ", "_")
 
 
+def _is_pure_webcam_sample(path: str) -> bool:
+    basename = os.path.basename(path).lower()
+    return basename.startswith("webcam_") and "_aug_" not in basename and "_merge_" not in basename
+
+
 def _safe_delete(path: str, class_dir: str, dry_run: bool, archive_root: str | None = None) -> bool:
     path_abs = os.path.normcase(os.path.abspath(path))
     class_abs = os.path.normcase(os.path.abspath(class_dir))
@@ -1225,8 +1230,11 @@ def filter_quality_class_folder(
             viz_rows.append(row)
 
     selected_paths = {record.path for record in selected_records}
-    delete_set = {candidate.path for candidate in candidates if candidate.path not in selected_paths}
-    delete_set.update(unreadable_paths)
+    delete_set = {
+        candidate.path for candidate in candidates 
+        if candidate.path not in selected_paths and not _is_pure_webcam_sample(candidate.path)
+    }
+    delete_set.update(p for p in unreadable_paths if not _is_pure_webcam_sample(p))
 
     deleted = 0
     for path in delete_set:
