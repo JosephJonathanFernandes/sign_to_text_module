@@ -90,8 +90,9 @@ def balance_class_folder(
     total = len(files)
     class_name = os.path.basename(class_dir)
 
-    if total == target:
-        print(f"[{class_name}] total={total} final={total} added=0 removed=0 (already balanced)")
+    if total >= target:
+        msg = "already balanced" if total == target else "above target, keeping all"
+        print(f"[{class_name}] total={total} final={total} added=0 removed=0 ({msg})")
         return ClassSummary(class_name, total, 0, 0, total, dry_run)
 
     added = 0
@@ -118,26 +119,6 @@ def balance_class_folder(
             f"({'dry-run' if dry_run else 'applied'})"
         )
         return ClassSummary(class_name, total, added, 0, final_total, dry_run)
-
-    removable = _classify_removals(files)
-    to_remove = total - target
-    if to_remove > len(removable):
-        raise RuntimeError(
-            f"Class '{class_name}' cannot be reduced from {total} to {target} because only {len(removable)} files are removable"
-        )
-
-    chosen = rng.sample(removable, to_remove)
-    for path in chosen:
-        if not dry_run:
-            os.remove(path)
-        removed += 1
-
-    final_total = total - removed
-    print(
-        f"[{class_name}] total={total} final={final_total} added=0 removed={removed} "
-        f"({'dry-run' if dry_run else 'applied'})"
-    )
-    return ClassSummary(class_name, total, 0, removed, final_total, dry_run)
 
 
 def balance_processed_dataset(
