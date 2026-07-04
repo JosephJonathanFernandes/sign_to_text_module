@@ -336,6 +336,18 @@ class LightweightSpatialGNN(nn.Module):
         # Concatenate both hands: (B*T, 2 * out_dim)
         combined = torch.cat(hand_embeddings, dim=-1)
         
+        if not getattr(self, "_printed_shapes", False):
+            print("\n" + "="*50)
+            print("GNN Tensor Transition Shapes:")
+            print(f"  Input features:     {x.shape}")
+            print(f"  Extracted Nodes:    {landmarks.shape}")
+            print(f"  Adjacency Matrix:   {adj.shape}")
+            print(f"  GCN Node Features:  {hand_nodes.shape}")
+            print(f"  Pooled Embedding:   {hand_embedding.shape}")
+            print(f"  Combined Hands:     {combined.shape}")
+            print("="*50 + "\n")
+            self._printed_shapes = True
+
         # Final projection: (B*T, 2*out_dim) -> (B*T, 2*out_dim)
         if self.final_proj is not None:
             combined = self.final_proj(combined)
