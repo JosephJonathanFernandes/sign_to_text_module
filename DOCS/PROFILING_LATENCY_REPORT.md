@@ -141,6 +141,8 @@ According to [quality_filter_report.json](file:///c:/Users/Joseph/Desktop/projec
 
 This document contains the execution breakdown and latency percentiles for the optimized ONNX models running on the CPU inference engine.
 
+-----------------------------------------
+
 ## Real-Time Production Metrics
 
 The following metrics were captured over a sustained stress-test of 500 benchmark iterations.
@@ -165,7 +167,4 @@ The following metrics were captured over a sustained stress-test of 500 benchmar
 
 > [!NOTE]  
 > **INT8 Quantization Overhead:** The CPU architecture used for testing lacks specific vector instructions (like AVX512-VNNI) for INT8 operations. As a result, the overhead of converting between floating-point and integer types during inference caused the INT8 quantized model to run slightly slower (3.76 ms) and take up more disk space than the highly optimized pure FP32 model.
-
-### Execution Stability
-
-The engine demonstrated extremely high stability. The ONNX FP32 execution throughput of **438.5 FPS** leaves an enormous >90% processing overhead buffer when paired with a standard 30 FPS webcam input, ensuring that your CPU can easily handle UI rendering and background tasks without ever dropping a frame.
+>The engine demonstrated extremely high stability. The ONNX FP32 execution throughput of **438.5 FPS** leaves an enormous >90% processing overhead buffer when paired with a standard 30 FPS webcam input, ensuring that your CPU can easily handle UI rendering and background tasks without ever dropping a frame.
