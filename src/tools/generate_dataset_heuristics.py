@@ -469,7 +469,7 @@ def generate_heuristics(class_only=None):
     
     if class_only and csv_path.exists():
         try:
-            df_old = pd.read_csv(csv_path)
+            df_old = pd.read_csv(csv_path, dtype={"sample_id": str, "class_name": str, "hand": str})
             # Remove old entries for this class to avoid duplication
             df_old = df_old[df_old["class_name"] != class_only]
             df = pd.concat([df_old, df_new], ignore_index=True)
