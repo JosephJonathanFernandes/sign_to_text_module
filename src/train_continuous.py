@@ -96,6 +96,10 @@ def main():
     parser.add_argument("--phase2-only", action="store_true", help="Skip Phase 1 and run only Phase 2 using the existing saved model")
     args = parser.parse_args()
 
+    from src.tools.compile_hdf5 import compile_hdf5
+    print("\n[Pre-Train] Compiling latest HDF5 dataset...")
+    compile_hdf5()
+
     print("[Continuous] Loading base dataset (Phase 1)...")
     # Load base dataset without internal augmentation (we apply it in ContinuousDataset)
     neg_root_p1 = os.path.join(os.path.dirname(cfg.paths.processed_dir), "processed_negatives")

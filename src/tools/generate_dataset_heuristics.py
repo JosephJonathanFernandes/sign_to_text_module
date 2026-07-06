@@ -8,6 +8,7 @@ from collections import defaultdict
 
 # Ensure src module can be imported when script is run directly
 sys.path.insert(0, str(Path.cwd()))
+import argparse
 from src.core.config import get_config
 
 def get_finger_state(raw):
@@ -108,7 +109,7 @@ def get_trajectory_pattern(trajectory):
             return "zigzag"
     return "unknown"
 
-def generate_heuristics():
+def generate_heuristics(class_only=None):
     cfg = get_config()
     processed_dir = Path(cfg.paths.processed_dir)
     
@@ -124,7 +125,15 @@ def generate_heuristics():
         "right_relative": [LANDMARK_DIM * 3, LANDMARK_DIM * 4]
     }
     
-    all_files = list(processed_dir.rglob("*.npy"))
+    if class_only:
+        class_path = processed_dir / class_only
+        if not class_path.exists():
+            print(f"Error: Class directory {class_path} not found.")
+            return
+        all_files = list(class_path.rglob("*.npy"))
+    else:
+        all_files = list(processed_dir.rglob("*.npy"))
+        
     if not all_files:
         print(f"No .npy files found in {processed_dir}")
         return
@@ -420,18 +429,57 @@ def generate_heuristics():
     out_dir = Path("data")
     out_dir.mkdir(exist_ok=True)
     
-    with open(out_dir / "hand_sign_classification.json", "w") as f:
+    hsc_path = out_dir / "hand_sign_classification.json"
+    cs_path = out_dir / "confidence_statistics.json"
+    cm_path = out_dir / "candidate_map.json"
+    csv_path = out_dir / "keypoints.csv"
+    
+    # Update logic for appending new class info
+    if class_only:
+        if hsc_path.exists():
+            with open(hsc_path, "r") as f:
+                existing_hsc = json.load(f)
+            existing_hsc["signs"].update(final_classification["signs"])
+            final_classification = existing_hsc
+            
+        if cs_path.exists():
+            with open(cs_path, "r") as f:
+                existing_cs = json.load(f)
+            existing_cs.update(confidence_stats)
+            confidence_stats = existing_cs
+            
+        # Candidate map needs to be fully rebuilt from the merged final_classification
+        new_cmap_raw = defaultdict(list)
+        for cname, props in final_classification["signs"].items():
+            cmap_key = f"{props['hand_count']}|{props['movement']}|{props['location']}|{props['hand_shape']}"
+            new_cmap_raw[cmap_key].append(cname)
+        candidate_map = dict(new_cmap_raw)
+
+    with open(hsc_path, "w") as f:
         json.dump(final_classification, f, indent=2)
         
-    with open(out_dir / "confidence_statistics.json", "w") as f:
+    with open(cs_path, "w") as f:
         json.dump(confidence_stats, f, indent=2)
         
-    with open(out_dir / "candidate_map.json", "w") as f:
+    with open(cm_path, "w") as f:
         json.dump(candidate_map, f, indent=2)
         
     csv_headers = ["sample_id", "class_name", "frame_number", "hand"] + [f"{axis}{i+1}" for i in range(21) for axis in ['x', 'y', 'z']]
-    df = pd.DataFrame(keypoints_data, columns=csv_headers)
-    df.to_csv(out_dir / "keypoints.csv", index=False)
+    df_new = pd.DataFrame(keypoints_data, columns=csv_headers)
+    
+    if class_only and csv_path.exists():
+        try:
+            df_old = pd.read_csv(csv_path)
+            # Remove old entries for this class to avoid duplication
+            df_old = df_old[df_old["class_name"] != class_only]
+            df = pd.concat([df_old, df_new], ignore_index=True)
+        except Exception as e:
+            print(f"Warning: Could not update {csv_path}: {e}. Creating new.")
+            df = df_new
+    else:
+        df = df_new
+        
+    df.to_csv(csv_path, index=False)
     
     print("Done! Generated:")
     print(" - data/hand_sign_classification.json")
@@ -440,4 +488,8 @@ def generate_heuristics():
     print(" - data/keypoints.csv")
 
 if __name__ == "__main__":
-    generate_heuristics()
+    parser = argparse.ArgumentParser(description="Generate dataset heuristics and classifications")
+    parser.add_argument("--class", dest="class_only", default=None, help="Only process and append info for this specific class")
+    args = parser.parse_args()
+    
+    generate_heuristics(class_only=args.class_only)
