@@ -471,8 +471,7 @@ def augment_video_dataset(
         raise FileNotFoundError(f"No class folders found in {input_dir}")
     
     if class_only:
-        # Support both exact match ("36. light") and partial match ("light")
-        matching = [c for c in class_folders if c == class_only or class_only in c]
+        matching = [c for c in class_folders if c == class_only]
         if not matching:
             raise ValueError(f"Class '{class_only}' not found in {input_dir}. Available: {', '.join(class_folders[:5])}...")
         class_folders = matching

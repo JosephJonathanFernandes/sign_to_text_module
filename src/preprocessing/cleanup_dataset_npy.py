@@ -356,23 +356,13 @@ def clean_dataset(
     ]
 
     if class_only:
-        # Support both exact match ("36. light") and partial match ("light")
+        # Strict matching
         basename_list = [os.path.basename(d) for d in class_dirs]
-        # Prefer exact match when available to avoid accidental substring matches
-        if class_only in basename_list:
-            matching_basenames = [class_only]
-        else:
-            matching_basenames = [b for b in basename_list if class_only in b]
-
+        matching_basenames = [class_only] if class_only in basename_list else []
         if not matching_basenames:
             raise ValueError(
                 f"Class '{class_only}' not found in {root_abs}. Available: {', '.join(basename_list[:5])}..."
             )
-
-        # If the user provided a partial string and multiple classes matched, show which ones will be processed
-        if len(matching_basenames) > 1:
-            print(f"[WARN] Partial match for '{class_only}' -> processing classes: {', '.join(matching_basenames)}")
-
         class_dirs = [d for d in class_dirs if os.path.basename(d) in matching_basenames]
 
     print("=" * 90)

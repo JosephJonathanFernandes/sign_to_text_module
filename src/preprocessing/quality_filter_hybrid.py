@@ -1432,7 +1432,6 @@ def filter_quality_processed(
             directory
             for directory in class_dirs
             if _normalize_class_token(os.path.basename(directory)) == class_token
-            or class_token in _normalize_class_token(os.path.basename(directory))
         ]
         if not class_dirs:
             available = ", ".join(os.path.basename(directory) for directory in _list_class_dirs(root_dir))
