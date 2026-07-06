@@ -1,6 +1,10 @@
 {
-  "two_hands|small_motion|upper_space|unknown": [
-    "0"
+  "one_hand|small_motion|upper_space|unknown": [
+    "0",
+    "3",
+    "8",
+    "9",
+    "male"
   ],
   "one_hand|small_motion|neutral_space|pointing": [
     "1"
@@ -9,13 +13,6 @@
     "2",
     "good",
     "nice"
-  ],
-  "one_hand|small_motion|upper_space|unknown": [
-    "3",
-    "8",
-    "9",
-    "male",
-    "mean"
   ],
   "one_hand|small_motion|neutral_space|open_palm": [
     "4",
@@ -29,83 +26,90 @@
   ],
   "one_hand|small_motion|upper_space|pointing": [
     "7",
-    "female",
-    "thick"
+    "female"
   ],
   "two_hands|small_motion|neutral_space|unknown": [
-    "a"
+    "a",
+    "b"
   ],
-  "two_hands|medium_motion|neutral_space|unknown": [
-    "alright"
+  "two_hands|unknown|neutral_space|unknown": [
+    "alright",
+    "hard",
+    "long",
+    "we"
   ],
   "one_hand|medium_motion|neutral_space|unknown": [
     "bad",
+    "i",
     "you"
   ],
   "one_hand|medium_motion|upper_space|open_palm": [
     "beautiful"
   ],
-  "two_hands|unknown|neutral_space|open_palm": [
+  "two_hands|unknown|upper_space|open_palm": [
     "big_large",
-    "deep",
-    "happy",
-    "sad",
-    "soft",
-    "weak"
+    "it",
+    "loud"
   ],
   "one_hand|unknown|upper_space|pointing": [
     "blind"
   ],
+  "one_hand|small_motion|upper_space|open_palm": [
+    "c"
+  ],
   "one_hand|unknown|upper_space|unknown": [
-    "cheap"
+    "cheap",
+    "mean"
+  ],
+  "one_hand|large_motion|neutral_space|open_palm": [
+    "clean",
+    "dirty"
+  ],
+  "unknown|unknown|neutral_space|unknown": [
+    "cold"
+  ],
+  "one_hand|medium_motion|upper_space|pointing": [
+    "cool"
+  ],
+  "one_hand|large_motion|face_near|open_palm": [
+    "curved"
+  ],
+  "unknown|unknown|neutral_space|open_palm": [
+    "dead",
+    "flat",
+    "morning"
+  ],
+  "unknown|medium_motion|neutral_space|unknown": [
+    "deaf"
+  ],
+  "two_hands|unknown|neutral_space|open_palm": [
+    "deep",
+    "happy",
+    "sad",
+    "weak"
+  ],
+  "two_hands|medium_motion|neutral_space|unknown": [
+    "dry"
+  ],
+  "one_hand|unknown|neutral_space|open_palm": [
+    "expensive",
+    "small_little"
+  ],
+  "two_hands|unknown|upper_space|unknown": [
+    "fast"
+  ],
+  "one_hand|large_motion|upper_space|unknown": [
+    "he",
+    "she"
   ],
   "two_hands|large_motion|neutral_space|open_palm": [
-    "clean",
     "healthy",
     "heavy",
     "hot",
     "how_are_you",
     "light",
     "loose",
-    "narrow",
-    "new"
-  ],
-  "unknown|unknown|neutral_space|unknown": [
-    "cold",
-    "young"
-  ],
-  "two_hands|medium_motion|upper_space|unknown": [
-    "cool",
-    "wet"
-  ],
-  "unknown|large_motion|face_near|open_palm": [
-    "curved"
-  ],
-  "unknown|unknown|neutral_space|open_palm": [
-    "dead",
-    "expensive",
-    "flat",
-    "morning"
-  ],
-  "unknown|unknown|upper_space|unknown": [
-    "deaf"
-  ],
-  "one_hand|large_motion|neutral_space|open_palm": [
-    "dirty"
-  ],
-  "two_hands|unknown|neutral_space|unknown": [
-    "dry",
-    "hard",
-    "long",
-    "we"
-  ],
-  "two_hands|unknown|upper_space|unknown": [
-    "fast",
-    "i",
-    "she"
-  ],
-  "one_hand|large_motion|upper_space|unknown": [
-    "he"
+    "narrow"
   ],
   "two_hands|medium_motion|upper_space|open_palm": [
     "hello"
@@ -116,14 +120,15 @@
   "two_hands|small_motion|upper_space|pinch": [
     "idle"
   ],
-  "two_hands|unknown|upper_space|open_palm": [
-    "it",
-    "loud",
-    "old"
-  ],
   "one_hand|medium_motion|face_near|open_palm": [
     "low",
     "warm"
+  ],
+  "unknown|large_motion|neutral_space|open_palm": [
+    "new"
+  ],
+  "one_hand|unknown|upper_space|open_palm": [
+    "old"
   ],
   "unknown|unknown|upper_space|open_palm": [
     "pleased",
@@ -152,18 +157,29 @@
     "they",
     "tight"
   ],
-  "one_hand|unknown|neutral_space|open_palm": [
-    "small_little"
+  "two_hands|medium_motion|neutral_space|open_palm": [
+    "soft"
   ],
   "unknown|unknown|unknown|unknown": [
-    "strong",
-    "thin"
+    "strong"
   ],
   "two_hands|unknown|unknown|pointing": [
     "tall"
   ],
+  "one_hand|small_motion|unknown|pointing": [
+    "thick"
+  ],
+  "one_hand|unknown|unknown|unknown": [
+    "thin"
+  ],
+  "two_hands|medium_motion|upper_space|unknown": [
+    "wet"
+  ],
   "two_hands|large_motion|unknown|open_palm": [
     "wide"
+  ],
+  "one_hand|large_motion|neutral_space|unknown": [
+    "young"
   ],
   "two_hands|large_motion|upper_space|unknown": [
     "you_all"
