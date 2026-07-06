@@ -183,5 +183,8 @@
   ],
   "two_hands|large_motion|upper_space|unknown": [
     "you_all"
+  ],
+  "two_hands|unknown|upper_space|pointing": [
+    "d"
   ]
 }

@@ -1131,6 +1131,19 @@
       "trajectory_pattern": "circular",
       "dominant_hand": "both",
       "motion_speed": "fast"
+    },
+    "d": {
+      "hand_count": "two_hands",
+      "movement": "unknown",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric",
+      "finger_state": "11000",
+      "hand_shape": "pointing",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "both",
+      "motion_speed": "unknown"
     }
   }
 }
