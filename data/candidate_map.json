@@ -36,11 +36,12 @@
     "alright",
     "hard",
     "long",
-    "we"
+    "we",
+    "f",
+    "g"
   ],
   "one_hand|medium_motion|neutral_space|unknown": [
     "bad",
-    "i",
     "you"
   ],
   "one_hand|medium_motion|upper_space|open_palm": [
@@ -86,7 +87,8 @@
     "deep",
     "happy",
     "sad",
-    "weak"
+    "weak",
+    "h"
   ],
   "two_hands|medium_motion|neutral_space|unknown": [
     "dry"
@@ -116,6 +118,9 @@
   ],
   "two_hands|unknown|face_near|open_palm": [
     "high"
+  ],
+  "one_hand|unknown|neutral_space|unknown": [
+    "i"
   ],
   "two_hands|small_motion|upper_space|pinch": [
     "idle"
@@ -186,5 +191,9 @@
   ],
   "two_hands|unknown|upper_space|pointing": [
     "d"
+  ],
+  "one_hand|unknown|neutral_space|pointing": [
+    "e",
+    "i_alphabet"
   ]
 }
