@@ -1274,6 +1274,32 @@
       "trajectory_pattern": "unknown",
       "dominant_hand": "both",
       "motion_speed": "unknown"
+    },
+    "o": {
+      "hand_count": "one_hand",
+      "movement": "unknown",
+      "location": "neutral_space",
+      "orientation": "palm_left",
+      "symmetry": "unknown",
+      "finger_state": "10000",
+      "hand_shape": "unknown",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "left",
+      "motion_speed": "unknown"
+    },
+    "p": {
+      "hand_count": "two_hands",
+      "movement": "unknown",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric",
+      "finger_state": "11000",
+      "hand_shape": "pointing",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "both",
+      "motion_speed": "unknown"
     }
   }
 }

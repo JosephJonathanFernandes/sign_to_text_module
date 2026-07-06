@@ -122,7 +122,8 @@
     "high"
   ],
   "one_hand|unknown|neutral_space|unknown": [
-    "i"
+    "i",
+    "o"
   ],
   "two_hands|small_motion|upper_space|pinch": [
     "idle"
@@ -201,6 +202,7 @@
   ],
   "two_hands|unknown|neutral_space|pointing": [
     "j",
-    "k"
+    "k",
+    "p"
   ]
 }
