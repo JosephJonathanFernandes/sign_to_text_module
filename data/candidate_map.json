@@ -125,7 +125,8 @@
   ],
   "one_hand|unknown|neutral_space|unknown": [
     "i",
-    "o"
+    "o",
+    "v"
   ],
   "two_hands|small_motion|upper_space|pinch": [
     "idle"
