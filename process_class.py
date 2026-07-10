@@ -10,10 +10,10 @@ def main():
     class_name = args.cls
 
     commands = [
-        ["python", "-m", "src.preprocessing.augment_pipeline", "--class", class_name],
-        ["python", "-m", "src.preprocessing.quality_filter_hybrid", "--class", class_name],
-        ["python", "-m", "src.preprocessing.balance_processed_dataset", "--class", class_name],
-        ["python", "src/tools/generate_dataset_heuristics.py", "--class", class_name],
+        [sys.executable, "-m", "src.preprocessing.augment_pipeline", "--class", class_name],
+        [sys.executable, "-m", "src.preprocessing.quality_filter_hybrid", "--class", class_name],
+        [sys.executable, "-m", "src.preprocessing.balance_processed_dataset", "--class", class_name],
+        [sys.executable, "src/tools/generate_dataset_heuristics.py", "--class", class_name],
     ]
 
     for cmd in commands:
