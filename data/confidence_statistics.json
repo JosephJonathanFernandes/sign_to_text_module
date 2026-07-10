@@ -1428,5 +1428,18 @@
     "trajectory_pattern_agreement": "52.4%",
     "dominant_hand_agreement": "95.6%",
     "motion_speed_agreement": "33.3%"
+  },
+  "indian": {
+    "hand_count_agreement": "88.0%",
+    "movement_agreement": "34.0%",
+    "location_agreement": "92.7%",
+    "orientation_agreement": "48.4%",
+    "symmetry_agreement": "88.2%",
+    "finger_state_agreement": "96.9%",
+    "hand_shape_agreement": "91.3%",
+    "motion_direction_agreement": "63.8%",
+    "trajectory_pattern_agreement": "63.8%",
+    "dominant_hand_agreement": "88.0%",
+    "motion_speed_agreement": "34.0%"
   }
 }

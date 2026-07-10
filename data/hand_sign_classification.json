@@ -1430,6 +1430,19 @@
       "trajectory_pattern": "unknown",
       "dominant_hand": "both",
       "motion_speed": "unknown"
+    },
+    "indian": {
+      "hand_count": "one_hand",
+      "movement": "unknown",
+      "location": "face_near",
+      "orientation": "unknown",
+      "symmetry": "unknown",
+      "finger_state": "10000",
+      "hand_shape": "unknown",
+      "motion_direction": "circular",
+      "trajectory_pattern": "circular",
+      "dominant_hand": "left",
+      "motion_speed": "unknown"
     }
   }
 }
