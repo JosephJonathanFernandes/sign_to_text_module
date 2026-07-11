@@ -403,6 +403,16 @@ class InferenceConfig:
 
     similar_class_penalty: float = 0.08
     """Extra threshold penalty for easily-confused sign classes."""
+    
+    # ── Out-of-Distribution (OOD) Rejection Thresholds ──
+    ood_confidence_threshold: float = 0.40
+    """Absolute minimum confidence required. If below, reject."""
+    
+    ood_margin_threshold: float = 0.05
+    """Minimum probability gap between Top-1 and Top-2. If smaller, prediction is too ambiguous."""
+    
+    ood_entropy_threshold_ratio: float = 0.70
+    """Multiplier for max possible entropy (log(N)). High entropy means model is blindly guessing."""
 
     def validate(self) -> None:
         """Validate inference configuration."""

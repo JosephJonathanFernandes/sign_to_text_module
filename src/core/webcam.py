@@ -1196,6 +1196,7 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
                     main_models, fallback_models, classes = ensure_word_models()
                     # PHASE 3: Use ONNX ensemble if available, else existing PyTorch merged ensemble
                     if word_use_onnx:
+                        from src.inference.ensemble import check_ood
                         idx, conf, probs = ensemble_predict_with_onnx(main_models, seq, use_tta=LIVE_USE_TTA)
                         result = {
                             "main": (int(idx), float(conf), probs),
@@ -1204,9 +1205,17 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
                             "confidence": float(conf),
                             "probs": probs,
                         }
-                        predicted = classes[idx] if idx < len(classes) else "?"
+                        is_ood, ood_reason = check_ood(probs)
+                        if is_ood:
+                            predicted = "__reject__"
+                            # Keep raw confidence in logs but surface 0 to user if needed
+                            # In webcam, the UI might just drop it if conf is 0.
+                            result["confidence"] = 0.0
+                            # print(f"[OOD Rejected] {ood_reason}")
+                        else:
+                            predicted = classes[idx] if idx < len(classes) else "?"
                     else:
-                        from src.inference.ensemble import merged_ensemble_predict
+                        from src.inference.ensemble import merged_ensemble_predict, check_ood
                         # PHASE 3: Use config-driven TTA setting (disabled by default for live inference)
                         result = merged_ensemble_predict(
                             main_models, fallback_models, seq, use_tta=LIVE_USE_TTA,
@@ -1214,7 +1223,14 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
                         idx = result['pred_idx']
                         conf = result['confidence']
                         probs = result['probs']
-                        predicted = classes[idx] if idx < len(classes) else "?"
+                        
+                        is_ood, ood_reason = check_ood(probs)
+                        if is_ood:
+                            predicted = "__reject__"
+                            result['confidence'] = 0.0
+                            # print(f"[OOD Rejected] {ood_reason}")
+                        else:
+                            predicted = classes[idx] if idx < len(classes) else "?"
                     
                 except Exception as e:
                     print(f"[ERROR] Inference failed: {e}")

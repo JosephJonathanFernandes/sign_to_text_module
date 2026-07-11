@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from src.inference.ensemble import ensemble_predict
+from src.inference.ensemble import ensemble_predict, check_ood
 
 
 def run_predict(
@@ -44,12 +44,22 @@ def run_predict(
     """
     pred_idx, confidence, all_probs = ensemble_predict(models, sequence)
 
-    word = classes[pred_idx]
+    is_ood, ood_reason = check_ood(all_probs)
+    if is_ood:
+        word = "__reject__"
+        # We can keep the raw confidence in debug, but surface 0 to the user
+        response_confidence = 0.0
+    else:
+        word = classes[pred_idx]
+        response_confidence = round(float(confidence), 4)
 
     response: dict = {
         "predicted_word": word.upper(),
-        "confidence": round(float(confidence), 4),
+        "confidence": response_confidence,
     }
+    
+    if is_ood:
+        response["reject_reason"] = ood_reason
 
     if debug:
         top5_idx = np.argsort(all_probs)[::-1][:5]
