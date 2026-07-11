@@ -32,7 +32,7 @@ INPUT_SIZE = cfg.frame_features.input_sequence_dim
 NUM_FRAMES = cfg.preprocessing.num_frames
 USE_VELOCITY = cfg.frame_features.use_velocity
 PROXIMITY_DIM = cfg.spatial.proximity_dim
-DEFAULT_AUGMENT_VARIANTS = 21
+DEFAULT_AUGMENT_VARIANTS = 20
 
 
 _FINGER_GROUPS = {
@@ -884,7 +884,6 @@ def augment_sequence(sequence: np.ndarray, variants: int = DEFAULT_AUGMENT_VARIA
         ("aug18", per_finger_articulation_scaling),
         ("aug19", wrist_trajectory_drift),
         ("aug20", landmark_confidence_masking),
-        ("aug21", lambda s: full_frame_blackout(s, n_drop=2)),
     ]
 
     limit = len(fixed_variants) if variants is None or variants <= 0 else min(int(variants), len(fixed_variants))
