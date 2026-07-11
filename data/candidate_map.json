@@ -98,7 +98,8 @@
     "n",
     "w",
     "z",
-    "sign"
+    "sign",
+    "random_hand_movement"
   ],
   "two_hands|medium_motion|neutral_space|unknown": [
     "dry"
