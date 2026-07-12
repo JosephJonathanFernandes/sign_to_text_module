@@ -108,12 +108,12 @@
     "8": {
       "hand_count": "one_hand",
       "movement": "small_motion",
-      "location": "upper_space",
+      "location": "neutral_space",
       "orientation": "forward",
       "symmetry": "unknown",
       "finger_state": "11100",
       "hand_shape": "unknown",
-      "motion_direction": "unknown",
+      "motion_direction": "left_to_right",
       "trajectory_pattern": "unknown",
       "dominant_hand": "left",
       "motion_speed": "slow"
@@ -146,7 +146,7 @@
     },
     "alive": {
       "hand_count": "one_hand",
-      "movement": "small_motion",
+      "movement": "unknown",
       "location": "neutral_space",
       "orientation": "forward",
       "symmetry": "unknown",
@@ -155,7 +155,7 @@
       "motion_direction": "circular",
       "trajectory_pattern": "circular",
       "dominant_hand": "left",
-      "motion_speed": "slow"
+      "motion_speed": "unknown"
     },
     "alright": {
       "hand_count": "two_hands",
@@ -185,7 +185,7 @@
     },
     "bad": {
       "hand_count": "one_hand",
-      "movement": "medium_motion",
+      "movement": "large_motion",
       "location": "neutral_space",
       "orientation": "forward",
       "symmetry": "unknown",
@@ -194,7 +194,7 @@
       "motion_direction": "circular",
       "trajectory_pattern": "circular",
       "dominant_hand": "left",
-      "motion_speed": "medium"
+      "motion_speed": "fast"
     },
     "beautiful": {
       "hand_count": "one_hand",
@@ -224,7 +224,7 @@
     },
     "blind": {
       "hand_count": "one_hand",
-      "movement": "unknown",
+      "movement": "medium_motion",
       "location": "upper_space",
       "orientation": "forward",
       "symmetry": "unknown",
@@ -233,7 +233,20 @@
       "motion_direction": "circular",
       "trajectory_pattern": "circular",
       "dominant_hand": "left",
-      "motion_speed": "unknown"
+      "motion_speed": "medium"
+    },
+    "bye": {
+      "hand_count": "one_hand",
+      "movement": "medium_motion",
+      "location": "neutral_space",
+      "orientation": "forward",
+      "symmetry": "unknown",
+      "finger_state": "11111",
+      "hand_shape": "open_palm",
+      "motion_direction": "circular",
+      "trajectory_pattern": "circular",
+      "dominant_hand": "left",
+      "motion_speed": "medium"
     },
     "c": {
       "hand_count": "one_hand",
@@ -250,7 +263,7 @@
     },
     "cheap": {
       "hand_count": "one_hand",
-      "movement": "unknown",
+      "movement": "medium_motion",
       "location": "upper_space",
       "orientation": "unknown",
       "symmetry": "unknown",
@@ -259,7 +272,7 @@
       "motion_direction": "unknown",
       "trajectory_pattern": "unknown",
       "dominant_hand": "left",
-      "motion_speed": "unknown"
+      "motion_speed": "medium"
     },
     "clean": {
       "hand_count": "one_hand",
@@ -313,6 +326,19 @@
       "dominant_hand": "left",
       "motion_speed": "fast"
     },
+    "d": {
+      "hand_count": "two_hands",
+      "movement": "small_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric",
+      "finger_state": "11000",
+      "hand_shape": "pointing",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "both",
+      "motion_speed": "slow"
+    },
     "dead": {
       "hand_count": "unknown",
       "movement": "unknown",
@@ -328,7 +354,7 @@
     },
     "deaf": {
       "hand_count": "unknown",
-      "movement": "medium_motion",
+      "movement": "unknown",
       "location": "neutral_space",
       "orientation": "unknown",
       "symmetry": "unknown",
@@ -337,11 +363,11 @@
       "motion_direction": "unknown",
       "trajectory_pattern": "unknown",
       "dominant_hand": "unknown",
-      "motion_speed": "medium"
+      "motion_speed": "unknown"
     },
     "deep": {
       "hand_count": "two_hands",
-      "movement": "unknown",
+      "movement": "large_motion",
       "location": "neutral_space",
       "orientation": "unknown",
       "symmetry": "asymmetric",
@@ -350,7 +376,7 @@
       "motion_direction": "unknown",
       "trajectory_pattern": "unknown",
       "dominant_hand": "both",
-      "motion_speed": "unknown"
+      "motion_speed": "fast"
     },
     "dirty": {
       "hand_count": "one_hand",
@@ -367,7 +393,7 @@
     },
     "dry": {
       "hand_count": "two_hands",
-      "movement": "medium_motion",
+      "movement": "large_motion",
       "location": "neutral_space",
       "orientation": "forward",
       "symmetry": "asymmetric",
@@ -376,11 +402,24 @@
       "motion_direction": "circular",
       "trajectory_pattern": "circular",
       "dominant_hand": "both",
-      "motion_speed": "medium"
+      "motion_speed": "fast"
+    },
+    "e": {
+      "hand_count": "one_hand",
+      "movement": "small_motion",
+      "location": "neutral_space",
+      "orientation": "forward",
+      "symmetry": "unknown",
+      "finger_state": "11000",
+      "hand_shape": "pointing",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "unknown",
+      "motion_speed": "slow"
     },
     "expensive": {
       "hand_count": "one_hand",
-      "movement": "unknown",
+      "movement": "large_motion",
       "location": "neutral_space",
       "orientation": "forward",
       "symmetry": "unknown",
@@ -389,6 +428,19 @@
       "motion_direction": "unknown",
       "trajectory_pattern": "unknown",
       "dominant_hand": "left",
+      "motion_speed": "fast"
+    },
+    "f": {
+      "hand_count": "two_hands",
+      "movement": "unknown",
+      "location": "neutral_space",
+      "orientation": "forward",
+      "symmetry": "asymmetric",
+      "finger_state": "11100",
+      "hand_shape": "unknown",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "both",
       "motion_speed": "unknown"
     },
     "famous": {
@@ -420,7 +472,7 @@
     "female": {
       "hand_count": "one_hand",
       "movement": "small_motion",
-      "location": "upper_space",
+      "location": "neutral_space",
       "orientation": "forward",
       "symmetry": "unknown",
       "finger_state": "11000",
@@ -443,9 +495,22 @@
       "dominant_hand": "unknown",
       "motion_speed": "unknown"
     },
+    "g": {
+      "hand_count": "two_hands",
+      "movement": "small_motion",
+      "location": "neutral_space",
+      "orientation": "forward",
+      "symmetry": "asymmetric",
+      "finger_state": "10000",
+      "hand_shape": "unknown",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "both",
+      "motion_speed": "slow"
+    },
     "good": {
       "hand_count": "one_hand",
-      "movement": "small_motion",
+      "movement": "unknown",
       "location": "neutral_space",
       "orientation": "unknown",
       "symmetry": "unknown",
@@ -454,7 +519,20 @@
       "motion_direction": "unknown",
       "trajectory_pattern": "unknown",
       "dominant_hand": "left",
-      "motion_speed": "slow"
+      "motion_speed": "unknown"
+    },
+    "h": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric",
+      "finger_state": "11111",
+      "hand_shape": "open_palm",
+      "motion_direction": "circular",
+      "trajectory_pattern": "circular",
+      "dominant_hand": "both",
+      "motion_speed": "fast"
     },
     "happy": {
       "hand_count": "two_hands",
@@ -471,7 +549,7 @@
     },
     "hard": {
       "hand_count": "two_hands",
-      "movement": "unknown",
+      "movement": "medium_motion",
       "location": "neutral_space",
       "orientation": "unknown",
       "symmetry": "unknown",
@@ -480,7 +558,7 @@
       "motion_direction": "circular",
       "trajectory_pattern": "circular",
       "dominant_hand": "both",
-      "motion_speed": "unknown"
+      "motion_speed": "medium"
     },
     "he": {
       "hand_count": "one_hand",
@@ -534,9 +612,35 @@
       "dominant_hand": "both",
       "motion_speed": "medium"
     },
+    "her": {
+      "hand_count": "one_hand",
+      "movement": "medium_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "unknown",
+      "finger_state": "11000",
+      "hand_shape": "pointing",
+      "motion_direction": "circular",
+      "trajectory_pattern": "circular",
+      "dominant_hand": "unknown",
+      "motion_speed": "medium"
+    },
+    "herself": {
+      "hand_count": "one_hand",
+      "movement": "medium_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "unknown",
+      "finger_state": "11000",
+      "hand_shape": "pointing",
+      "motion_direction": "circular",
+      "trajectory_pattern": "circular",
+      "dominant_hand": "left",
+      "motion_speed": "medium"
+    },
     "high": {
       "hand_count": "two_hands",
-      "movement": "unknown",
+      "movement": "large_motion",
       "location": "face_near",
       "orientation": "unknown",
       "symmetry": "asymmetric",
@@ -545,7 +649,20 @@
       "motion_direction": "circular",
       "trajectory_pattern": "circular",
       "dominant_hand": "both",
-      "motion_speed": "unknown"
+      "motion_speed": "fast"
+    },
+    "him": {
+      "hand_count": "one_hand",
+      "movement": "large_motion",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "unknown",
+      "finger_state": "10000",
+      "hand_shape": "unknown",
+      "motion_direction": "circular",
+      "trajectory_pattern": "circular",
+      "dominant_hand": "left",
+      "motion_speed": "fast"
     },
     "hot": {
       "hand_count": "two_hands",
@@ -575,7 +692,7 @@
     },
     "i": {
       "hand_count": "one_hand",
-      "movement": "unknown",
+      "movement": "medium_motion",
       "location": "neutral_space",
       "orientation": "forward",
       "symmetry": "unknown",
@@ -584,24 +701,24 @@
       "motion_direction": "circular",
       "trajectory_pattern": "circular",
       "dominant_hand": "left",
-      "motion_speed": "unknown"
+      "motion_speed": "medium"
     },
-    "idle": {
-      "hand_count": "two_hands",
-      "movement": "unknown",
-      "location": "upper_space",
+    "indian": {
+      "hand_count": "one_hand",
+      "movement": "medium_motion",
+      "location": "face_near",
       "orientation": "unknown",
-      "symmetry": "asymmetric",
-      "finger_state": "11111",
-      "hand_shape": "pinch",
-      "motion_direction": "unknown",
-      "trajectory_pattern": "unknown",
-      "dominant_hand": "both",
-      "motion_speed": "unknown"
+      "symmetry": "unknown",
+      "finger_state": "10000",
+      "hand_shape": "unknown",
+      "motion_direction": "circular",
+      "trajectory_pattern": "circular",
+      "dominant_hand": "left",
+      "motion_speed": "medium"
     },
     "it": {
       "hand_count": "two_hands",
-      "movement": "unknown",
+      "movement": "large_motion",
       "location": "upper_space",
       "orientation": "forward",
       "symmetry": "unknown",
@@ -610,7 +727,72 @@
       "motion_direction": "circular",
       "trajectory_pattern": "circular",
       "dominant_hand": "both",
-      "motion_speed": "unknown"
+      "motion_speed": "fast"
+    },
+    "i_alphabet": {
+      "hand_count": "one_hand",
+      "movement": "small_motion",
+      "location": "neutral_space",
+      "orientation": "forward",
+      "symmetry": "unknown",
+      "finger_state": "11000",
+      "hand_shape": "pointing",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "left",
+      "motion_speed": "slow"
+    },
+    "j": {
+      "hand_count": "two_hands",
+      "movement": "medium_motion",
+      "location": "neutral_space",
+      "orientation": "forward",
+      "symmetry": "asymmetric",
+      "finger_state": "11000",
+      "hand_shape": "pointing",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "both",
+      "motion_speed": "medium"
+    },
+    "k": {
+      "hand_count": "two_hands",
+      "movement": "small_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric",
+      "finger_state": "11000",
+      "hand_shape": "pointing",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "both",
+      "motion_speed": "slow"
+    },
+    "l": {
+      "hand_count": "one_hand",
+      "movement": "small_motion",
+      "location": "neutral_space",
+      "orientation": "forward",
+      "symmetry": "unknown",
+      "finger_state": "11000",
+      "hand_shape": "pointing",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "left",
+      "motion_speed": "slow"
+    },
+    "language": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "symmetric",
+      "finger_state": "11000",
+      "hand_shape": "pointing",
+      "motion_direction": "circular",
+      "trajectory_pattern": "circular",
+      "dominant_hand": "both",
+      "motion_speed": "fast"
     },
     "light": {
       "hand_count": "two_hands",
@@ -627,7 +809,7 @@
     },
     "long": {
       "hand_count": "two_hands",
-      "movement": "unknown",
+      "movement": "large_motion",
       "location": "neutral_space",
       "orientation": "forward",
       "symmetry": "asymmetric",
@@ -636,7 +818,7 @@
       "motion_direction": "circular",
       "trajectory_pattern": "circular",
       "dominant_hand": "both",
-      "motion_speed": "unknown"
+      "motion_speed": "fast"
     },
     "loose": {
       "hand_count": "two_hands",
@@ -677,9 +859,22 @@
       "dominant_hand": "left",
       "motion_speed": "medium"
     },
+    "m": {
+      "hand_count": "two_hands",
+      "movement": "small_motion",
+      "location": "neutral_space",
+      "orientation": "forward",
+      "symmetry": "asymmetric",
+      "finger_state": "11111",
+      "hand_shape": "open_palm",
+      "motion_direction": "static",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "both",
+      "motion_speed": "slow"
+    },
     "male": {
       "hand_count": "one_hand",
-      "movement": "small_motion",
+      "movement": "unknown",
       "location": "upper_space",
       "orientation": "unknown",
       "symmetry": "unknown",
@@ -688,7 +883,7 @@
       "motion_direction": "unknown",
       "trajectory_pattern": "unknown",
       "dominant_hand": "left",
-      "motion_speed": "slow"
+      "motion_speed": "unknown"
     },
     "mean": {
       "hand_count": "one_hand",
@@ -715,6 +910,19 @@
       "trajectory_pattern": "unknown",
       "dominant_hand": "unknown",
       "motion_speed": "unknown"
+    },
+    "n": {
+      "hand_count": "two_hands",
+      "movement": "small_motion",
+      "location": "neutral_space",
+      "orientation": "forward",
+      "symmetry": "asymmetric",
+      "finger_state": "11111",
+      "hand_shape": "open_palm",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "both",
+      "motion_speed": "slow"
     },
     "narrow": {
       "hand_count": "two_hands",
@@ -744,9 +952,22 @@
     },
     "nice": {
       "hand_count": "one_hand",
-      "movement": "small_motion",
+      "movement": "unknown",
       "location": "neutral_space",
       "orientation": "unknown",
+      "symmetry": "unknown",
+      "finger_state": "10000",
+      "hand_shape": "unknown",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "left",
+      "motion_speed": "unknown"
+    },
+    "o": {
+      "hand_count": "one_hand",
+      "movement": "small_motion",
+      "location": "neutral_space",
+      "orientation": "palm_left",
       "symmetry": "unknown",
       "finger_state": "10000",
       "hand_shape": "unknown",
@@ -757,7 +978,7 @@
     },
     "old": {
       "hand_count": "one_hand",
-      "movement": "unknown",
+      "movement": "large_motion",
       "location": "upper_space",
       "orientation": "forward",
       "symmetry": "unknown",
@@ -766,7 +987,20 @@
       "motion_direction": "circular",
       "trajectory_pattern": "circular",
       "dominant_hand": "left",
-      "motion_speed": "unknown"
+      "motion_speed": "fast"
+    },
+    "p": {
+      "hand_count": "two_hands",
+      "movement": "small_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric",
+      "finger_state": "11000",
+      "hand_shape": "pointing",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "both",
+      "motion_speed": "slow"
     },
     "pleased": {
       "hand_count": "unknown",
@@ -794,9 +1028,22 @@
       "dominant_hand": "unknown",
       "motion_speed": "unknown"
     },
+    "q": {
+      "hand_count": "two_hands",
+      "movement": "medium_motion",
+      "location": "neutral_space",
+      "orientation": "forward",
+      "symmetry": "asymmetric",
+      "finger_state": "11000",
+      "hand_shape": "pointing",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "both",
+      "motion_speed": "medium"
+    },
     "quiet": {
       "hand_count": "unknown",
-      "movement": "small_motion",
+      "movement": "unknown",
       "location": "neutral_space",
       "orientation": "unknown",
       "symmetry": "unknown",
@@ -805,6 +1052,19 @@
       "motion_direction": "unknown",
       "trajectory_pattern": "unknown",
       "dominant_hand": "unknown",
+      "motion_speed": "unknown"
+    },
+    "r": {
+      "hand_count": "two_hands",
+      "movement": "small_motion",
+      "location": "upper_space",
+      "orientation": "forward",
+      "symmetry": "asymmetric",
+      "finger_state": "11111",
+      "hand_shape": "open_palm",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "both",
       "motion_speed": "slow"
     },
     "rich": {
@@ -819,6 +1079,19 @@
       "trajectory_pattern": "circular",
       "dominant_hand": "both",
       "motion_speed": "fast"
+    },
+    "s": {
+      "hand_count": "two_hands",
+      "movement": "small_motion",
+      "location": "neutral_space",
+      "orientation": "forward",
+      "symmetry": "asymmetric",
+      "finger_state": "10000",
+      "hand_shape": "unknown",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "both",
+      "motion_speed": "slow"
     },
     "sad": {
       "hand_count": "two_hands",
@@ -885,6 +1158,19 @@
       "dominant_hand": "both",
       "motion_speed": "unknown"
     },
+    "sign": {
+      "hand_count": "two_hands",
+      "movement": "large_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "symmetric",
+      "finger_state": "11111",
+      "hand_shape": "open_palm",
+      "motion_direction": "circular",
+      "trajectory_pattern": "circular",
+      "dominant_hand": "both",
+      "motion_speed": "fast"
+    },
     "slow": {
       "hand_count": "two_hands",
       "movement": "large_motion",
@@ -893,8 +1179,8 @@
       "symmetry": "unknown",
       "finger_state": "11111",
       "hand_shape": "open_palm",
-      "motion_direction": "unknown",
-      "trajectory_pattern": "unknown",
+      "motion_direction": "circular",
+      "trajectory_pattern": "circular",
       "dominant_hand": "both",
       "motion_speed": "fast"
     },
@@ -913,7 +1199,7 @@
     },
     "soft": {
       "hand_count": "two_hands",
-      "movement": "medium_motion",
+      "movement": "large_motion",
       "location": "neutral_space",
       "orientation": "unknown",
       "symmetry": "asymmetric",
@@ -922,7 +1208,7 @@
       "motion_direction": "circular",
       "trajectory_pattern": "circular",
       "dominant_hand": "both",
-      "motion_speed": "medium"
+      "motion_speed": "fast"
     },
     "strong": {
       "hand_count": "unknown",
@@ -937,6 +1223,19 @@
       "dominant_hand": "unknown",
       "motion_speed": "unknown"
     },
+    "t": {
+      "hand_count": "two_hands",
+      "movement": "small_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric",
+      "finger_state": "11000",
+      "hand_shape": "pointing",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "both",
+      "motion_speed": "slow"
+    },
     "tall": {
       "hand_count": "two_hands",
       "movement": "unknown",
@@ -945,8 +1244,8 @@
       "symmetry": "unknown",
       "finger_state": "11000",
       "hand_shape": "pointing",
-      "motion_direction": "unknown",
-      "trajectory_pattern": "unknown",
+      "motion_direction": "circular",
+      "trajectory_pattern": "circular",
       "dominant_hand": "both",
       "motion_speed": "unknown"
     },
@@ -978,7 +1277,7 @@
     },
     "thick": {
       "hand_count": "one_hand",
-      "movement": "small_motion",
+      "movement": "medium_motion",
       "location": "unknown",
       "orientation": "unknown",
       "symmetry": "unknown",
@@ -987,7 +1286,7 @@
       "motion_direction": "unknown",
       "trajectory_pattern": "unknown",
       "dominant_hand": "left",
-      "motion_speed": "slow"
+      "motion_speed": "medium"
     },
     "thin": {
       "hand_count": "one_hand",
@@ -1015,17 +1314,56 @@
       "dominant_hand": "both",
       "motion_speed": "fast"
     },
+    "u": {
+      "hand_count": "one_hand",
+      "movement": "small_motion",
+      "location": "neutral_space",
+      "orientation": "forward",
+      "symmetry": "unknown",
+      "finger_state": "11000",
+      "hand_shape": "pointing",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "left",
+      "motion_speed": "slow"
+    },
     "ugly": {
       "hand_count": "unknown",
       "movement": "unknown",
       "location": "upper_space",
-      "orientation": "unknown",
+      "orientation": "forward",
       "symmetry": "unknown",
       "finger_state": "11111",
       "hand_shape": "open_palm",
       "motion_direction": "unknown",
       "trajectory_pattern": "unknown",
       "dominant_hand": "unknown",
+      "motion_speed": "unknown"
+    },
+    "v": {
+      "hand_count": "one_hand",
+      "movement": "small_motion",
+      "location": "neutral_space",
+      "orientation": "forward",
+      "symmetry": "unknown",
+      "finger_state": "11100",
+      "hand_shape": "unknown",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "left",
+      "motion_speed": "slow"
+    },
+    "w": {
+      "hand_count": "two_hands",
+      "movement": "unknown",
+      "location": "neutral_space",
+      "orientation": "forward",
+      "symmetry": "asymmetric",
+      "finger_state": "11111",
+      "hand_shape": "open_palm",
+      "motion_direction": "circular",
+      "trajectory_pattern": "circular",
+      "dominant_hand": "both",
       "motion_speed": "unknown"
     },
     "warm": {
@@ -1043,7 +1381,7 @@
     },
     "we": {
       "hand_count": "two_hands",
-      "movement": "unknown",
+      "movement": "large_motion",
       "location": "neutral_space",
       "orientation": "unknown",
       "symmetry": "unknown",
@@ -1052,7 +1390,7 @@
       "motion_direction": "circular",
       "trajectory_pattern": "circular",
       "dominant_hand": "both",
-      "motion_speed": "unknown"
+      "motion_speed": "fast"
     },
     "weak": {
       "hand_count": "two_hands",
@@ -1093,6 +1431,32 @@
       "dominant_hand": "both",
       "motion_speed": "fast"
     },
+    "x": {
+      "hand_count": "two_hands",
+      "movement": "small_motion",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric",
+      "finger_state": "11000",
+      "hand_shape": "pointing",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "both",
+      "motion_speed": "slow"
+    },
+    "y": {
+      "hand_count": "two_hands",
+      "movement": "medium_motion",
+      "location": "neutral_space",
+      "orientation": "forward",
+      "symmetry": "asymmetric",
+      "finger_state": "11000",
+      "hand_shape": "pointing",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "both",
+      "motion_speed": "medium"
+    },
     "you": {
       "hand_count": "one_hand",
       "movement": "medium_motion",
@@ -1132,295 +1496,9 @@
       "dominant_hand": "both",
       "motion_speed": "fast"
     },
-    "d": {
-      "hand_count": "two_hands",
-      "movement": "unknown",
-      "location": "upper_space",
-      "orientation": "unknown",
-      "symmetry": "asymmetric",
-      "finger_state": "11000",
-      "hand_shape": "pointing",
-      "motion_direction": "unknown",
-      "trajectory_pattern": "unknown",
-      "dominant_hand": "both",
-      "motion_speed": "unknown"
-    },
-    "e": {
-      "hand_count": "one_hand",
-      "movement": "unknown",
-      "location": "neutral_space",
-      "orientation": "forward",
-      "symmetry": "unknown",
-      "finger_state": "11000",
-      "hand_shape": "pointing",
-      "motion_direction": "unknown",
-      "trajectory_pattern": "unknown",
-      "dominant_hand": "unknown",
-      "motion_speed": "unknown"
-    },
-    "f": {
-      "hand_count": "two_hands",
-      "movement": "unknown",
-      "location": "neutral_space",
-      "orientation": "forward",
-      "symmetry": "asymmetric",
-      "finger_state": "11100",
-      "hand_shape": "unknown",
-      "motion_direction": "unknown",
-      "trajectory_pattern": "unknown",
-      "dominant_hand": "both",
-      "motion_speed": "unknown"
-    },
-    "g": {
-      "hand_count": "two_hands",
-      "movement": "unknown",
-      "location": "neutral_space",
-      "orientation": "forward",
-      "symmetry": "asymmetric",
-      "finger_state": "10000",
-      "hand_shape": "unknown",
-      "motion_direction": "unknown",
-      "trajectory_pattern": "unknown",
-      "dominant_hand": "both",
-      "motion_speed": "unknown"
-    },
-    "h": {
-      "hand_count": "two_hands",
-      "movement": "unknown",
-      "location": "neutral_space",
-      "orientation": "unknown",
-      "symmetry": "asymmetric",
-      "finger_state": "11111",
-      "hand_shape": "open_palm",
-      "motion_direction": "circular",
-      "trajectory_pattern": "circular",
-      "dominant_hand": "both",
-      "motion_speed": "unknown"
-    },
-    "i_alphabet": {
-      "hand_count": "one_hand",
-      "movement": "unknown",
-      "location": "neutral_space",
-      "orientation": "forward",
-      "symmetry": "unknown",
-      "finger_state": "11000",
-      "hand_shape": "pointing",
-      "motion_direction": "unknown",
-      "trajectory_pattern": "unknown",
-      "dominant_hand": "left",
-      "motion_speed": "unknown"
-    },
-    "j": {
-      "hand_count": "two_hands",
-      "movement": "unknown",
-      "location": "neutral_space",
-      "orientation": "forward",
-      "symmetry": "asymmetric",
-      "finger_state": "11000",
-      "hand_shape": "pointing",
-      "motion_direction": "unknown",
-      "trajectory_pattern": "unknown",
-      "dominant_hand": "both",
-      "motion_speed": "unknown"
-    },
-    "k": {
-      "hand_count": "two_hands",
-      "movement": "unknown",
-      "location": "neutral_space",
-      "orientation": "unknown",
-      "symmetry": "asymmetric",
-      "finger_state": "11000",
-      "hand_shape": "pointing",
-      "motion_direction": "unknown",
-      "trajectory_pattern": "unknown",
-      "dominant_hand": "both",
-      "motion_speed": "unknown"
-    },
-    "l": {
-      "hand_count": "one_hand",
-      "movement": "unknown",
-      "location": "neutral_space",
-      "orientation": "forward",
-      "symmetry": "unknown",
-      "finger_state": "11000",
-      "hand_shape": "pointing",
-      "motion_direction": "unknown",
-      "trajectory_pattern": "unknown",
-      "dominant_hand": "left",
-      "motion_speed": "unknown"
-    },
-    "m": {
-      "hand_count": "two_hands",
-      "movement": "unknown",
-      "location": "neutral_space",
-      "orientation": "forward",
-      "symmetry": "asymmetric",
-      "finger_state": "11111",
-      "hand_shape": "open_palm",
-      "motion_direction": "static",
-      "trajectory_pattern": "unknown",
-      "dominant_hand": "both",
-      "motion_speed": "unknown"
-    },
-    "n": {
-      "hand_count": "two_hands",
-      "movement": "unknown",
-      "location": "neutral_space",
-      "orientation": "forward",
-      "symmetry": "asymmetric",
-      "finger_state": "11111",
-      "hand_shape": "open_palm",
-      "motion_direction": "unknown",
-      "trajectory_pattern": "unknown",
-      "dominant_hand": "both",
-      "motion_speed": "unknown"
-    },
-    "o": {
-      "hand_count": "one_hand",
-      "movement": "unknown",
-      "location": "neutral_space",
-      "orientation": "palm_left",
-      "symmetry": "unknown",
-      "finger_state": "10000",
-      "hand_shape": "unknown",
-      "motion_direction": "unknown",
-      "trajectory_pattern": "unknown",
-      "dominant_hand": "left",
-      "motion_speed": "unknown"
-    },
-    "p": {
-      "hand_count": "two_hands",
-      "movement": "unknown",
-      "location": "neutral_space",
-      "orientation": "unknown",
-      "symmetry": "asymmetric",
-      "finger_state": "11000",
-      "hand_shape": "pointing",
-      "motion_direction": "unknown",
-      "trajectory_pattern": "unknown",
-      "dominant_hand": "both",
-      "motion_speed": "unknown"
-    },
-    "q": {
-      "hand_count": "two_hands",
-      "movement": "unknown",
-      "location": "neutral_space",
-      "orientation": "forward",
-      "symmetry": "asymmetric",
-      "finger_state": "11000",
-      "hand_shape": "pointing",
-      "motion_direction": "unknown",
-      "trajectory_pattern": "unknown",
-      "dominant_hand": "both",
-      "motion_speed": "unknown"
-    },
-    "r": {
-      "hand_count": "two_hands",
-      "movement": "unknown",
-      "location": "upper_space",
-      "orientation": "forward",
-      "symmetry": "asymmetric",
-      "finger_state": "11111",
-      "hand_shape": "open_palm",
-      "motion_direction": "unknown",
-      "trajectory_pattern": "unknown",
-      "dominant_hand": "both",
-      "motion_speed": "unknown"
-    },
-    "s": {
-      "hand_count": "two_hands",
-      "movement": "unknown",
-      "location": "neutral_space",
-      "orientation": "forward",
-      "symmetry": "asymmetric",
-      "finger_state": "10000",
-      "hand_shape": "unknown",
-      "motion_direction": "unknown",
-      "trajectory_pattern": "unknown",
-      "dominant_hand": "both",
-      "motion_speed": "unknown"
-    },
-    "t": {
-      "hand_count": "two_hands",
-      "movement": "unknown",
-      "location": "neutral_space",
-      "orientation": "unknown",
-      "symmetry": "asymmetric",
-      "finger_state": "11000",
-      "hand_shape": "pointing",
-      "motion_direction": "unknown",
-      "trajectory_pattern": "unknown",
-      "dominant_hand": "both",
-      "motion_speed": "unknown"
-    },
-    "u": {
-      "hand_count": "one_hand",
-      "movement": "unknown",
-      "location": "neutral_space",
-      "orientation": "forward",
-      "symmetry": "unknown",
-      "finger_state": "11000",
-      "hand_shape": "pointing",
-      "motion_direction": "unknown",
-      "trajectory_pattern": "unknown",
-      "dominant_hand": "left",
-      "motion_speed": "unknown"
-    },
-    "v": {
-      "hand_count": "one_hand",
-      "movement": "unknown",
-      "location": "neutral_space",
-      "orientation": "forward",
-      "symmetry": "unknown",
-      "finger_state": "11100",
-      "hand_shape": "unknown",
-      "motion_direction": "unknown",
-      "trajectory_pattern": "unknown",
-      "dominant_hand": "left",
-      "motion_speed": "unknown"
-    },
-    "w": {
-      "hand_count": "two_hands",
-      "movement": "unknown",
-      "location": "neutral_space",
-      "orientation": "forward",
-      "symmetry": "asymmetric",
-      "finger_state": "11111",
-      "hand_shape": "open_palm",
-      "motion_direction": "circular",
-      "trajectory_pattern": "circular",
-      "dominant_hand": "both",
-      "motion_speed": "unknown"
-    },
-    "x": {
-      "hand_count": "two_hands",
-      "movement": "unknown",
-      "location": "neutral_space",
-      "orientation": "unknown",
-      "symmetry": "asymmetric",
-      "finger_state": "11000",
-      "hand_shape": "pointing",
-      "motion_direction": "unknown",
-      "trajectory_pattern": "unknown",
-      "dominant_hand": "both",
-      "motion_speed": "unknown"
-    },
-    "y": {
-      "hand_count": "two_hands",
-      "movement": "unknown",
-      "location": "neutral_space",
-      "orientation": "forward",
-      "symmetry": "asymmetric",
-      "finger_state": "11000",
-      "hand_shape": "pointing",
-      "motion_direction": "unknown",
-      "trajectory_pattern": "unknown",
-      "dominant_hand": "both",
-      "motion_speed": "unknown"
-    },
     "z": {
       "hand_count": "two_hands",
-      "movement": "unknown",
+      "movement": "medium_motion",
       "location": "neutral_space",
       "orientation": "unknown",
       "symmetry": "asymmetric",
@@ -1429,137 +1507,7 @@
       "motion_direction": "unknown",
       "trajectory_pattern": "unknown",
       "dominant_hand": "both",
-      "motion_speed": "unknown"
-    },
-    "indian": {
-      "hand_count": "one_hand",
-      "movement": "unknown",
-      "location": "face_near",
-      "orientation": "unknown",
-      "symmetry": "unknown",
-      "finger_state": "10000",
-      "hand_shape": "unknown",
-      "motion_direction": "circular",
-      "trajectory_pattern": "circular",
-      "dominant_hand": "left",
-      "motion_speed": "unknown"
-    },
-    "sign": {
-      "hand_count": "two_hands",
-      "movement": "unknown",
-      "location": "neutral_space",
-      "orientation": "unknown",
-      "symmetry": "symmetric",
-      "finger_state": "11111",
-      "hand_shape": "open_palm",
-      "motion_direction": "circular",
-      "trajectory_pattern": "circular",
-      "dominant_hand": "both",
-      "motion_speed": "unknown"
-    },
-    "language": {
-      "hand_count": "two_hands",
-      "movement": "unknown",
-      "location": "neutral_space",
-      "orientation": "unknown",
-      "symmetry": "symmetric",
-      "finger_state": "11000",
-      "hand_shape": "pointing",
-      "motion_direction": "circular",
-      "trajectory_pattern": "circular",
-      "dominant_hand": "both",
-      "motion_speed": "unknown"
-    },
-    "bye": {
-      "hand_count": "one_hand",
-      "movement": "unknown",
-      "location": "neutral_space",
-      "orientation": "forward",
-      "symmetry": "unknown",
-      "finger_state": "11111",
-      "hand_shape": "open_palm",
-      "motion_direction": "circular",
-      "trajectory_pattern": "circular",
-      "dominant_hand": "left",
-      "motion_speed": "unknown"
-    },
-    "her": {
-      "hand_count": "one_hand",
-      "movement": "unknown",
-      "location": "upper_space",
-      "orientation": "unknown",
-      "symmetry": "unknown",
-      "finger_state": "11000",
-      "hand_shape": "pointing",
-      "motion_direction": "circular",
-      "trajectory_pattern": "circular",
-      "dominant_hand": "unknown",
-      "motion_speed": "unknown"
-    },
-    "herself": {
-      "hand_count": "one_hand",
-      "movement": "unknown",
-      "location": "upper_space",
-      "orientation": "unknown",
-      "symmetry": "unknown",
-      "finger_state": "11000",
-      "hand_shape": "pointing",
-      "motion_direction": "circular",
-      "trajectory_pattern": "circular",
-      "dominant_hand": "left",
-      "motion_speed": "unknown"
-    },
-    "him": {
-      "hand_count": "one_hand",
-      "movement": "unknown",
-      "location": "upper_space",
-      "orientation": "unknown",
-      "symmetry": "unknown",
-      "finger_state": "10000",
-      "hand_shape": "unknown",
-      "motion_direction": "circular",
-      "trajectory_pattern": "circular",
-      "dominant_hand": "left",
-      "motion_speed": "unknown"
-    },
-    "transitions": {
-      "hand_count": "unknown",
-      "movement": "unknown",
-      "location": "unknown",
-      "orientation": "forward",
-      "symmetry": "unknown",
-      "finger_state": "11111",
-      "hand_shape": "open_palm",
-      "motion_direction": "unknown",
-      "trajectory_pattern": "unknown",
-      "dominant_hand": "unknown",
-      "motion_speed": "unknown"
-    },
-    "random_hand_movement": {
-      "hand_count": "two_hands",
-      "movement": "unknown",
-      "location": "neutral_space",
-      "orientation": "unknown",
-      "symmetry": "unknown",
-      "finger_state": "11111",
-      "hand_shape": "open_palm",
-      "motion_direction": "circular",
-      "trajectory_pattern": "circular",
-      "dominant_hand": "both",
-      "motion_speed": "unknown"
-    },
-    "empty_scene": {
-      "hand_count": "unknown",
-      "movement": "unknown",
-      "location": "upper_space",
-      "orientation": "forward",
-      "symmetry": "unknown",
-      "finger_state": "11111",
-      "hand_shape": "open_palm",
-      "motion_direction": "unknown",
-      "trajectory_pattern": "unknown",
-      "dominant_hand": "unknown",
-      "motion_speed": "unknown"
+      "motion_speed": "medium"
     }
   }
 }
