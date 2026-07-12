@@ -230,5 +230,8 @@
   ],
   "one_hand|unknown|neutral_space|pointing": [
     "itself"
+  ],
+  "one_hand|unknown|unknown|open_palm": [
+    "them"
   ]
 }

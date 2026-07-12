@@ -1612,6 +1612,19 @@
       "trajectory_pattern": "unknown",
       "dominant_hand": "both",
       "motion_speed": "unknown"
+    },
+    "them": {
+      "hand_count": "one_hand",
+      "movement": "unknown",
+      "location": "unknown",
+      "orientation": "palm_down",
+      "symmetry": "unknown",
+      "finger_state": "11111",
+      "hand_shape": "open_palm",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "left",
+      "motion_speed": "unknown"
     }
   }
 }
