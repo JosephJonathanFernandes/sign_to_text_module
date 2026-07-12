@@ -692,7 +692,7 @@
     },
     "i": {
       "hand_count": "one_hand",
-      "movement": "medium_motion",
+      "movement": "unknown",
       "location": "neutral_space",
       "orientation": "forward",
       "symmetry": "unknown",
@@ -701,7 +701,7 @@
       "motion_direction": "circular",
       "trajectory_pattern": "circular",
       "dominant_hand": "left",
-      "motion_speed": "medium"
+      "motion_speed": "unknown"
     },
     "indian": {
       "hand_count": "one_hand",
