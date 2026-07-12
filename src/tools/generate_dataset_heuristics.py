@@ -1,6 +1,8 @@
 import os
 import sys
 import json
+import csv
+import tempfile
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -141,8 +143,36 @@ def generate_heuristics(class_only=None):
     print(f"Found {len(all_files)} .npy files. Processing heuristics...")
 
     video_heuristics = defaultdict(list)
-    keypoints_data = []
     
+    # We will stream keypoints to a temp CSV to avoid OOM
+    out_dir = Path("data")
+    out_dir.mkdir(exist_ok=True)
+    csv_path = out_dir / "keypoints.csv"
+    
+    csv_headers = ["sample_id", "class_name", "frame_number", "hand"] + [f"{axis}{i+1}" for i in range(21) for axis in ['x', 'y', 'z']]
+    temp_csv_file = tempfile.NamedTemporaryFile(mode='w', delete=False, newline='', dir=out_dir)
+    temp_csv_path = Path(temp_csv_file.name)
+    csv_writer = csv.writer(temp_csv_file)
+    csv_writer.writerow(csv_headers)
+    
+    # If class_only is provided, copy all old rows except for this class
+    if class_only and csv_path.exists():
+        try:
+            with open(csv_path, 'r', newline='') as f_in:
+                reader = csv.reader(f_in)
+                header = next(reader, None)
+                if header:
+                    # find class_name index
+                    try:
+                        class_idx = header.index("class_name")
+                        for row in reader:
+                            if len(row) > class_idx and row[class_idx] != class_only:
+                                csv_writer.writerow(row)
+                    except ValueError:
+                        pass
+        except Exception as e:
+            print(f"Warning: Could not copy old CSV entries: {e}")
+            
     # For percentiles
     all_movements = []
     all_speeds = []
@@ -227,7 +257,7 @@ def generate_heuristics(class_only=None):
                 l_hshapes.append(get_hand_shape(l_reshaped, fstate))
                 
                 row = [sample_id, class_name, frame_idx, "left"] + l_raw.tolist()
-                keypoints_data.append(row)
+                csv_writer.writerow(row)
                 
             if r_present:
                 r_hand_present += 1
@@ -256,7 +286,11 @@ def generate_heuristics(class_only=None):
                 r_hshapes.append(get_hand_shape(r_reshaped, fstate))
                 
                 row = [sample_id, class_name, frame_idx, "right"] + r_raw.tolist()
-                keypoints_data.append(row)
+                csv_writer.writerow(row)
+                
+        # Flush regularly
+        if len(sample_data_list) % 500 == 0:
+            temp_csv_file.flush()
 
         presence_threshold = num_frames * 0.3
         two_hands = (l_hand_present > presence_threshold) and (r_hand_present > presence_threshold)
@@ -426,13 +460,9 @@ def generate_heuristics(class_only=None):
 
     candidate_map = dict(candidate_map_raw)
         
-    out_dir = Path("data")
-    out_dir.mkdir(exist_ok=True)
-    
     hsc_path = out_dir / "hand_sign_classification.json"
     cs_path = out_dir / "confidence_statistics.json"
     cm_path = out_dir / "candidate_map.json"
-    csv_path = out_dir / "keypoints.csv"
     
     # Update logic for appending new class info
     if class_only:
@@ -464,22 +494,14 @@ def generate_heuristics(class_only=None):
     with open(cm_path, "w") as f:
         json.dump(candidate_map, f, indent=2)
         
-    csv_headers = ["sample_id", "class_name", "frame_number", "hand"] + [f"{axis}{i+1}" for i in range(21) for axis in ['x', 'y', 'z']]
-    df_new = pd.DataFrame(keypoints_data, columns=csv_headers)
-    
-    if class_only and csv_path.exists():
-        try:
-            df_old = pd.read_csv(csv_path, dtype={"sample_id": str, "class_name": str, "hand": str})
-            # Remove old entries for this class to avoid duplication
-            df_old = df_old[df_old["class_name"] != class_only]
-            df = pd.concat([df_old, df_new], ignore_index=True)
-        except Exception as e:
-            print(f"Warning: Could not update {csv_path}: {e}. Creating new.")
-            df = df_new
-    else:
-        df = df_new
-        
-    df.to_csv(csv_path, index=False)
+    # Close and swap CSV
+    temp_csv_file.close()
+    try:
+        if csv_path.exists():
+            csv_path.unlink()
+        temp_csv_path.rename(csv_path)
+    except Exception as e:
+        print(f"Warning: Could not replace {csv_path} with {temp_csv_path}: {e}")
     
     print("Done! Generated:")
     print(" - data/hand_sign_classification.json")
