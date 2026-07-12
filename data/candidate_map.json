@@ -54,6 +54,7 @@
   ],
   "two_hands|unknown|upper_space|open_palm": [
     "big_large",
+    "it",
     "loud"
   ],
   "one_hand|medium_motion|upper_space|pointing": [
@@ -138,12 +139,6 @@
   "one_hand|medium_motion|face_near|unknown": [
     "indian"
   ],
-  "two_hands|large_motion|upper_space|open_palm": [
-    "it",
-    "slow",
-    "they",
-    "tight"
-  ],
   "two_hands|medium_motion|neutral_space|pointing": [
     "j",
     "q",
@@ -195,6 +190,11 @@
   ],
   "two_hands|unknown|unknown|open_palm": [
     "sick"
+  ],
+  "two_hands|large_motion|upper_space|open_palm": [
+    "slow",
+    "they",
+    "tight"
   ],
   "unknown|unknown|unknown|unknown": [
     "strong"

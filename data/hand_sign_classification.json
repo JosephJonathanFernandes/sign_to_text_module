@@ -718,16 +718,16 @@
     },
     "it": {
       "hand_count": "two_hands",
-      "movement": "large_motion",
+      "movement": "unknown",
       "location": "upper_space",
-      "orientation": "forward",
+      "orientation": "unknown",
       "symmetry": "unknown",
       "finger_state": "11111",
       "hand_shape": "open_palm",
       "motion_direction": "circular",
       "trajectory_pattern": "circular",
       "dominant_hand": "both",
-      "motion_speed": "fast"
+      "motion_speed": "unknown"
     },
     "i_alphabet": {
       "hand_count": "one_hand",
