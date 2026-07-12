@@ -222,5 +222,8 @@
   ],
   "two_hands|medium_motion|neutral_space|open_palm": [
     "z"
+  ],
+  "one_hand|unknown|neutral_space|pointing": [
+    "itself"
   ]
 }
