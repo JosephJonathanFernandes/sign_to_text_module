@@ -152,7 +152,8 @@
     "build",
     "brush",
     "welcome",
-    "dangerous"
+    "dangerous",
+    "dim"
   ],
   "two_hands|medium_motion|neutral_space|unknown": [
     "hard"
