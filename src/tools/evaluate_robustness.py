@@ -133,7 +133,22 @@ def evaluate_ood(models, ds, test_indices):
     print(f"OOD Precision: {precision:.4f}")
     print(f"OOD Recall: {recall:.4f}")
     
+class Logger(object):
+    def __init__(self, filename="Default.log"):
+        self.terminal = sys.stdout
+        self.log = open(filename, "w", encoding="utf-8")
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
+    def flush(self):
+        self.terminal.flush()
+        self.log.flush()
+
 def evaluate_baseline():
+    os.makedirs("benchmarks", exist_ok=True)
+    os.makedirs("diagrams", exist_ok=True)
+    sys.stdout = Logger(os.path.join("benchmarks", "robustness_report.txt"))
+
     print("Loading models...")
     models, classes, num_classes = load_ensemble()
     if not models:
@@ -249,14 +264,14 @@ def evaluate_baseline():
     print(classification_report(y_true, y_pred, labels=np.arange(len(classes)), target_names=classes, zero_division=0))
     
     # Save Confusion Matrix Visualization
-    print("\nSaving Confusion Matrix Visualization to 'confusion_matrix.png'...")
+    print("\nSaving Confusion Matrix Visualization to 'diagrams/confusion_matrix.png'...")
     plt.figure(figsize=(20, 20))
     sns.heatmap(cm, xticklabels=classes, yticklabels=classes, cmap="Blues", annot=False, cbar=True)
     plt.title("Confusion Matrix")
     plt.xlabel("Predicted")
     plt.ylabel("True")
     plt.tight_layout()
-    plt.savefig("confusion_matrix.png", dpi=150)
+    plt.savefig(os.path.join("diagrams", "confusion_matrix.png"), dpi=150)
     plt.close()
     
     print("\n--- EXPERIMENT 8: Reliability Diagram + ECE ---")
