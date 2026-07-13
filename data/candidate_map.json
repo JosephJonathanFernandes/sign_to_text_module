@@ -249,5 +249,8 @@
   ],
   "one_hand|unknown|upper_space|open_palm": [
     "walk"
+  ],
+  "one_hand|unknown|upper_space|pointing": [
+    "think"
   ]
 }
