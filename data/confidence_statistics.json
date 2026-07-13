@@ -2013,5 +2013,18 @@
     "trajectory_pattern_agreement": "66.5%",
     "dominant_hand_agreement": "80.2%",
     "motion_speed_agreement": "30.2%"
+  },
+  "build": {
+    "hand_count_agreement": "99.8%",
+    "movement_agreement": "34.0%",
+    "location_agreement": "91.5%",
+    "orientation_agreement": "93.2%",
+    "symmetry_agreement": "56.0%",
+    "finger_state_agreement": "99.8%",
+    "hand_shape_agreement": "99.2%",
+    "motion_direction_agreement": "44.8%",
+    "trajectory_pattern_agreement": "44.8%",
+    "dominant_hand_agreement": "99.8%",
+    "motion_speed_agreement": "34.0%"
   }
 }
