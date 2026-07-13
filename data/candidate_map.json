@@ -144,7 +144,8 @@
     "stand",
     "chew",
     "carry",
-    "build"
+    "build",
+    "brush"
   ],
   "two_hands|medium_motion|neutral_space|unknown": [
     "hard"
