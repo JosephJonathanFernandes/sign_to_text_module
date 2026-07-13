@@ -2,7 +2,7 @@
 
 ## 1. Pipeline Verification & Natural Distribution Extraction
 
-To provide an accurate, unbiased evaluation of the model's robustness, the test set was constructed strictly from the natural distribution of the out-of-sample data. No artificial balancing or subsampling was performed. 
+To provide an accurate, unbiased evaluation of the model's robustness, the test set was constructed strictly from the natural distribution of the out-of-sample data. The dataset was intentionally imbalanced to reflect real-world background noise dominance, and no artificial subsampling was performed.
 
 *   **Total Test Samples Evaluated:** 52,500+ (from `webcam`, `MVI`, and `processed_negatives`).
 *   **Valid Signs Evaluated:** 49,140
@@ -12,11 +12,13 @@ To provide an accurate, unbiased evaluation of the model's robustness, the test 
 
 ## 2. Overall Classification Metrics
 
+*Note: The Overall Accuracy measures performance across ALL classes (Signs + Reject). The In-Distribution Accuracy (measuring only Valid Signs) is reported in Section 7 as 97.84%.*
+
 Performance on the natural test distribution, strictly evaluating the `argmax` classification:
 
 | Metric | Score |
 | :--- | :--- |
-| **Overall Accuracy** | 91.84% |
+| **Overall Accuracy (Signs + Reject)** | 91.84% |
 | **Macro Precision** | 89.52% |
 | **Macro Recall** | 94.15% |
 | **Macro F1** | 91.13% |
@@ -37,7 +39,7 @@ When relying **solely** on the model predicting `__reject__` as the Top-1 class 
 | **False Negatives (FAR proxy)** | 3,159 | 3,159 negative samples were forced into a valid sign class. |
 
 ### Per-Category Reject Recall
-Why is the overall recall so low? By mapping the negatives back to their collection categories, we see the model's Top-1 prediction behavior varies significantly by motion type:
+Why is the overall explicit recall so low? By mapping the negatives back to their collection categories, we see the model's Top-1 prediction behavior varies significantly by motion type:
 *   `random_hand_movement`: 20.78% (48/231)
 *   `transitions`: 12.44% (28/225)
 *   `idle`: 1.02% (3/293)
@@ -50,10 +52,10 @@ Why is the overall recall so low? By mapping the negatives back to their collect
 
 ## 4. Confidence Analysis & Threshold Sweep (The Solution)
 
-While the model rarely predicts `__reject__` as the Top-1 class, looking at the **confidence distributions** reveals that it *is* successfully learning the difference between valid and invalid data:
+While the model rarely predicts `__reject__` as the Top-1 class, analyzing the **confidence distributions** reveals an excellent separation between valid and invalid data. This indicates that the model learns the reject concept primarily through reduced confidence rather than explicit selection of the `__reject__` class as the top prediction.
 
-*   **Valid Signs Median Confidence:** `0.9751` (Highly confident)
-*   **`__reject__` Median Confidence:** `0.3763` (Highly uncertain)
+*   **Valid Signs Median Confidence:** `0.975` (Highly confident)
+*   **`__reject__` Median Confidence:** `0.376` (Highly uncertain)
 
 Because the model slashes its confidence on negative data, we can implement an acceptance threshold. A sequence is rejected if the Top-1 prediction is `__reject__` **OR** the confidence is below the threshold.
 
@@ -61,15 +63,15 @@ Because the model slashes its confidence on negative data, we can implement an a
 
 | Acceptance Threshold | Precision | Recall (OOD Caught) | False Acceptance (FAR) | False Rejection (FRR) |
 | :---: | :---: | :---: | :---: | :---: |
-| 0.2 | 88.68% | 30.08% | 4.60% | **0.26%** |
-| 0.4 | 87.53% | 52.28% | 3.19% | **0.51%** |
-| **0.5** | **84.64%** | **59.43%** | **2.73%** | **0.74%** |
+| 0.2 | 88.68% | 30.08% | 4.60% | 0.26% |
+| 0.4 | 87.53% | 52.28% | 3.19% | 0.51% |
+| **0.5 (Default)** | **84.64%** | **59.43%** | **2.73%** | **0.74%** |
 | 0.8 | 54.50% | 77.01% | 1.62% | 4.42% |
-| **0.9** | **52.62%** | **86.05%** | **1.00%** | **5.33%** |
+| 0.9 | 52.62% | 86.05% | 1.00% | 5.33% |
 
 > [!TIP]
 > **Optimal Operating Point**
-> By simply enforcing a confidence threshold of **0.5**, the model successfully rejects nearly **60%** of all real-world noise, while maintaining an exceptionally low False Rejection Rate of **0.74%**. If strict OOD filtering is required, a threshold of **0.9** catches **86%** of noise with only a 5.3% penalty to valid signs.
+> Enforcing a confidence threshold of **0.5** is the recommended default. It substantially improves rejection of real-world negative sequences (nearly **60%**) while maintaining an exceptionally low False Rejection Rate of **0.74%**. If stricter OOD filtering is required, a threshold of **0.9** catches **86%** of noise with only a 5.3% penalty to valid signs.
 
 ---
 
@@ -83,7 +85,7 @@ The model only explicitly rejected 2 valid signs:
 2. `happy` (1)
 
 **Top Valid Signs hallucinated from noise (FAR):**
-When the model is forced to guess a sign for random noise, it heavily biases toward signs with static holds or central chest locations:
+When the model is forced to guess a sign for random noise, it heavily biases toward specific signs:
 1. `language` (408 times)
 2. `narrow` (167 times)
 3. `healthy` (163 times)
@@ -91,11 +93,14 @@ When the model is forced to guess a sign for random noise, it heavily biases tow
 
 *(The exact misclassified files and their confidences are saved in `diagrams/misclassified_rejects.txt` for further review).*
 
+### Bias Analysis (`language` Over-representation)
+The massive over-representation of the `language` class (408 times) serving as an attractor for negative sequences reveals an algorithmic bias. The sign for `language` often involves a static pose, a centered gesture relative to the torso, and a common hand configuration. When the model receives ambiguous tracking data or idle frames, it collapses to these stable, low-variance geometric patterns.
+
 ---
 
 ## 6. Synthetic Stress Test
 
-This test evaluates the mathematical stability of the model against out-of-distribution synthetic noise (pure Gaussian coordinates, temporal shuffling, missing frames).
+This test evaluates the mathematical stability of the model against out-of-distribution synthetic noise (pure Gaussian coordinates, temporal shuffling, missing frames). *It is important to distinguish this from Real OOD (human negative sequences).*
 
 *   **Gaussian Noise (sigma=0.03):** 98.60% (Immune)
 *   **Landmark Dropout (20%):** 86.60% (Graceful degradation)
@@ -103,7 +108,7 @@ This test evaluates the mathematical stability of the model against out-of-distr
 *   **Synthetic FAR:** 95.80%
 
 > [!NOTE]
-> The model fails to reject pure synthetic noise because it was trained exclusively on real human topologies. However, as proven in Section 4, it successfully rejects real-world human OOD data via confidence slashing.
+> The model fails to reject pure synthetic noise because it was trained exclusively on real human topologies. However, as proven in Section 4, it is moderately successful at rejecting real-world human OOD data via confidence slashing.
 
 ---
 
@@ -113,7 +118,7 @@ Did adding the `__reject__` class help?
 
 | Metric | Phase 1 (No Reject Class) | Phase 2 (With Reject Class & Threshold = 0.5) |
 | :--- | :--- | :--- |
-| **Accuracy (In-distribution)** | 97.70% | 97.84% (Webcam Signs) |
+| **Accuracy (In-distribution / Only Signs)** | 97.70% | 97.84% (Webcam Signs) |
 | **Real-world FAR** | Untested | **2.73%** |
 | **Real-world FRR** | Untested | **0.74%** |
 | **Expected Calibration (ECE)** | 3.12% | **3.22%** |
@@ -125,14 +130,24 @@ Did adding the `__reject__` class help?
 Based strictly on empirical evidence, here are the answers to the engineering review:
 
 1.  **Is the `__reject__` class being learned successfully?**
-    **Yes, but implicitly.** The model does not learn to output `__reject__` as `1.0` confidence. Instead, it successfully learns to drop its confidence to ~`0.37` when encountering negative data, completely distinguishing it from the `0.97` median confidence of valid signs.
+    **Yes.** The model learns the reject concept primarily through reduced confidence rather than explicit selection of the `__reject__` class as the top prediction. The median confidence drops from 0.975 (Valid) to 0.376 (Reject).
 2.  **Is its dataset balanced relative to other classes?**
-    **No.** With 3,384 samples, `__reject__` is massively overrepresented compared to normal classes (~400 samples each). However, this is acceptable and necessary for a background class to encompass the massive variance of "everything else in the world".
+    **No, intentionally imbalanced.** With 3,384 samples, `__reject__` is massively overrepresented compared to normal classes (~400 samples each). This is normal and necessary for a background class to encompass the variance of "everything else in the world".
 3.  **Is there evidence of over-rejection?**
     **No.** The explicit False Positives (rejecting valid signs) was literally `2` across tens of thousands of samples. Even with a 0.5 threshold, FRR is only `0.74%`.
 4.  **Is there evidence of under-rejection?**
-    **Yes.** At a 0.5 threshold, 40% of real-world negative sequences still sneak through. The model is strongly biased to map non-signs to classes like `language` and `narrow`.
+    **Yes.** At a 0.5 threshold, 40% of real-world negative sequences still pass. The model is strongly biased to map non-signs to classes like `language`.
 5.  **Would adding more reject data likely help?**
-    **Yes.** Because the model is successfully using the negative data to calibrate its uncertainty, adding more diverse examples of "not signing" will continue to push the negative confidence distributions lower, separating them further from valid signs.
+    **Yes.** Because the model uses negative data to calibrate its uncertainty, adding more diverse examples will continue to push the negative confidence distributions lower.
 6.  **Is the current robustness pipeline sufficient for deployment?**
-    **Yes, Ready for Deployment.** By utilizing the 0.5 - 0.8 confidence threshold logic validated by the ROC sweep, the model provides an incredibly stable real-world foundation. It operates at ~30 FPS, maintains ~98% accuracy on real users, and can filter the vast majority of idle background noise without rejecting actual user input.
+    **Suitable for controlled deployment or prototype deployment.** By utilizing the 0.5 confidence threshold logic, the model provides an incredibly stable real-world foundation. However, because 40% of negatives still pass at this threshold, it is not yet suitable for completely unconstrained, mission-critical environments.
+
+---
+
+## 9. Future Work
+The following robustness roadmap outlines the next steps for refining OOD rejection without unnecessarily complex architectural overhauls:
+*   **More reject samples:** Expand the negative class with explicit hard negatives targeting the `language` bias.
+*   **Cross-signer negatives:** Collect idle/random motions from entirely novel signers.
+*   **Threshold optimization:** Implement class-specific or dynamic confidence thresholds.
+*   **Better OOD detector:** Explore post-hoc OOD detection methods (e.g., Mahalanobis distance) leveraging the existing latent space.
+*   **Joint-angle features:** Transition from raw Euclidean coordinates to scale/translation-invariant joint angles to reduce structural hallucination.

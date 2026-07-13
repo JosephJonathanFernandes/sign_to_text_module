@@ -306,6 +306,29 @@ def evaluate_baseline():
         print(f"  Average: {np.mean(y_conf[reject_mask]):.4f}")
         print(f"  Median:  {np.median(y_conf[reject_mask]):.4f}")
         
+    # Generate Confidence Distribution Plot
+    if np.any(valid_mask) and np.any(reject_mask):
+        plt.figure(figsize=(12, 6))
+        
+        plt.subplot(1, 2, 1)
+        sns.histplot(y_conf[valid_mask], color='blue', alpha=0.5, label='Valid Signs', bins=20, stat='density')
+        sns.histplot(y_conf[reject_mask], color='red', alpha=0.5, label='__reject__', bins=20, stat='density')
+        plt.title("Confidence Histogram")
+        plt.xlabel("Confidence")
+        plt.ylabel("Density")
+        plt.legend()
+        
+        plt.subplot(1, 2, 2)
+        data = [y_conf[valid_mask], y_conf[reject_mask]]
+        plt.boxplot(data, tick_labels=['Valid Signs', '__reject__'])
+        plt.title("Confidence Boxplot")
+        plt.ylabel("Confidence")
+        
+        plt.tight_layout()
+        plt.savefig(os.path.join("diagrams", "confidence_distribution.png"), dpi=150)
+        plt.close()
+        print("Saved Confidence Distribution plot to 'diagrams/confidence_distribution.png'")
+        
     ece = compute_ece(y_conf, accuracies)
     print(f"\nExpected Calibration Error (ECE): {ece:.2f}%")
 
