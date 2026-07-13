@@ -265,7 +265,8 @@
   ],
   "one_hand|unknown|upper_space|open_palm": [
     "walk",
-    "ignore"
+    "ignore",
+    "angry"
   ],
   "one_hand|unknown|upper_space|pointing": [
     "think"
