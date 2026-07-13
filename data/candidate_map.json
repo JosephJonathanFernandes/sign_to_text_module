@@ -59,7 +59,8 @@
     "climb_up",
     "climb_down",
     "break",
-    "cruel"
+    "cruel",
+    "fat"
   ],
   "one_hand|large_motion|neutral_space|unknown": [
     "bad",
