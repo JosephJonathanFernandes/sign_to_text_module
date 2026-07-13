@@ -98,6 +98,34 @@
 * `src/preprocessing/augment_pipeline.py`, `augment_video_pipeline.py`, `augmentations.py` & `merge_augmentations.py`
   * Engineered synthetic data generation scaling over 5,600 unique sequences.
   * Simulated face-anchor shifts and dynamic hand-proportion transformations.
+* `src/preprocessing/dataset.py`
+  * Implemented `ISLDataset` featuring hybrid HDF5 and file-based loaders.
+* `src/preprocessing/quality_filter_hybrid.py` & `balance_processed_dataset.py`
+  * Added automated curation pipelines for duplicate suppression, quality checking, and class balancing.
+
+### API & Production Backend
+
+* `api/app.py`, `api/schemas.py`, & `api/session.py`
+  * Architected the FastAPI WebSocket backend for real-time edge streaming.
+  * Enforced strict Pydantic payload contracts and jitter-resistant session hashing.
+
+### Temporal Inference & NLP
+
+* `src/inference/sentence_builder.py` & `nlp_postprocessor.py`
+  * Engineered state-based transitions and robust NLP logic to turn raw tokens into grammatical sentences.
+* `src/inference/ensemble.py` & `onnx_ensemble_integration.py`
+  * Integrated multi-checkpoint blending to maximize sequence accuracy.
+* `src/inference/export_onnx.py` & `quantize_onnx.py`
+  * Built the export and INT8 quantization pipelines for CPU optimization.
+
+### Tools, Testing & Evaluation
+
+* `src/tools/benchmark_inference.py` & `src/utils/profiling.py`
+  * Developed deep latency benchmarking and hardware profiling utilities.
+* `src/tools/evaluate_robustness.py`
+  * Created evaluation scripts for Out-of-Distribution (OOD) testing and ROC threshold sweeping.
+* `tests/`
+  * Engineered a comprehensive `pytest` matrix covering unit, integration, e2e, and API boundaries.
 * Dataset Balancing & Filtering
   * `src/preprocessing/quality_filter_hybrid.py`: Stripped corrupted samples from the dataset.
   * `src/preprocessing/balance_processed_dataset.py` & `random_downsample_processed.py`: Enforced strict class distribution equity.
