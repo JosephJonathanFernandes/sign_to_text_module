@@ -259,9 +259,6 @@ def evaluate_baseline():
     plt.savefig("confusion_matrix.png", dpi=150)
     plt.close()
     
-    import sys
-    sys.exit(0)
-    
     print("\n--- EXPERIMENT 8: Reliability Diagram + ECE ---")
     ece = compute_ece(np.array(confidences), np.array(accuracies))
     print(f"Expected Calibration Error (ECE): {ece:.2f}%")
