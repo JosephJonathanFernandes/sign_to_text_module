@@ -273,7 +273,8 @@
   "one_hand|unknown|upper_space|open_palm": [
     "walk",
     "ignore",
-    "angry"
+    "angry",
+    "easy"
   ],
   "one_hand|unknown|upper_space|pointing": [
     "think"
