@@ -1883,5 +1883,18 @@
     "trajectory_pattern_agreement": "48.8%",
     "dominant_hand_agreement": "65.5%",
     "motion_speed_agreement": "33.8%"
+  },
+  "namaste": {
+    "hand_count_agreement": "72.0%",
+    "movement_agreement": "35.5%",
+    "location_agreement": "90.0%",
+    "orientation_agreement": "86.0%",
+    "symmetry_agreement": "79.0%",
+    "finger_state_agreement": "98.2%",
+    "hand_shape_agreement": "97.2%",
+    "motion_direction_agreement": "65.0%",
+    "trajectory_pattern_agreement": "65.0%",
+    "dominant_hand_agreement": "71.5%",
+    "motion_speed_agreement": "35.5%"
   }
 }
