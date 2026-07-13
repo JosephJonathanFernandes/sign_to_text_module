@@ -240,8 +240,54 @@ def load_merged_ensemble_10_2():
     return main_models, fallback_models, classes, len(classes)
 
 
+from typing import Tuple, Optional
+from src.core.config import get_config
+
+_cfg = get_config()
 
 @torch.no_grad()
+def check_ood(
+    probs: np.ndarray,
+    entropy_ratio: Optional[float] = None,
+    margin_thresh: Optional[float] = None,
+    conf_thresh: Optional[float] = None
+) -> Tuple[bool, str]:
+    """
+    Check if a prediction is Out-of-Distribution (OOD) or uncertain.
+    Returns (is_ood, reason_string).
+    """
+    if len(probs) == 0:
+        return True, "Empty probabilities"
+        
+    if entropy_ratio is None:
+        entropy_ratio = _cfg.inference.ood_entropy_threshold_ratio
+    if margin_thresh is None:
+        margin_thresh = _cfg.inference.ood_margin_threshold
+    if conf_thresh is None:
+        conf_thresh = _cfg.inference.ood_confidence_threshold
+        
+    num_classes = len(probs)
+    max_entropy = float(np.log(num_classes)) if num_classes > 1 else 0.0
+    entropy_thresh = entropy_ratio * max_entropy
+    
+    entropy = float(-np.sum(probs * np.log(probs + 1e-9)))
+    confidence = float(np.max(probs))
+    
+    if len(probs) >= 2:
+        top2 = np.partition(probs, -2)[-2:]
+        margin = float(top2[1] - top2[0])
+    else:
+        margin = 1.0
+
+    if confidence < conf_thresh:
+        return True, f"Low Confidence ({confidence:.3f} < {conf_thresh:.3f})"
+    if margin < margin_thresh:
+        return True, f"Low Margin ({margin:.3f} < {margin_thresh:.3f})"
+    if entropy > entropy_thresh:
+        return True, f"High Entropy ({entropy:.3f} > {entropy_thresh:.3f})"
+
+    return False, ""
+
 def ensemble_predict(
     models: list,
     sequence: np.ndarray,

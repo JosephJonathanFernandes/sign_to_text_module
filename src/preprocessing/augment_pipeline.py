@@ -63,19 +63,19 @@ def main():
         "--augment-iterations",
         type=int,
         default=2,
-        help="Number of times to run augmentation (default: 4)"
+        help="Number of times to run augmentation (default: 2)"
     )
     parser.add_argument(
         "--merge-iterations",
         type=int,
         default=1,
-        help="Number of times to run merge (default: 7)"
+        help="Number of times to run merge (default: 1)"
     )
     parser.add_argument(
         "--augment-n",
         type=int,
         default=4,
-        help="Number of augmentations per iteration (default: 2)"
+        help="Number of augmentations per iteration (default: 4)"
     )
     parser.add_argument(
         "--skip-cleanup",
@@ -124,6 +124,8 @@ def main():
                 sys.executable,
                 "main.py",
                 "--augment-landmarks",
+                "--augment-landmarks-dir",
+                cfg.paths.processed_dir,
                 "--augment-landmarks-cls",
                 class_name,
                 "--augment-landmarks-n",
@@ -153,10 +155,11 @@ def main():
             for i in range(1, args.merge_iterations + 1):
                 cmd = [
                     sys.executable,
-                    "merge_augmentations.py",
-                    "processed",
+                    "-m",
+                    "src.preprocessing.merge_augmentations",
+                    cfg.paths.processed_dir,
                     "--output_dir",
-                    "processed",
+                    cfg.paths.processed_dir,
                     "--n",
                     "2",
                     "--mode",
@@ -172,7 +175,10 @@ def main():
             print(f"\n### Phase 3: Cleanup ###")
             cmd = [
                 sys.executable,
-                "cleanup_dataset_npy.py",
+                "-m",
+                "src.preprocessing.cleanup_dataset_npy",
+                "--root",
+                cfg.paths.processed_dir,
                 "--class",
                 class_name
             ]

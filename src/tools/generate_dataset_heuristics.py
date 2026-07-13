@@ -1,6 +1,8 @@
 import os
 import sys
 import json
+import csv
+import tempfile
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -8,6 +10,7 @@ from collections import defaultdict
 
 # Ensure src module can be imported when script is run directly
 sys.path.insert(0, str(Path.cwd()))
+import argparse
 from src.core.config import get_config
 
 def get_finger_state(raw):
@@ -108,7 +111,7 @@ def get_trajectory_pattern(trajectory):
             return "zigzag"
     return "unknown"
 
-def generate_heuristics():
+def generate_heuristics(class_only=None):
     cfg = get_config()
     processed_dir = Path(cfg.paths.processed_dir)
     
@@ -124,7 +127,15 @@ def generate_heuristics():
         "right_relative": [LANDMARK_DIM * 3, LANDMARK_DIM * 4]
     }
     
-    all_files = list(processed_dir.rglob("*.npy"))
+    if class_only:
+        class_path = processed_dir / class_only
+        if not class_path.exists():
+            print(f"Error: Class directory {class_path} not found.")
+            return
+        all_files = list(class_path.rglob("*.npy"))
+    else:
+        all_files = list(processed_dir.rglob("*.npy"))
+        
     if not all_files:
         print(f"No .npy files found in {processed_dir}")
         return
@@ -132,8 +143,36 @@ def generate_heuristics():
     print(f"Found {len(all_files)} .npy files. Processing heuristics...")
 
     video_heuristics = defaultdict(list)
-    keypoints_data = []
     
+    # We will stream keypoints to a temp CSV to avoid OOM
+    out_dir = Path("data")
+    out_dir.mkdir(exist_ok=True)
+    csv_path = out_dir / "keypoints.csv"
+    
+    csv_headers = ["sample_id", "class_name", "frame_number", "hand"] + [f"{axis}{i+1}" for i in range(21) for axis in ['x', 'y', 'z']]
+    temp_csv_file = tempfile.NamedTemporaryFile(mode='w', delete=False, newline='', dir=out_dir)
+    temp_csv_path = Path(temp_csv_file.name)
+    csv_writer = csv.writer(temp_csv_file)
+    csv_writer.writerow(csv_headers)
+    
+    # If class_only is provided, copy all old rows except for this class
+    if class_only and csv_path.exists():
+        try:
+            with open(csv_path, 'r', newline='') as f_in:
+                reader = csv.reader(f_in)
+                header = next(reader, None)
+                if header:
+                    # find class_name index
+                    try:
+                        class_idx = header.index("class_name")
+                        for row in reader:
+                            if len(row) > class_idx and row[class_idx] != class_only:
+                                csv_writer.writerow(row)
+                    except ValueError:
+                        pass
+        except Exception as e:
+            print(f"Warning: Could not copy old CSV entries: {e}")
+            
     # For percentiles
     all_movements = []
     all_speeds = []
@@ -218,7 +257,7 @@ def generate_heuristics():
                 l_hshapes.append(get_hand_shape(l_reshaped, fstate))
                 
                 row = [sample_id, class_name, frame_idx, "left"] + l_raw.tolist()
-                keypoints_data.append(row)
+                csv_writer.writerow(row)
                 
             if r_present:
                 r_hand_present += 1
@@ -247,7 +286,11 @@ def generate_heuristics():
                 r_hshapes.append(get_hand_shape(r_reshaped, fstate))
                 
                 row = [sample_id, class_name, frame_idx, "right"] + r_raw.tolist()
-                keypoints_data.append(row)
+                csv_writer.writerow(row)
+                
+        # Flush regularly
+        if len(sample_data_list) % 500 == 0:
+            temp_csv_file.flush()
 
         presence_threshold = num_frames * 0.3
         two_hands = (l_hand_present > presence_threshold) and (r_hand_present > presence_threshold)
@@ -417,21 +460,48 @@ def generate_heuristics():
 
     candidate_map = dict(candidate_map_raw)
         
-    out_dir = Path("data")
-    out_dir.mkdir(exist_ok=True)
+    hsc_path = out_dir / "hand_sign_classification.json"
+    cs_path = out_dir / "confidence_statistics.json"
+    cm_path = out_dir / "candidate_map.json"
     
-    with open(out_dir / "hand_sign_classification.json", "w") as f:
+    # Update logic for appending new class info
+    if class_only:
+        if hsc_path.exists():
+            with open(hsc_path, "r") as f:
+                existing_hsc = json.load(f)
+            existing_hsc["signs"].update(final_classification["signs"])
+            final_classification = existing_hsc
+            
+        if cs_path.exists():
+            with open(cs_path, "r") as f:
+                existing_cs = json.load(f)
+            existing_cs.update(confidence_stats)
+            confidence_stats = existing_cs
+            
+        # Candidate map needs to be fully rebuilt from the merged final_classification
+        new_cmap_raw = defaultdict(list)
+        for cname, props in final_classification["signs"].items():
+            cmap_key = f"{props['hand_count']}|{props['movement']}|{props['location']}|{props['hand_shape']}"
+            new_cmap_raw[cmap_key].append(cname)
+        candidate_map = dict(new_cmap_raw)
+
+    with open(hsc_path, "w") as f:
         json.dump(final_classification, f, indent=2)
         
-    with open(out_dir / "confidence_statistics.json", "w") as f:
+    with open(cs_path, "w") as f:
         json.dump(confidence_stats, f, indent=2)
         
-    with open(out_dir / "candidate_map.json", "w") as f:
+    with open(cm_path, "w") as f:
         json.dump(candidate_map, f, indent=2)
         
-    csv_headers = ["sample_id", "class_name", "frame_number", "hand"] + [f"{axis}{i+1}" for i in range(21) for axis in ['x', 'y', 'z']]
-    df = pd.DataFrame(keypoints_data, columns=csv_headers)
-    df.to_csv(out_dir / "keypoints.csv", index=False)
+    # Close and swap CSV
+    temp_csv_file.close()
+    try:
+        if csv_path.exists():
+            csv_path.unlink()
+        temp_csv_path.rename(csv_path)
+    except Exception as e:
+        print(f"Warning: Could not replace {csv_path} with {temp_csv_path}: {e}")
     
     print("Done! Generated:")
     print(" - data/hand_sign_classification.json")
@@ -440,4 +510,8 @@ def generate_heuristics():
     print(" - data/keypoints.csv")
 
 if __name__ == "__main__":
-    generate_heuristics()
+    parser = argparse.ArgumentParser(description="Generate dataset heuristics and classifications")
+    parser.add_argument("--class", dest="class_only", default=None, help="Only process and append info for this specific class")
+    args = parser.parse_args()
+    
+    generate_heuristics(class_only=args.class_only)

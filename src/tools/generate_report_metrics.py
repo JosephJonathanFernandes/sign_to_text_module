@@ -64,73 +64,58 @@ def evaluate(model, loader):
 def generate_metrics():
     val_loader, test_loader, nc, num_domains, classes = load_data()
     
-    models = ["pure_baseline", "dann_off", "full_dann"]
-    seeds = [42, 123, 777]
-    
-    results = defaultdict(lambda: defaultdict(list))
-    confusion_pairs = defaultdict(list)
-    
-    for model_type in models:
-        for seed in seeds:
-            ckpt_path = f"checkpoints/ablation/{model_type}_{seed}.pt"
-            if not os.path.exists(ckpt_path):
-                print(f"Missing {ckpt_path}, skipping...")
-                continue
-                
-            use_domain = (model_type != "pure_baseline")
-            model = SignLanguageGRU(num_classes=nc, num_domains=num_domains if use_domain else 0).to(DEVICE)
-            model.load_state_dict(torch.load(ckpt_path, map_location=DEVICE))
-            
-            # Evaluate Val
-            val_t, val_p, _, _ = evaluate(model, val_loader)
-            val_acc = (val_t == val_p).mean() * 100
-            
-            # Evaluate Test (Unseen)
-            t_t, t_p, d_t, d_p = evaluate(model, test_loader)
-            test_acc = (t_t == t_p).mean() * 100
-            macro_f1 = f1_score(t_t, t_p, average='macro') * 100
-            weighted_f1 = f1_score(t_t, t_p, average='weighted') * 100
-            bal_acc = balanced_accuracy_score(t_t, t_p) * 100
-            
-            dom_acc = 0.0
-            if use_domain and len(d_t) > 0:
-                dom_acc = (d_t == d_p).mean() * 100
-                
-            results[model_type]['val_acc'].append(val_acc)
-            results[model_type]['test_acc'].append(test_acc)
-            results[model_type]['macro_f1'].append(macro_f1)
-            results[model_type]['weighted_f1'].append(weighted_f1)
-            results[model_type]['bal_acc'].append(bal_acc)
-            results[model_type]['dom_acc'].append(dom_acc)
-            
-            # Track confusion matrix for the first seed of each model_type
-            if seed == 42:
-                cm = confusion_matrix(t_t, t_p)
-                for i in range(nc):
-                    for j in range(nc):
-                        if i != j and cm[i, j] > 0:
-                            confusion_pairs[model_type].append((cm[i, j], classes[t_t[i]], classes[t_p[j]]))
-                            
-    # Print Table
-    print("\n" + "="*80)
-    print("FINAL ABLATION RESULTS (Mean ± Std)")
-    print("="*80)
-    header = f"{'Model':<15} | {'Val Acc':<12} | {'Unseen Acc':<12} | {'Macro F1':<12} | {'Balanced Acc':<12} | {'Domain Acc':<12}"
-    print(header)
-    print("-" * len(header))
-    for m in models:
-        r = results[m]
-        if not r['val_acc']: continue
-        print(f"{m:<15} | {np.mean(r['val_acc']):.1f} ± {np.std(r['val_acc']):.1f} | {np.mean(r['test_acc']):.1f} ± {np.std(r['test_acc']):.1f} | {np.mean(r['macro_f1']):.1f} ± {np.std(r['macro_f1']):.1f} | {np.mean(r['bal_acc']):.1f} ± {np.std(r['bal_acc']):.1f} | {np.mean(r['dom_acc']):.1f} ± {np.std(r['dom_acc']):.1f}")
+    model_path = "models/model.pth"
+    if not os.path.exists(model_path):
+        print(f"Error: Could not find main model at {model_path}")
+        return
         
+    checkpoint = torch.load(model_path, map_location=DEVICE)
+    model_nc = checkpoint.get("num_classes", nc)
+    model_classes = checkpoint.get("classes", classes)
+    
+    print(f"Evaluating canonical model: {model_path} (Trained on {model_nc} classes)")
+    model = SignLanguageGRU(num_classes=model_nc, num_domains=0).to(DEVICE)
+
+    if "model_state_dict" in checkpoint:
+        model.load_state_dict(checkpoint["model_state_dict"])
+    else:
+        model.load_state_dict(checkpoint)
+    
+    # Evaluate Val
+    val_t, val_p, _, _ = evaluate(model, val_loader)
+    val_acc = (val_t == val_p).mean() * 100
+    
+    # Evaluate Test (Unseen)
+    t_t, t_p, _, _ = evaluate(model, test_loader)
+    test_acc = (t_t == t_p).mean() * 100
+    macro_f1 = f1_score(t_t, t_p, average='macro', zero_division=0) * 100
+    weighted_f1 = f1_score(t_t, t_p, average='weighted', zero_division=0) * 100
+    bal_acc = balanced_accuracy_score(t_t, t_p) * 100
+    
     print("\n" + "="*80)
-    print("TOP-10 CONFUSION PAIRS (Unseen Domain, Seed 42)")
+    print("FINAL MODEL RESULTS")
     print("="*80)
-    for m in models:
-        print(f"\n{m.upper()}:")
-        pairs = sorted(confusion_pairs[m], key=lambda x: x[0], reverse=True)[:10]
-        for count, true_cls, pred_cls in pairs:
-            print(f"  {true_cls} → {pred_cls} : {count}")
+    print(f"Validation Accuracy:  {val_acc:.2f}%")
+    print(f"Unseen Data Accuracy: {test_acc:.2f}%")
+    print(f"Macro F1 Score:       {macro_f1:.2f}%")
+    print(f"Weighted F1 Score:    {weighted_f1:.2f}%")
+    print(f"Balanced Accuracy:    {bal_acc:.2f}%")
+    
+    print("\n" + "="*80)
+    print("TOP-10 CONFUSION PAIRS (Unseen Data)")
+    print("="*80)
+    cm = confusion_matrix(t_t, t_p, labels=range(model_nc))
+    confusion_pairs = []
+    for i in range(model_nc):
+        for j in range(model_nc):
+            if i != j and cm[i, j] > 0:
+                true_name = model_classes[i] if i < len(model_classes) else str(i)
+                pred_name = model_classes[j] if j < len(model_classes) else str(j)
+                confusion_pairs.append((cm[i, j], true_name, pred_name))
+                
+    pairs = sorted(confusion_pairs, key=lambda x: x[0], reverse=True)[:10]
+    for count, true_cls, pred_cls in pairs:
+        print(f"  {true_cls} → {pred_cls} : {count} misclassifications")
 
 if __name__ == "__main__":
     import os

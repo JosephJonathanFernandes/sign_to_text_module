@@ -143,6 +143,10 @@ def run_train_word(
         from src.training.train import create_data_loaders, train, _PlainSubset
         from src.preprocessing.dataset import ISLDataset
         from torch.utils.data import DataLoader
+        from src.tools.compile_hdf5 import compile_hdf5
+
+        print("\n[Pre-Train] Compiling latest HDF5 dataset...")
+        compile_hdf5()
 
         # Phase 1: train on processed (+ negatives) only
         print('\n[Phase 1] Training on processed (no archived)')
@@ -278,6 +282,10 @@ def run_kfold_word(
         from src.training.train import train_kfold, create_data_loaders, train, _PlainSubset
         from src.preprocessing.dataset import ISLDataset
         from torch.utils.data import DataLoader
+        from src.tools.compile_hdf5 import compile_hdf5
+
+        print("\n[Pre-Train] Compiling latest HDF5 dataset...")
+        compile_hdf5()
 
         # Build a processed-only split for val monitoring and class info
         tl_dummy, vl, nc, cw, ds = create_data_loaders(

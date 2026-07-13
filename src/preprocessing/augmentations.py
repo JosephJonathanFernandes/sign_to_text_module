@@ -291,6 +291,25 @@ def frame_drop_and_interpolate(seq: np.ndarray, n_drop: Optional[int] = None) ->
     return _pack_seq(pos_d, vel_new)
 
 
+def full_frame_blackout(seq: np.ndarray, n_drop: Optional[int] = None) -> np.ndarray:
+    """Randomly drop (zero out) up to n_drop frames without interpolation.
+
+    Simulates complete tracking failure where MediaPipe returns empty arrays.
+    """
+    pos, vel = _split_pos_vel(seq)
+    T = pos.shape[0]
+    if n_drop is None:
+        n_drop = np.random.randint(1, min(4, max(2, T // 6)) + 1)
+
+    drop_idx = np.random.choice(T, n_drop, replace=False)
+    pos_d = pos.copy()
+    pos_d[drop_idx] = 0.0
+
+    vel_new = _recompute_velocity(pos_d) if vel is not None else None
+    return _pack_seq(pos_d, vel_new)
+
+
+
 def horizontal_flip(seq: np.ndarray) -> np.ndarray:
     """Flip left/right horizontally. Swaps left/right blocks and negates x coordinates.
 
@@ -896,8 +915,7 @@ def augment_dataset(input_dir: str, output_dir: Optional[str] = None, augment_pe
     all_classes = sorted(os.listdir(input_dir))
     
     if class_only:
-        # Support both exact match ("36. light") and partial match ("light")
-        matching = [c for c in all_classes if c == class_only or class_only in c]
+        matching = [c for c in all_classes if c == class_only]
         if not matching:
             raise ValueError(f"Class '{class_only}' not found in {input_dir}. Available: {', '.join(all_classes[:5])}...")
         classes_to_process = matching

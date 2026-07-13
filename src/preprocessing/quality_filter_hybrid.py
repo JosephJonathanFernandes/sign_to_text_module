@@ -39,10 +39,17 @@ except Exception:  # pragma: no cover - torch is expected but optional
 
 try:
     from src.training.model import SignLanguageGRU
-except Exception:  # pragma: no cover - importing the model should usually work
+except Exception as e:  # pragma: no cover
+    import sys
+    print("=" * 80, file=sys.stderr)
+    print("[WARNING] Failed to import SignLanguageGRU from src.training.model!", file=sys.stderr)
+    print("          You are probably not running this script as a module from the root directory.", file=sys.stderr)
+    print("          The script will fall back to basic statistical features instead of deep embeddings.", file=sys.stderr)
+    print("          To fix this, run: python -m src.preprocessing.quality_filter_hybrid", file=sys.stderr)
+    print("=" * 80, file=sys.stderr)
     SignLanguageGRU = None
 
-ROOT_DIR = "processed_del"
+ROOT_DIR = os.path.join("assets", "processed")
 DEFAULT_QUALITY_COVERAGE = 0.85
 DEFAULT_SHORTLIST_MULTIPLIER = 3.0
 DEFAULT_DUPLICATE_MODE = "relaxed"
@@ -297,6 +304,11 @@ def _normalize_class_token(value: str) -> str:
     return value.strip().lower().replace(" ", "_")
 
 
+def _is_pure_webcam_sample(path: str) -> bool:
+    basename = os.path.basename(path).lower()
+    return basename.startswith("webcam_") and "_aug_" not in basename and "_merge_" not in basename
+
+
 def _safe_delete(path: str, class_dir: str, dry_run: bool, archive_root: str | None = None) -> bool:
     path_abs = os.path.normcase(os.path.abspath(path))
     class_abs = os.path.normcase(os.path.abspath(class_dir))
@@ -309,12 +321,16 @@ def _safe_delete(path: str, class_dir: str, dry_run: bool, archive_root: str | N
         return False
 
     if not dry_run:
-        if archive_root:
-            archive_class_dir = os.path.join(os.path.abspath(archive_root), os.path.basename(class_dir))
-            os.makedirs(archive_class_dir, exist_ok=True)
-            archive_path = os.path.join(archive_class_dir, os.path.basename(path_abs))
-            shutil.copy2(path_abs, archive_path)
-        os.remove(path_abs)
+        try:
+            if archive_root:
+                archive_class_dir = os.path.join(os.path.abspath(archive_root), os.path.basename(class_dir))
+                os.makedirs(archive_class_dir, exist_ok=True)
+                archive_path = os.path.join(archive_class_dir, os.path.basename(path_abs))
+                shutil.copy2(path_abs, archive_path)
+            os.remove(path_abs)
+        except OSError as e:
+            print(f"    [WARN] Failed to delete or archive {path_abs}: {e}")
+            return False
     return True
 
 
@@ -505,9 +521,9 @@ def _hash_paths_for_cache(paths: list[str], checkpoint_path: str | None, embeddi
             digest.update(os.path.abspath(path).encode("utf-8"))
             digest.update(str(stat.st_mtime_ns).encode("utf-8"))
             digest.update(str(stat.st_size).encode("utf-8"))
-        except FileNotFoundError:
+        except OSError:
             digest.update(os.path.abspath(path).encode("utf-8"))
-            digest.update(b"missing")
+            digest.update(b"missing_or_corrupted")
     return digest.hexdigest()
 
 
@@ -608,14 +624,17 @@ def _save_embedding_cache(
     metadata: dict[str, Any],
 ) -> None:
     npz_path, json_path = _cache_file_paths(cache_dir, class_name, cache_key)
-    os.makedirs(os.path.dirname(npz_path), exist_ok=True)
-    np.savez_compressed(
-        npz_path,
-        embeddings=np.asarray(embeddings, dtype=np.float32),
-        paths=np.asarray(paths, dtype=object),
-    )
-    with open(json_path, "w", encoding="utf-8") as f:
-        json.dump(metadata, f, indent=2)
+    try:
+        os.makedirs(os.path.dirname(npz_path), exist_ok=True)
+        np.savez_compressed(
+            npz_path,
+            embeddings=np.asarray(embeddings, dtype=np.float32),
+            paths=np.asarray(paths, dtype=object),
+        )
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(metadata, f, indent=2)
+    except OSError as e:
+        print(f"    [WARN] Failed to save embedding cache: {e}")
     try:
         EMBEDDING_CACHE_STATS["saves"] += 1
     except Exception:
@@ -1085,6 +1104,15 @@ def filter_quality_class_folder(
             fill_ratio=0.0,
             avg_final_similarity=0.0,
             effective_duplicate_threshold=_duplicate_mode_threshold(duplicate_mode, duplicate_threshold),
+            novelty_weight=0.5,
+            adaptive_relaxed=False,
+            removed_by_quality=0,
+            removed_by_duplicate=0,
+            removed_by_novelty=0,
+            collapse_signer=False,
+            collapse_motion=False,
+            collapse_overcompression=False,
+            collapse_reason="none",
         )
         return summary, [], {"rows": [], "embeddings": np.zeros((0, 0), dtype=np.float32), "pca_coords": np.zeros((0, 0), dtype=np.float32), "paths": []}
 
@@ -1202,8 +1230,11 @@ def filter_quality_class_folder(
             viz_rows.append(row)
 
     selected_paths = {record.path for record in selected_records}
-    delete_set = {candidate.path for candidate in candidates if candidate.path not in selected_paths}
-    delete_set.update(unreadable_paths)
+    delete_set = {
+        candidate.path for candidate in candidates 
+        if candidate.path not in selected_paths and not _is_pure_webcam_sample(candidate.path)
+    }
+    delete_set.update(p for p in unreadable_paths if not _is_pure_webcam_sample(p))
 
     deleted = 0
     for path in delete_set:
@@ -1401,7 +1432,6 @@ def filter_quality_processed(
             directory
             for directory in class_dirs
             if _normalize_class_token(os.path.basename(directory)) == class_token
-            or class_token in _normalize_class_token(os.path.basename(directory))
         ]
         if not class_dirs:
             available = ", ".join(os.path.basename(directory) for directory in _list_class_dirs(root_dir))

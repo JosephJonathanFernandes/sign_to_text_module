@@ -27,6 +27,10 @@ def benchmark_latency_pt(model, model_name, sequence, iterations=500):
 
 def benchmark_latency_onnx(model, model_name, sequence, proximity, iterations=500):
     print(f"\n--- Benchmarking {model_name} ---")
+    if getattr(model, "model_type", None) != "onnx":
+        print("ONNX model is missing. Falling back to PyTorch timing...")
+        return benchmark_latency_pt(model, model_name, sequence, iterations)
+        
     session = model.model.session
     inputs = {"input_seq": sequence, "proximity": proximity}
     for _ in range(10):
@@ -89,11 +93,17 @@ def main():
     pt_logits = pt_model.infer(dummy_sequence_pt, proximity=None)
     pt_prob = softmax(pt_logits)
     
-    onnx_fp32_raw = onnx_fp32_model.model.session.run(None, {"input_seq": dummy_sequence_np, "proximity": dummy_proximity_np})[0]
-    onnx_fp32_prob = softmax(onnx_fp32_raw[0])
-    
-    onnx_int8_raw = onnx_int8_model.model.session.run(None, {"input_seq": dummy_sequence_np, "proximity": dummy_proximity_np})[0]
-    onnx_int8_prob = softmax(onnx_int8_raw[0])
+    def get_onnx_prob(model_obj):
+        if getattr(model_obj, "model_type", None) != "onnx":
+            # If it fell back to PyTorch, just use .infer()
+            logits = model_obj.infer(dummy_sequence_pt, proximity=None)
+            return softmax(logits)
+        else:
+            raw = model_obj.model.session.run(None, {"input_seq": dummy_sequence_np, "proximity": dummy_proximity_np})[0]
+            return softmax(raw[0])
+            
+    onnx_fp32_prob = get_onnx_prob(onnx_fp32_model)
+    onnx_int8_prob = get_onnx_prob(onnx_int8_model)
     
     pt_pred = np.argmax(pt_prob)
     onnx_fp32_pred = np.argmax(onnx_fp32_prob)

@@ -144,7 +144,7 @@ class TestSchemas:
         resp = HealthResponse(
             status="healthy",
             model_loaded=True,
-            num_classes=78,
+            num_classes=89,
             sequence_length=20,
             feature_dimension=506,
             device="cpu",

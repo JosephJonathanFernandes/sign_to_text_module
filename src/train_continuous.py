@@ -53,7 +53,10 @@ class ContinuousDataset(Dataset):
             if self.is_train:
                 seq_np = seq_t.numpy()
                 lbl = lbl_t.item()
-                # Apply boundary noise augmentation
+                # Apply standard spatial and temporal augmentations first!
+                seq_np = ISLDataset._augment(seq_np)
+                
+                # Apply continuous-specific boundary noise augmentation
                 seq_np = apply_boundary_noise(
                     sequence=seq_np, 
                     label=lbl, 
@@ -61,7 +64,11 @@ class ContinuousDataset(Dataset):
                     edge_frames=BOUNDARY_EDGE_FRAMES, 
                     probability=BOUNDARY_NOISE_PROB
                 )
+                
+                # Because we mutated the sequence, we MUST re-extract proximity
+                proximity = ISLDataset._extract_proximity(seq_np)
                 seq_t = torch.from_numpy(seq_np)
+                prox_t = torch.from_numpy(proximity)
                 
             return seq_t, prox_t, lbl_t, weight_t, domain_t
         else:
@@ -69,8 +76,8 @@ class ContinuousDataset(Dataset):
             trans_idx = idx - len(self.indices)
             seq_np, lbl = self.transitions[trans_idx]
             
-            # Align input size and compute proximity if needed
-            seq_np, proximity = ISLDataset._prepare_sequence(seq_np, augment=False)
+            # Align input size, apply standard augmentations if training, and compute proximity
+            seq_np, proximity = ISLDataset._prepare_sequence(seq_np, augment=self.is_train)
             
             return (
                 torch.from_numpy(seq_np),
@@ -83,11 +90,20 @@ class ContinuousDataset(Dataset):
 
 def main():
     parser = argparse.ArgumentParser(description="Train Continuous Sign Language Model")
+    parser.add_argument("--archived-weight", type=float, default=0.25, help="Weight for archived samples")
+    parser.add_argument("--finetune-archived-epochs", type=int, default=10, help="Number of epochs for Phase 2 fine-tuning")
+    parser.add_argument("--finetune-archived-lr", type=float, default=1.5e-4, help="Learning rate for Phase 2 fine-tuning")
+    parser.add_argument("--phase2-only", action="store_true", help="Skip Phase 1 and run only Phase 2 using the existing saved model")
     args = parser.parse_args()
 
-    print("[Continuous] Loading base dataset...")
+    from src.tools.compile_hdf5 import compile_hdf5
+    print("\n[Pre-Train] Compiling latest HDF5 dataset...")
+    compile_hdf5()
+
+    print("[Continuous] Loading base dataset (Phase 1)...")
     # Load base dataset without internal augmentation (we apply it in ContinuousDataset)
-    full_ds = ISLDataset(augment=False)
+    neg_root_p1 = os.path.join(os.path.dirname(cfg.paths.processed_dir), "processed_negatives")
+    full_ds = ISLDataset(augment=False, neg_root=neg_root_p1)
     
     # Extract labels for stratified split
     if getattr(full_ds, 'use_hdf5', False):
@@ -145,17 +161,79 @@ def main():
     if reject_idx == full_ds.num_classes:
         classes_list.append("__reject__")
         
-    print(f"[Continuous] Starting training with {num_classes} classes...")
-    print(f"[Continuous] Will save model to: {cfg.paths.model_save_path}")
-    
-    # Run the existing train loop
-    train(
-        train_loader=train_loader,
-        val_loader=val_loader,
-        num_classes=num_classes,
-        class_weights=class_weights,
-        classes_list=classes_list
-    )
+    if not args.phase2_only:
+        print(f"[Continuous] Starting Phase 1 training with {num_classes} classes...")
+        print(f"[Continuous] Will save model to: {cfg.paths.model_save_path}")
+        
+        # Run Phase 1 train loop
+        train(
+            train_loader=train_loader,
+            val_loader=val_loader,
+            num_classes=num_classes,
+            class_weights=class_weights,
+            classes_list=classes_list
+        )
+    else:
+        print(f"[Continuous] Skipping Phase 1 (--phase2-only). Existing model at {cfg.paths.model_save_path} will be used.")
+
+    # --- PHASE 2 ---
+    finetune_epochs = args.finetune_archived_epochs
+    if finetune_epochs > 0:
+        processed_del = os.path.join(os.path.dirname(cfg.paths.processed_dir), "processed_del")
+        neg_del = os.path.join(os.path.dirname(cfg.paths.processed_dir), "processed_negatives_del")
+        
+        if os.path.isdir(processed_del) or os.path.isdir(neg_del):
+            print(f"\n[Continuous Phase 2] Loading archived datasets...")
+            full_ds_p2 = ISLDataset(
+                augment=False, 
+                neg_root=neg_root_p1,
+                archived_root=processed_del, 
+                archived_neg_root=neg_del,
+                archived_weight=args.archived_weight
+            )
+            
+            # Map Phase 1 train files to Phase 2 indices to keep validation strictly clean
+            clean_train_paths = set(full_ds.samples[i][0] for i in train_idx)
+            
+            train_idx_p2 = []
+            for i, s in enumerate(full_ds_p2.samples):
+                if s[0] in clean_train_paths or processed_del in s[0] or neg_del in s[0]:
+                    train_idx_p2.append(i)
+                    
+            print(f"[Continuous Phase 2] Fine-tuning on {len(train_idx_p2)} samples (including archived) for {finetune_epochs} epochs.")
+            
+            train_ds_p2 = ContinuousDataset(full_ds_p2, train_idx_p2, train_transitions, is_train=True)
+            train_loader_p2 = DataLoader(
+                train_ds_p2, 
+                batch_size=cfg.training.batch_size, 
+                shuffle=True, 
+                num_workers=0
+            )
+            
+            # Recompute weights for Phase 2
+            p2_labels = np.array([s[1] for s in full_ds_p2.samples])
+            all_train_labels_p2 = np.concatenate([
+                p2_labels[train_idx_p2],
+                np.array([lbl for _, lbl in train_transitions])
+            ])
+            class_weights_p2 = _compute_inverse_class_weights(all_train_labels_p2, num_classes)
+            
+            ft_lr = args.finetune_archived_lr
+            if ft_lr is not None:
+                ft_lr = float(ft_lr)
+                
+            train(
+                train_loader=train_loader_p2,
+                val_loader=val_loader,  # Re-use strictly clean Phase 1 val_loader!
+                num_classes=num_classes,
+                class_weights=class_weights_p2,
+                classes_list=classes_list,
+                epochs=int(finetune_epochs),
+                pretrained_checkpoint=cfg.paths.model_save_path,
+                lr=ft_lr
+            )
+        else:
+            print('\n[Continuous Phase 2] Archived folders not found; skipping fine-tune.')
 
 if __name__ == "__main__":
     main()

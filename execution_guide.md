@@ -132,8 +132,21 @@ The preprocessing pipeline converts raw `.mp4` or video files into coordinate da
 **Expected generated files:** Populated `processed/` directory.
 
 ### Dataset Cleanup
-**Command:** `python main.py --cleanup --cleanup-max-aug 50`
-**Purpose:** Scans the `processed/` directory and removes duplicate or excessive augmentations to balance dataset size.
+**Command:** `python -m src.preprocessing.cleanup_dataset_npy`
+**Purpose:** Scans the dataset directories and standardizes/cleans up the `.npy` files. Can also be invoked via `main.py --cleanup`.
+
+### Dataset Quality & Diversity Filtering
+**Command:** `python -m src.preprocessing.quality_filter_hybrid`
+**Purpose:** Deep-learning powered filter that evaluates sample quality (hand visibility, motion) and diversity. Automatically moves low-quality and redundant samples into a `processed_del` archive folder.
+**Note:** To run on a specific class, append `--class [CLASS_NAME]`.
+
+### Dataset Downsampling
+**Command:** `python -m src.preprocessing.random_downsample_processed`
+**Purpose:** Randomly downsamples class folders inside the processed directory to a fixed threshold to prevent large class imbalances.
+
+### Dataset Balancing
+**Command:** `python -m src.preprocessing.balance_processed_dataset`
+**Purpose:** Balances the processed class folders to a fixed target count, prioritizing webcam captures when duplicating.
 
 ---
 
@@ -159,8 +172,12 @@ Data augmentation generates synthetic variation to improve model robustness.
 **Purpose:** Uses OpenCV to generate variations of raw videos (brightness, crop, blur) before MediaPipe extraction.
 
 ### Full Pipeline Scripts
-**Command:** `python scripts\augment_pipeline.py`
-**Purpose:** Orchestrates the entire augmentation flow (landmark aug -> merge aug -> cleanup).
+**Command:** `python -m src.preprocessing.augment_pipeline`
+**Purpose:** Orchestrates the entire augmentation flow (landmark aug -> merge aug -> cleanup). Run this as a module from the project root.
+
+### Full Video Augmentation Pipeline
+**Command:** `python -m src.preprocessing.augment_video_pipeline`
+**Purpose:** Orchestrates systematic video augmentations covering spatial crops and visual effects. Run this as a module from the project root.
 
 ---
 
@@ -179,8 +196,8 @@ Data augmentation generates synthetic variation to improve model robustness.
 
 ### Continuous-Sign Extension Training
 
-**Command:** `python src\train_continuous.py`
-**Purpose:** Trains the continuous signing variant using the boundary noise and synthetic transition features. Note that this script is nested inside `src/`.
+**Command:** `python src/train_continuous.py --archived-weight 0.25`
+**Purpose:** Trains the continuous signing variant using the boundary noise and synthetic transition features. It runs in two phases: Phase 1 trains on clean data, and Phase 2 fine-tunes on the archived data from `processed_del/` using the specified weight.
 **Output model path:** Usually saved as `models/sign_language_continuous.pth`.
 **Approximate runtime:** Same as normal training, slightly longer due to dynamic noise injection.
 
@@ -207,11 +224,11 @@ To optimize your trained PyTorch models for faster CPU inference, you can export
 # 8. Evaluation Commands
 
 ### Inference Benchmarking
-**Command:** `python scripts\benchmark_inference.py`
+**Command:** `python -m src.tools.benchmark_inference`
 **Purpose:** Benchmarks the current ensemble/model for throughput (FPS) and latency.
 
 ### Evaluate Quantized Model
-**Command:** `python scripts\evaluate_quantized_model.py`
+**Command:** `python -m src.inference.evaluate_quantized_model`
 **Purpose:** Runs validation checks against a quantized Int8 ONNX model to verify accuracy hasn't degraded during quantization.
 
 ### Video Evaluation
@@ -352,7 +369,8 @@ python main.py --kfold
 ```powershell
 python main.py --augment-landmarks
 python main.py --merge
-python scripts\augment_pipeline.py
+python -m src.preprocessing.augment_pipeline
+python -m src.preprocessing.augment_video_pipeline
 ```
 
 **OPTIMIZE & EXPORT**
@@ -368,11 +386,13 @@ pytest tests/unit/
 pytest tests/ -v --cov=src --cov=api
 ```
 
-**EVALUATE**
+**EVALUATE & TOOLS**
 ```powershell
 python main.py --predict "data\my_video.mp4"
-python scripts\benchmark_inference.py
-python scripts\evaluate_quantized_model.py
+python -m src.tools.benchmark_inference
+python -m src.inference.evaluate_quantized_model
+python -m src.tools.compile_hdf5
+python -m src.tools.generate_report_metrics
 ```
 
 **LIVE INFERENCE**
@@ -380,3 +400,85 @@ python scripts\evaluate_quantized_model.py
 python main.py --webcam
 python main.py --webcam --quantized
 ```
+
+---
+
+# 15. Developer Guide (Merged)
+
+**Quick verification**
+- Run a smoke forward pass (synthetic) to validate model import and shapes: `python scripts/smoke_gnn_test.py`
+- Run a short benchmark (synthetic or webcam) with the benchmarking harness: `python scripts/benchmark_gnn.py --mode synthetic --use_gnn 1 --iters 100`
+
+**Checkpoints & naming**
+- Canonical single model: `model.pth`
+- K-fold checkpoints: `ensemble/fold_{n}.pth`
+- Adapter weights live in `adapter_weights/` and are named by timestamp.
+
+**Pseudo-labeling and User-Specific Live Adapter**
+- `AdapterModel`: A lightweight MLP that corrects ensemble probability vectors in log-probability space without modifying the base models.
+- `AdapterTrainer`: Threads asynchronous training in the background. Downsamples data, uses inverse-frequency class weights, and strictly validates that adaptation does not degrade ensemble confidence.
+
+---
+
+# 16. API Versioning Contract
+
+The backend guarantees stability for frontend integration through a strict versioning policy. All endpoints in `api/app.py` and `api/schemas.py` are considered **v1** and are frozen.
+
+### Breaking Changes (Requires `v2` migration)
+- Changing `feature_dimension` (e.g. 506 to 620).
+- Changing `sequence_length` (e.g. 20 to 30).
+- Renaming or removing JSON fields.
+- Altering core URL paths.
+
+### Non-Breaking Additions (Minor Version Bump)
+- Adding new REST endpoints (e.g. `/metrics`).
+- Adding optional fields to JSON request payloads.
+- Adding fields to JSON response payloads.
+- Adding new message types to the WebSocket protocol.
+
+---
+
+# 17. API Error Catalog
+
+| Code | Name | Description | Suggested Frontend Action |
+|------|------|-------------|---------------------------|
+| **E001** | `Feature dimension mismatch` | Incoming vector does not match 506 shape. | Ensure MediaPipe output is 253 points + velocity. |
+| **E002** | `Invalid schema version` | Payload's `schema_version` is unsupported. | Check `/health` to verify supported schema. |
+| **E003** | `Missing sequence frames` | Sequence lacked minimum required frames. | Ensure buffer is full before `/predict`. |
+| **E004** | `Flood protection` | Too many WebSocket requests. Frame dropped. | None. Normal during fast streaming. |
+| **E005** | `Internal inference failure` | Unhandled PyTorch exception. | Check backend logs. |
+| **E006** | `Invalid normalization` | Features significantly outside expected range. | Check camera calibration. |
+| **E007** | `NaN or Inf detected` | Features contain NaN or Infinity. | Ensure frontend division by zero is handled. |
+| **E008** | `Model not loaded` | Inference requested before model loaded. | Wait for WebSocket connection. |
+| **E009** | `HDF5 loading failure` | Dataset asset failed to load. | Contact backend engineering. |
+| **E010** | `Unsupported API version` | Endpoint or WS version is deprecated. | Upgrade frontend to current API version. |
+
+---
+
+# 18. Developer Tools (`src/tools/`)
+
+The repository includes several advanced utilities inside `src/tools/` for dataset management, reporting, and debugging.
+
+### HDF5 Dataset Compilation
+**Command:** `python -m src.tools.compile_hdf5`
+**Purpose:** Compiles millions of `.npy` arrays into a single `dataset.h5` file for 200x faster I/O.
+
+### Generate Report Metrics
+**Command:** `python -m src.tools.generate_report_metrics`
+**Purpose:** Generates latency profiling reports (e.g. `PROFILING_LATENCY_REPORT.md`) by aggregating evaluation logs.
+
+### Check Model Weights
+**Command:** `python -m src.tools.check_weights`
+**Purpose:** Validates the weight distributions of a trained `.pth` checkpoint.
+
+### Benchmark Dataset Loading
+**Command:** `python -m src.tools.benchmark_dataset`
+**Purpose:** Benchmarks the loading speed differences between raw `.npy` loading and the `dataset.h5` engine.
+
+### Validate NPY Files
+**Command:** `python -m src.tools.validate_npy`
+**Purpose:** Deep-scans the dataset for corrupt, empty, or incorrectly shaped `.npy` arrays.
+
+### Generate Architecture Diagrams
+**Command:** `python -m src.tools.generate_mermaid`
+**Purpose:** Auto-generates mermaid diagrams based on the latest codebase structure.

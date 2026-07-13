@@ -114,6 +114,27 @@ from src.inference.temporal_postprocessor import TemporalPostProcessor
 from src.inference.hand_selector import HandSelector
 from src.config.continuous_signing import HYSTERESIS_MARGIN, COMMIT_THRESHOLD
 
+import os
+import json
+
+HEURISTIC_WEIGHTS = {
+    "hand_count": 0.6,
+    "movement": 0.8,
+    "hand_shape": 0.7,
+    "location": 0.8,
+    "finger_state": 0.5,
+    "orientation": 0.85
+}
+
+heuristic_metadata = {}
+try:
+    _json_path = os.path.join(cfg.paths.base_dir, "..", "..", "data", "hand_sign_classification.json")
+    with open(_json_path, "r") as _f:
+        heuristic_metadata = json.load(_f).get("signs", {})
+    print(f"[Heuristics] Loaded metadata for {len(heuristic_metadata)} classes")
+except Exception as e:
+    print(f"[Heuristics] Failed to load metadata: {e}")
+
 from src.core.camera_manager import CameraThread
 from src.core.inference_engine import PredictionMomentum
 from src.core.motion_tracker import (
@@ -887,7 +908,8 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
             adapter_min_samples_per_class=ADAPTER_MIN_SAMPLES_PER_CLASS,
         )
 
-
+    heuristic_flip_count = 0
+    heuristic_frame_count = 0
 
     while True:
         # ═══════════════════════════════════════════════════════════════════════════
@@ -1174,6 +1196,7 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
                     main_models, fallback_models, classes = ensure_word_models()
                     # PHASE 3: Use ONNX ensemble if available, else existing PyTorch merged ensemble
                     if word_use_onnx:
+                        from src.inference.ensemble import check_ood
                         idx, conf, probs = ensemble_predict_with_onnx(main_models, seq, use_tta=LIVE_USE_TTA)
                         result = {
                             "main": (int(idx), float(conf), probs),
@@ -1182,9 +1205,17 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
                             "confidence": float(conf),
                             "probs": probs,
                         }
-                        predicted = classes[idx] if idx < len(classes) else "?"
+                        is_ood, ood_reason = check_ood(probs)
+                        if is_ood:
+                            predicted = "__reject__"
+                            # Keep raw confidence in logs but surface 0 to user if needed
+                            # In webcam, the UI might just drop it if conf is 0.
+                            result["confidence"] = 0.0
+                            # print(f"[OOD Rejected] {ood_reason}")
+                        else:
+                            predicted = classes[idx] if idx < len(classes) else "?"
                     else:
-                        from src.inference.ensemble import merged_ensemble_predict
+                        from src.inference.ensemble import merged_ensemble_predict, check_ood
                         # PHASE 3: Use config-driven TTA setting (disabled by default for live inference)
                         result = merged_ensemble_predict(
                             main_models, fallback_models, seq, use_tta=LIVE_USE_TTA,
@@ -1192,7 +1223,14 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
                         idx = result['pred_idx']
                         conf = result['confidence']
                         probs = result['probs']
-                        predicted = classes[idx] if idx < len(classes) else "?"
+                        
+                        is_ood, ood_reason = check_ood(probs)
+                        if is_ood:
+                            predicted = "__reject__"
+                            result['confidence'] = 0.0
+                            # print(f"[OOD Rejected] {ood_reason}")
+                        else:
+                            predicted = classes[idx] if idx < len(classes) else "?"
                     
                 except Exception as e:
                     print(f"[ERROR] Inference failed: {e}")
@@ -1244,6 +1282,86 @@ def run_webcam(pipeline_log=None, model_artifact_path: str | None = None):
                 except Exception as e:
                     print(f"[Adapter] Error: {e}")
             
+            # ── Soft Heuristic Adjustment Layer ──
+            if valid_for_prediction and len(sequence_buffer) >= NUM_FRAMES:
+                with profile_section("heuristic_adjustment"):
+                    full_buffer = np.array(sequence_buffer, dtype=np.float32)
+                    
+                    # Compute live hand count
+                    left_present = np.any(full_buffer[:, :63] != 0.0, axis=1)
+                    right_present = np.any(full_buffer[:, 63:126] != 0.0, axis=1)
+                    left_ratio = float(np.mean(left_present))
+                    right_ratio = float(np.mean(right_present))
+                    
+                    live_features = {}
+                    live_confidence = {}
+                    
+                    if left_ratio > 0.6 and right_ratio > 0.6:
+                        live_features["hand_count"] = "two_hands"
+                        live_confidence["hand_count"] = min(left_ratio, right_ratio)
+                    elif left_ratio > 0.6 or right_ratio > 0.6:
+                        live_features["hand_count"] = "one_hand"
+                        live_confidence["hand_count"] = max(left_ratio, right_ratio)
+                    else:
+                        live_features["hand_count"] = "unknown"
+                        live_confidence["hand_count"] = 0.0
+                    
+                    # Compute live movement
+                    if motion_magnitude < MOTION_THRESHOLD * 0.8:
+                        live_features["movement"] = "small_motion"
+                        live_confidence["movement"] = 0.9
+                    elif motion_magnitude > MOTION_THRESHOLD * 2.0:
+                        live_features["movement"] = "large_motion"
+                        live_confidence["movement"] = 0.9
+                    else:
+                        live_features["movement"] = "medium_motion"
+                        live_confidence["movement"] = 0.8
+                        
+                    # Apply adjustments
+                    adjusted_probs = probs_array.copy()
+                    for i, cls in enumerate(classes):
+                        score = 1.0
+                        meta = heuristic_metadata.get(cls, {})
+                        
+                        for feature, penalty in HEURISTIC_WEIGHTS.items():
+                            expected = meta.get(feature, "unknown")
+                            observed = live_features.get(feature, "unknown")
+                            
+                            if expected != "unknown" and observed != "unknown":
+                                if expected != observed:
+                                    if live_confidence.get(feature, 0.0) > 0.7:
+                                        score *= penalty
+                        
+                        adjusted_probs[i] *= score
+                    
+                    if adjusted_probs.sum() > 1e-6:
+                        adjusted_probs /= adjusted_probs.sum()
+                    else:
+                        adjusted_probs = probs_array.copy()
+                    
+                    # Debug Output
+                    top_idx_raw = int(np.argmax(probs_array))
+                    if probs_array[top_idx_raw] > 0.05:
+                        print(f"[Heuristics] Hands={live_features.get('hand_count')}, "
+                              f"Movement={live_features.get('movement')}")
+                        print(f"  Raw: {classes[top_idx_raw]}={probs_array[top_idx_raw]:.3f} | "
+                              f"Adjusted: {classes[top_idx_raw]}={adjusted_probs[top_idx_raw]:.3f}")
+                        
+                        top_idx_adj = int(np.argmax(adjusted_probs))
+                        if top_idx_raw != top_idx_adj:
+                            heuristic_flip_count += 1
+                            print(f"  --> Flipped to: {classes[top_idx_adj]}={adjusted_probs[top_idx_adj]:.3f}")
+
+                    heuristic_frame_count += 1
+                    if heuristic_frame_count % 30 == 0:
+                        print(f"[Heuristics] Flip rate: {heuristic_flip_count/heuristic_frame_count:.2%} ({heuristic_flip_count}/{heuristic_frame_count})")
+
+                    probs_array = adjusted_probs
+                    probs = probs_array
+                    idx = int(np.argmax(probs_array))
+                    conf = float(probs_array[idx])
+                    predicted = classes[idx] if idx < len(classes) else "?"
+
             # ── Dynamic Threshold Calculation ──
             is_transition = (last_output_prediction is not None and 
                             predicted != last_output_prediction)

@@ -16,8 +16,8 @@ import uuid
 from dataclasses import dataclass
 
 
-ROOT_DIR = "processed_negatives_del"
-TARGET_SAMPLES = 150
+ROOT_DIR = os.path.join("assets", "processed")
+TARGET_SAMPLES = 400
 WEBCAM_PREFIX = "webcam_"
 DUPLICATE_PREFIX = "webcam_dup_"
 
@@ -52,7 +52,9 @@ def _list_npy_files(class_dir: str) -> list[str]:
 
 
 def _is_webcam_sample(path: str) -> bool:
-    return os.path.basename(path).lower().startswith(WEBCAM_PREFIX)
+    """Return True for pure webcam-captured samples (excludes aug/merge)."""
+    basename = os.path.basename(path).lower()
+    return basename.startswith("webcam_") and "_aug_" not in basename and "_merge_" not in basename
 
 
 def _is_duplicate_webcam_sample(path: str) -> bool:
@@ -88,8 +90,9 @@ def balance_class_folder(
     total = len(files)
     class_name = os.path.basename(class_dir)
 
-    if total == target:
-        print(f"[{class_name}] total={total} final={total} added=0 removed=0 (already balanced)")
+    if total >= target:
+        msg = "already balanced" if total == target else "above target, keeping all"
+        print(f"[{class_name}] total={total} final={total} added=0 removed=0 ({msg})")
         return ClassSummary(class_name, total, 0, 0, total, dry_run)
 
     added = 0
@@ -99,7 +102,8 @@ def balance_class_folder(
         webcam_sources = [path for path in files if _is_webcam_sample(path)]
         source_pool = webcam_sources if webcam_sources else files
         if not source_pool:
-            raise ValueError(f"Class '{class_name}' has no .npy files to duplicate")
+            print(f"[WARN] Class '{class_name}' has no .npy files to duplicate. Skipping.")
+            return ClassSummary(class_name, total, 0, 0, total, dry_run)
 
         needed = target - total
         for _ in range(needed):
@@ -116,26 +120,6 @@ def balance_class_folder(
         )
         return ClassSummary(class_name, total, added, 0, final_total, dry_run)
 
-    removable = _classify_removals(files)
-    to_remove = total - target
-    if to_remove > len(removable):
-        raise RuntimeError(
-            f"Class '{class_name}' cannot be reduced from {total} to {target} because only {len(removable)} files are removable"
-        )
-
-    chosen = rng.sample(removable, to_remove)
-    for path in chosen:
-        if not dry_run:
-            os.remove(path)
-        removed += 1
-
-    final_total = total - removed
-    print(
-        f"[{class_name}] total={total} final={final_total} added=0 removed={removed} "
-        f"({'dry-run' if dry_run else 'applied'})"
-    )
-    return ClassSummary(class_name, total, 0, removed, final_total, dry_run)
-
 
 def balance_processed_dataset(
     root_dir: str = ROOT_DIR,
@@ -151,7 +135,7 @@ def balance_processed_dataset(
     class_dirs = _list_class_dirs(root_dir)
 
     if class_only:
-        class_dirs = [d for d in class_dirs if os.path.basename(d) == class_only or class_only in os.path.basename(d)]
+        class_dirs = [d for d in class_dirs if os.path.basename(d) == class_only]
         if not class_dirs:
             available = ", ".join(os.path.basename(d) for d in _list_class_dirs(root_dir))
             raise ValueError(f"Class '{class_only}' not found in {os.path.abspath(root_dir)}. Available: {available}")

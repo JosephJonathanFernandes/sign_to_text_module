@@ -13,7 +13,7 @@ from typing import Optional, List
 from src.inference.nlp_postprocessor import NLPPostProcessor
 
 
-SIMILAR_SIGN_PAIRS_PATH = Path(__file__).parent / "data" / "similar_signs.json"
+SIMILAR_SIGN_PAIRS_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "similar_signs.json"
 
 
 def _load_similar_sign_pairs() -> set[tuple[str, str]]:
@@ -102,7 +102,11 @@ class SentenceBuilder:
         self.last_transition_frame = -1000  # Frame when last word was added
         self.min_frame_gap_between_words = 5  # Minimum frames between different word additions
         self.same_word_cooldown_frames = 45  # Minimum frames (~1.5s) before allowing identical consecutive word
+        
+        # Robust State Machine flags
         self.separator_seen_since_last_word = False  # Track if a separator was seen since last word
+        self.separator_counter = 0 # Debounce separators
+        self.already_emitted_current_block = False # Prevent infinite loops on held signs
                 
         # ── NLP Post-Processing ──
         self.nlp_processor = NLPPostProcessor(
@@ -179,7 +183,13 @@ class SentenceBuilder:
         is_separator = smoothed_pred in ["...", "idle", "__reject__", "__transition__"]
         
         if is_separator:
-            self.separator_seen_since_last_word = True
+            self.separator_counter += 1
+            if self.separator_counter >= 3:
+                self.separator_seen_since_last_word = True
+                self.current_word = None
+                self.already_emitted_current_block = False
+        else:
+            self.separator_counter = 0
 
         if smoothed_pred != self.current_word:
             # Prediction changed. Start tracking the new sign.
@@ -189,6 +199,7 @@ class SentenceBuilder:
             self.transition_ready = False
             self.pending_ambiguity_prediction = None
             self.ambiguity_delay_counter = 0
+            self.already_emitted_current_block = False
             
         else:
             # Prediction is stable.
@@ -198,7 +209,7 @@ class SentenceBuilder:
             self.ambiguity_delay_counter = 0
             
             # Check if we should commit the word
-            if not is_separator and self.stability_counter >= self.stability_frames:
+            if not is_separator and self.stability_counter >= self.stability_frames and not self.already_emitted_current_block:
                 self.transition_ready = True
                 
                 # Check for cooldown
@@ -218,10 +229,7 @@ class SentenceBuilder:
                         self.frames_since_last_word = 0
                         self.last_transition_frame = self.total_frames
                         self.separator_seen_since_last_word = False
-                        
-                        # Reset stability counter to avoid emitting every frame after threshold
-                        # It will require another `stability_frames` + `required_gap` to emit again
-                        self.stability_counter = 0
+                        self.already_emitted_current_block = True
         
         return {
             'added_word': added_word,

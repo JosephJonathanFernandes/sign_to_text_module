@@ -43,6 +43,7 @@ class ISLDataset(Dataset):
         neg_root: str | None = None,
         neg_label: str = "__reject__",
         archived_root: str | None = None,
+        archived_neg_root: str | None = None,
         archived_weight: float = 0.25,
     ):
         """
@@ -101,6 +102,76 @@ class ISLDataset(Dataset):
                 self.samples = [(None, int(l), float(w), int(d)) for l, w, d in zip(labels, weights, domains)]
 
             print(f"[Dataset] HDF5 loaded: {self.num_samples} samples, {len(self.classes)} classes, {len(self.domains)} domains (augment={self.augment})")
+            self.num_hdf5_samples = self.num_samples
+            
+            if not (neg_root or archived_root or archived_neg_root):
+                return
+
+            print("[Dataset] Hybrid Loading: Scanning supplementary roots...")
+            self.neg_label = neg_label
+            self.neg_root = neg_root
+            self.archived_neg_root = archived_neg_root
+            
+            if neg_root or archived_neg_root:
+                if neg_label not in self.class_to_idx:
+                    self.class_to_idx[neg_label] = len(self.classes)
+                    self.classes.append(neg_label)
+                
+            def _get_domain_idx_h5(filename: str) -> int:
+                if filename.startswith("webcam_") or filename.startswith("MVI_") or filename.startswith("cvae_"):
+                    parts = filename.split("_")
+                    if len(parts) >= 2:
+                        d_str = f"{parts[0]}_{parts[1]}"
+                    else:
+                        d_str = "unknown"
+                else:
+                    d_str = "unknown"
+
+                if d_str not in self.domain_to_idx:
+                    self.domain_to_idx[d_str] = len(self.domains)
+                    self.domains.append(d_str)
+                return self.domain_to_idx[d_str]
+
+            if neg_root and os.path.isdir(neg_root):
+                neg_idx = self.class_to_idx[neg_label]
+                for _root, _dirs, files in os.walk(neg_root):
+                    for fname in files:
+                        if fname.endswith(".npy"):
+                            fpath = os.path.join(_root, fname)
+                            try:
+                                if np.load(fpath).size > 0:
+                                    d_idx = _get_domain_idx_h5(fname)
+                                    self.samples.append((fpath, neg_idx, 1.0, d_idx))
+                            except Exception: pass
+            
+            if archived_root and os.path.isdir(archived_root):
+                for cls_name in os.listdir(archived_root):
+                    if cls_name in self.class_to_idx:
+                        cls_idx = self.class_to_idx[cls_name]
+                        cls_dir = os.path.join(archived_root, cls_name)
+                        if os.path.isdir(cls_dir):
+                            for fname in os.listdir(cls_dir):
+                                if fname.endswith(".npy"):
+                                    fpath = os.path.join(cls_dir, fname)
+                                    try:
+                                        if np.load(fpath).size > 0:
+                                            d_idx = _get_domain_idx_h5(fname)
+                                            self.samples.append((fpath, cls_idx, float(archived_weight), d_idx))
+                                    except Exception: pass
+            
+            if archived_neg_root and os.path.isdir(archived_neg_root):
+                neg_idx = self.class_to_idx[neg_label]
+                for _root, _dirs, files in os.walk(archived_neg_root):
+                    for fname in files:
+                        if fname.endswith(".npy"):
+                            fpath = os.path.join(_root, fname)
+                            try:
+                                if np.load(fpath).size > 0:
+                                    d_idx = _get_domain_idx_h5(fname)
+                                    self.samples.append((fpath, neg_idx, float(archived_weight), d_idx))
+                            except Exception: pass
+
+            print(f"[Dataset] Hybrid Load Complete: Total {len(self.samples)} samples (HDF5: {self.num_hdf5_samples}, NPY: {len(self.samples)-self.num_hdf5_samples})")
             return
         # Discover classes and count samples
         class_dirs = sorted([
@@ -157,6 +228,7 @@ class ISLDataset(Dataset):
                 if neg_label not in self.classes:
                     self.class_to_idx[neg_label] = len(self.classes)
                     self.classes.append(neg_label)
+        self.archived_neg_root = archived_neg_root
 
         # Collect all .npy file paths with labels, grouped by class
         # Validate files during collection to skip corrupt ones
@@ -195,6 +267,19 @@ class ISLDataset(Dataset):
                                     corrupt_files.append((fpath, "Empty file"))
                             except Exception as e:
                                 corrupt_files.append((fpath, str(e)))
+                # Optionally include archived negative samples
+                if self.archived_neg_root and os.path.isdir(self.archived_neg_root):
+                    for _root, _dirs, files in os.walk(self.archived_neg_root):
+                        for fname in files:
+                            if fname.endswith(".npy"):
+                                afpath = os.path.join(_root, fname)
+                                try:
+                                    test_data = np.load(afpath)
+                                    if test_data.size > 0:
+                                        d_idx = _get_domain_idx(fname)
+                                        class_samples[cls_idx].append((afpath, cls_idx, float(archived_weight), d_idx))
+                                except Exception:
+                                    pass
             else:
                 cls_dir = os.path.join(root_dir, cls_name)
                 cls_idx = self.class_to_idx[cls_name]
@@ -271,8 +356,6 @@ class ISLDataset(Dataset):
         print(f"[Dataset] Distribution: {dist}")
 
     def __len__(self) -> int:
-        if getattr(self, 'use_hdf5', False):
-            return self.num_samples
         return len(self.samples)
 
     def _ensure_open(self):
@@ -292,7 +375,7 @@ class ISLDataset(Dataset):
         """
         import sys
 
-        if getattr(self, 'use_hdf5', False):
+        if getattr(self, 'use_hdf5', False) and idx < getattr(self, 'num_hdf5_samples', 0):
             self._ensure_open()
             seq = self.h5["features"][idx].copy()
             label = self.h5["labels"][idx]
@@ -386,9 +469,16 @@ class ISLDataset(Dataset):
             shift = np.random.randint(-3, 4)
             seq = np.roll(seq, shift, axis=0)
 
-        # 4) Random frame dropout (30% chance)
-        #    Zero out 1-3 random frames
-        if np.random.rand() < 0.3:
+        # 4) TimeMasking / Temporal Cutout (30% chance)
+        #    Zero out a contiguous block of 2-5 frames to simulate webcam stutter
+        if np.random.rand() < 0.30 and num_frames > 10:
+            mask_len = np.random.randint(2, 6)
+            start_idx = np.random.randint(0, num_frames - mask_len)
+            seq[start_idx:start_idx + mask_len] = 0.0
+
+        # 4b) Random scattered frame dropout (25% chance)
+        #     Zero out 1-3 random non-consecutive frames to simulate MediaPipe tracking glitches
+        if np.random.rand() < 0.25:
             n_drop = np.random.randint(1, 4)
             drop_idx = np.random.choice(num_frames, n_drop, replace=False)
             seq[drop_idx] = 0.0

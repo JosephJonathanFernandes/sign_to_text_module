@@ -25,6 +25,7 @@ import os
 import time
 import logging
 import psutil
+import hashlib
 from collections import deque
 from contextlib import asynccontextmanager
 from functools import partial
@@ -469,7 +470,6 @@ async def ws_translate(websocket: WebSocket) -> None:
                 # This keeps predictions responding to the LATEST frames,
                 # not a backlog of old ones.
                 if session.pending_count > MAX_PENDING:
-                    session.pending_count = max(0, session.pending_count - 1)
                     DROPPED_FRAMES += 1
                     continue
 
@@ -519,6 +519,29 @@ async def ws_translate(websocket: WebSocket) -> None:
                     continue  # Predictor not yet initialized (very first frame)
 
                 word = app.state.classes[stable_class]
+
+                if logger.isEnabledFor(logging.DEBUG):
+                    locked_idx = getattr(session.postprocessor.predictor, "current_class", None)
+                    locked_word = app.state.classes[locked_idx] if locked_idx is not None else "None"
+                    
+                    rounded_seq = np.round(np.array(sequence), decimals=3)
+                    sequence_hash = hashlib.md5(rounded_seq.tobytes()).hexdigest()[:8]
+                    
+                    frame_delta = None
+                    if len(sequence) >= 2:
+                        frame_delta = float(np.mean(np.abs(np.array(sequence[-1]) - np.array(sequence[-2]))))
+
+                    raw_word = app.state.classes[pred_idx]
+                    logger.debug("temporal_debug", extra={
+                        "raw_prediction": raw_word,
+                        "raw_confidence": float(confidence),
+                        "stable_prediction": word,
+                        "stable_confidence": float(smoothed_conf),
+                        "current_locked_word": locked_word,
+                        "current_locked_conf": float(session.postprocessor.predictor.current_confidence),
+                        "sequence_hash": sequence_hash,
+                        "frame_delta": frame_delta
+                    })
 
                 # ── Sentence builder ──────────────────────────────────────────
                 session.sentence_builder.update(word, smoothed_conf)
