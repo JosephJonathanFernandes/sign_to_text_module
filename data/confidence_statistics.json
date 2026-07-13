@@ -1961,5 +1961,18 @@
     "trajectory_pattern_agreement": "31.0%",
     "dominant_hand_agreement": "76.2%",
     "motion_speed_agreement": "38.0%"
+  },
+  "climb_down": {
+    "hand_count_agreement": "79.8%",
+    "movement_agreement": "34.0%",
+    "location_agreement": "90.2%",
+    "orientation_agreement": "97.0%",
+    "symmetry_agreement": "49.5%",
+    "finger_state_agreement": "99.2%",
+    "hand_shape_agreement": "99.5%",
+    "motion_direction_agreement": "46.8%",
+    "trajectory_pattern_agreement": "43.8%",
+    "dominant_hand_agreement": "79.8%",
+    "motion_speed_agreement": "34.0%"
   }
 }

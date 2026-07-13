@@ -54,7 +54,8 @@
     "tear",
     "run",
     "practise",
-    "climb_up"
+    "climb_up",
+    "climb_down"
   ],
   "one_hand|large_motion|neutral_space|unknown": [
     "bad",
