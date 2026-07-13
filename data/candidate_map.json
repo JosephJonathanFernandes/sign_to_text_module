@@ -55,7 +55,8 @@
     "run",
     "practise",
     "climb_up",
-    "climb_down"
+    "climb_down",
+    "break"
   ],
   "one_hand|large_motion|neutral_space|unknown": [
     "bad",
