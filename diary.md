@@ -310,3 +310,28 @@ Ensuring the repository remained maintainable and deployment-ready was a continu
 * **Fault-Tolerant Training:** The training pipeline was hardened with K-Fold resume capabilities (`src/training/train_kfold_resume.py`), ensuring that extensive, long-running training epochs could recover safely from interruptions or environment failures.
 * **Git Tree Optimization:** As the dataset grew, repository cloning became a bottleneck. A strict audit removed legacy processing scripts, purged corrupted data blocks, and enforced `.gitignore` policies to exclude heavy `.pth` model weights and raw `processed/` directories from version control.
 * **Deployment Readiness:** The backend was hardened for production deployment. Code was rigorously formatted to Flake8 standards, dependencies were explicitly isolated and pinned in `requirements_api.txt`, and a top-level `uvicorn` launcher (`run_api.py`) was established to streamline server-based execution.
+
+## Jira Issue Tracking (July 2026)
+
+| ID | Type | Summary | Assignee | Completion Date |
+|---|---|---|---|---|
+| KAN-44 | Feature | Train new model with robustness more reject classed | josephfernandes273 | 13 Jul 2026 |
+| KAN-40 | Task | Train model today | josephfernandes273 | 12 Jul 2026 |
+| KAN-39 | Story | Robustness methods additions if any | josephfernandes273 | 12 Jul 2026 |
+| KAN-36 | Task | appendix make concise | josephfernandes273 | 10 Jul 2026 |
+| KAN-34 | Feature | Need to record dataset alphabet S onwards till Z | josephfernandes273 | 11 Jul 2026 |
+| KAN-33 | Subtask | Reduce the Figure Caption | G. Akaash Samson | 10 Jul 2026 |
+| KAN-32 | Subtask | Model Architecture in Design (4.4.1) | G. Akaash Samson | 10 Jul 2026 |
+| KAN-30 | Subtask | Technology Part Revision | G. Akaash Samson | 10 Jul 2026 |
+| KAN-27 | Subtask | Decide to Replace sys architecture content with shorter paras | G. Akaash Samson | 10 Jul 2026 |
+| KAN-23 | Subtask | Adding the Revised Literature Survey | G. Akaash Samson | 10 Jul 2026 |
+| KAN-16 | Subtask | Revise Conclusion | G. Akaash Samson | 10 Jul 2026 |
+| KAN-15 | Subtask | Revise Future Scope | G. Akaash Samson | 10 Jul 2026 |
+| KAN-14 | Subtask | Revise Challenges and Limitation | G. Akaash Samson | 10 Jul 2026 |
+| KAN-13 | Subtask | Shortening Introduction | G. Akaash Samson | 10 Jul 2026 |
+| KAN-12 | Subtask | Synopsis Expansion | G. Akaash Samson | 10 Jul 2026 |
+| KAN-11 | Subtask | Add Resource Links in Technology section | G. Akaash Samson | 10 Jul 2026 |
+| KAN-6 | Subtask | Johnny's Implementation Part Revision | G. Akaash Samson | 10 Jul 2026 |
+| KAN-5 | Subtask | Bibliography; confirm with Ma'am if Alphabetical or in the order of reference | G. Akaash Samson | 10 Jul 2026 |
+| KAN-3 | Task | Report Formatting and Revisions | G. Akaash Samson | 10 Jul 2026 |
+| KAN-1 | Task | Implementation Section Revisions | G. Akaash Samson | 12 Jul 2026 |
