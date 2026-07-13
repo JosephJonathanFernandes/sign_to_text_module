@@ -83,7 +83,8 @@
   ],
   "unknown|unknown|neutral_space|unknown": [
     "cold",
-    "deaf"
+    "deaf",
+    "swing"
   ],
   "one_hand|large_motion|face_near|open_palm": [
     "curved"
