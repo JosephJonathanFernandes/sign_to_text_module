@@ -38,6 +38,7 @@
   ],
   "one_hand|unknown|neutral_space|open_palm": [
     "alive",
+    "dirty",
     "small_little",
     "me",
     "good_night",
@@ -86,7 +87,6 @@
   ],
   "one_hand|large_motion|neutral_space|open_palm": [
     "clean",
-    "dirty",
     "expensive"
   ],
   "unknown|unknown|neutral_space|unknown": [

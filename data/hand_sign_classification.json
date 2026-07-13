@@ -380,7 +380,7 @@
     },
     "dirty": {
       "hand_count": "one_hand",
-      "movement": "large_motion",
+      "movement": "unknown",
       "location": "neutral_space",
       "orientation": "forward",
       "symmetry": "unknown",
@@ -389,7 +389,7 @@
       "motion_direction": "circular",
       "trajectory_pattern": "circular",
       "dominant_hand": "left",
-      "motion_speed": "fast"
+      "motion_speed": "unknown"
     },
     "dry": {
       "hand_count": "two_hands",
