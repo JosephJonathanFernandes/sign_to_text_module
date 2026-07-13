@@ -52,6 +52,7 @@
   "two_hands|unknown|neutral_space|unknown": [
     "alright",
     "f",
+    "hard",
     "wear",
     "tear",
     "run",
@@ -157,9 +158,6 @@
     "dangerous",
     "dim",
     "equal"
-  ],
-  "two_hands|medium_motion|neutral_space|unknown": [
-    "hard"
   ],
   "one_hand|large_motion|upper_space|unknown": [
     "he",
