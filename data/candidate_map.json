@@ -267,5 +267,8 @@
   ],
   "two_hands|unknown|neutral_space|pointing": [
     "examine"
+  ],
+  "one_hand|unknown|face_near|pointing": [
+    "dream"
   ]
 }
