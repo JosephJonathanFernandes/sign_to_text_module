@@ -241,5 +241,8 @@
   ],
   "one_hand|unknown|unknown|open_palm": [
     "them"
+  ],
+  "one_hand|unknown|face_near|open_palm": [
+    "afternoon"
   ]
 }

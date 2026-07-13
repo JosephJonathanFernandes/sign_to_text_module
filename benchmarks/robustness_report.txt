@@ -1,0 +1,235 @@
+Loading models...
+Loading dataset...
+[Dataset] HDF5 loaded: 51134 samples, 133 classes, 4 domains (augment=False)
+[Dataset] Hybrid Loading: Scanning supplementary roots...
+[Dataset] Hybrid Load Complete: Total 54518 samples (HDF5: 51134, NPY: 3384)
+
+--- EXPERIMENT 1 & 2: Clean Baseline & Domain-wise Accuracy ---
+
+==================================================
+GNN Tensor Transition Shapes:
+  Input features:     torch.Size([1, 20, 506])
+  Extracted Nodes:    torch.Size([1, 20, 2, 21, 3])
+  Adjacency Matrix:   torch.Size([21, 21])
+  GCN Node Features:  torch.Size([20, 21, 3])
+  Pooled Embedding:   torch.Size([20, 8])
+  Combined Hands:     torch.Size([20, 16])
+==================================================
+
+Processed 11500 test samples...
+Processed 8500 test samples...
+
+[Domain-wise Accuracy]
+webcam         : 98.02% (939/958)
+ALL            : 97.80% (978/1000)
+MVI            : 92.86% (39/42)
+
+[Performance Metrics]
+Avg Inference Latency: 20.28 ms
+P95 Inference Latency: 26.40 ms
+Estimated FPS:         49 fps
+Memory Usage delta:    23.62 MB
+
+--- EXPERIMENT 3 & 9: Per-class Accuracy & Confusion Matrix ---
+
+[Worst 10 Classes by Accuracy]
+  himself             : 0.0% (0/3)
+  new                 : 9.1% (1/11)
+  heavy               : 66.7% (2/3)
+  me                  : 80.0% (4/5)
+  evening             : 83.3% (5/6)
+  ugly                : 83.3% (5/6)
+  1                   : 87.5% (7/8)
+  h                   : 88.9% (8/9)
+  you                 : 88.9% (8/9)
+  beautiful           : 90.9% (10/11)
+
+[Top 10 Most Confused Pairs]
+  True: new             -> Pred: g               (9 times)
+  True: himself         -> Pred: high            (3 times)
+  True: narrow          -> Pred: loud            (1 times)
+  True: ugly            -> Pred: 2               (1 times)
+  True: you             -> Pred: indian          (1 times)
+  True: me              -> Pred: light           (1 times)
+  True: new             -> Pred: hot             (1 times)
+  True: heavy           -> Pred: u               (1 times)
+  True: h               -> Pred: light           (1 times)
+  True: evening         -> Pred: light           (1 times)
+
+[Per-Class Metrics]
+                 precision    recall  f1-score   support
+
+              0       1.00      1.00      1.00         3
+              1       1.00      0.88      0.93         8
+              2       0.88      1.00      0.93         7
+              3       1.00      1.00      1.00        13
+              4       1.00      1.00      1.00        13
+              5       1.00      1.00      1.00         6
+              6       1.00      1.00      1.00         8
+              7       1.00      1.00      1.00        10
+              8       1.00      1.00      1.00        13
+              9       1.00      1.00      1.00         8
+              a       1.00      1.00      1.00         8
+          alive       1.00      1.00      1.00         9
+        alright       1.00      1.00      1.00         9
+              b       1.00      1.00      1.00        14
+            bad       1.00      1.00      1.00        11
+      beautiful       1.00      0.91      0.95        11
+      big_large       1.00      1.00      1.00         9
+          blind       1.00      1.00      1.00        14
+            bye       1.00      1.00      1.00         6
+              c       1.00      1.00      1.00         3
+          cheap       1.00      1.00      1.00         6
+          clean       1.00      1.00      1.00         3
+           cold       1.00      1.00      1.00         9
+           cool       1.00      1.00      1.00         7
+         curved       1.00      1.00      1.00         7
+              d       1.00      1.00      1.00         8
+           dead       1.00      1.00      1.00         8
+           deaf       1.00      1.00      1.00         6
+           deep       1.00      1.00      1.00        12
+          dirty       1.00      1.00      1.00         4
+            dry       1.00      1.00      1.00         7
+              e       1.00      1.00      1.00         9
+        evening       1.00      0.83      0.91         6
+      expensive       1.00      1.00      1.00         9
+              f       1.00      1.00      1.00         6
+         famous       1.00      1.00      1.00         7
+           fast       1.00      1.00      1.00         8
+         female       1.00      1.00      1.00         7
+           flat       1.00      1.00      1.00         5
+              g       0.53      1.00      0.69        10
+           good       0.00      0.00      0.00         0
+ good_afternoon       0.00      0.00      0.00         0
+   good_evening       0.00      0.00      0.00         0
+   good_morning       1.00      1.00      1.00        11
+     good_night       1.00      1.00      1.00        10
+              h       1.00      0.89      0.94         9
+          happy       1.00      1.00      1.00         8
+           hard       1.00      1.00      1.00        11
+             he       1.00      1.00      1.00         2
+        healthy       1.00      1.00      1.00         7
+          heavy       1.00      0.67      0.80         3
+          hello       1.00      1.00      1.00        10
+            her       1.00      1.00      1.00         8
+        herself       1.00      1.00      1.00         5
+           high       0.70      1.00      0.82         7
+            him       1.00      1.00      1.00         7
+        himself       0.00      0.00      0.00         3
+            his       1.00      1.00      1.00        11
+            hot       0.92      1.00      0.96        11
+    how_are_you       1.00      1.00      1.00        12
+              i       1.00      1.00      1.00         6
+     i_alphabet       1.00      1.00      1.00         4
+         indian       0.90      1.00      0.95         9
+             it       1.00      1.00      1.00        11
+         itself       1.00      1.00      1.00        11
+              j       1.00      1.00      1.00         7
+              k       1.00      1.00      1.00         5
+              l       1.00      1.00      1.00         5
+       language       1.00      1.00      1.00        11
+          light       0.43      1.00      0.60         3
+           long       1.00      1.00      1.00         6
+          loose       1.00      1.00      1.00         8
+           loud       0.88      1.00      0.93         7
+            low       1.00      1.00      1.00         5
+              m       1.00      1.00      1.00         7
+           male       1.00      1.00      1.00         4
+             me       1.00      0.80      0.89         5
+           mean       1.00      1.00      1.00         6
+        morning       1.00      1.00      1.00         6
+             my       1.00      1.00      1.00         4
+         myself       1.00      1.00      1.00         8
+              n       1.00      1.00      1.00         9
+         narrow       1.00      0.93      0.96        14
+            new       1.00      0.09      0.17        11
+           nice       1.00      1.00      1.00         7
+          night       1.00      1.00      1.00         7
+              o       1.00      1.00      1.00         9
+            old       1.00      1.00      1.00         6
+            our       1.00      1.00      1.00         8
+      ourselves       1.00      1.00      1.00        10
+              p       1.00      1.00      1.00         9
+        pleased       1.00      1.00      1.00         5
+           poor       1.00      1.00      1.00        11
+              q       1.00      1.00      1.00         7
+          quiet       1.00      1.00      1.00         7
+              r       1.00      1.00      1.00         5
+           rich       1.00      1.00      1.00        13
+              s       1.00      1.00      1.00         6
+            sad       1.00      1.00      1.00         4
+        shallow       1.00      1.00      1.00        11
+            she       1.00      1.00      1.00         3
+          short       1.00      1.00      1.00        13
+           sick       1.00      1.00      1.00         4
+           sign       1.00      1.00      1.00         2
+           slow       1.00      1.00      1.00        13
+   small_little       1.00      1.00      1.00         9
+           soft       1.00      1.00      1.00         7
+         strong       1.00      1.00      1.00         7
+              t       1.00      1.00      1.00         4
+           tall       1.00      1.00      1.00         5
+      thank_you       1.00      1.00      1.00         8
+           them       1.00      1.00      1.00         4
+           they       1.00      1.00      1.00         5
+they_themselves       1.00      1.00      1.00         6
+          thick       1.00      1.00      1.00        10
+           thin       1.00      1.00      1.00        12
+          tight       1.00      1.00      1.00         8
+              u       0.71      1.00      0.83         5
+           ugly       1.00      0.83      0.91         6
+              v       1.00      1.00      1.00        12
+              w       1.00      1.00      1.00         6
+           warm       1.00      1.00      1.00         8
+             we       1.00      1.00      1.00         7
+           weak       1.00      1.00      1.00         6
+            wet       1.00      1.00      1.00         6
+           wide       1.00      1.00      1.00         6
+              x       1.00      1.00      1.00         9
+              y       1.00      1.00      1.00         6
+            you       1.00      0.89      0.94         9
+        you_all       1.00      1.00      1.00         8
+          young       1.00      1.00      1.00         5
+           your       1.00      1.00      1.00        11
+       yourself       1.00      1.00      1.00        11
+              z       0.00      0.00      0.00         0
+
+       accuracy                           0.98      1000
+      macro avg       0.95      0.95      0.94      1000
+   weighted avg       0.98      0.98      0.97      1000
+
+
+Saving Confusion Matrix Visualization to 'diagrams/confusion_matrix.png'...
+
+--- EXPERIMENT 8: Reliability Diagram + ECE ---
+Expected Calibration Error (ECE): 2.90%
+
+Running degradation curves on 1000 real-domain samples...
+
+--- EXPERIMENT: Gaussian Noise Degradation Curve ---
+Gaussian Noise 0.0: 97.80%
+Gaussian Noise 0.005: 97.80%
+Gaussian Noise 0.01: 97.90%
+Gaussian Noise 0.02: 97.80%
+Gaussian Noise 0.03: 97.90%
+
+--- EXPERIMENT: Landmark Dropout Degradation Curve ---
+Landmark Dropout 0.0: 97.80%
+Landmark Dropout 0.05: 96.50%
+Landmark Dropout 0.1: 92.60%
+Landmark Dropout 0.15: 89.50%
+Landmark Dropout 0.2: 84.00%
+
+--- EXPERIMENT: Frame Blackout Degradation Curve ---
+Frame Blackout 0.0: 97.80%
+Frame Blackout 0.05: 97.70%
+Frame Blackout 0.1: 97.50%
+Frame Blackout 0.15: 97.00%
+Frame Blackout 0.2: 96.50%
+
+--- EXPERIMENT 7: Synthetic OOD Detection Evaluation ---
+True Positive Rate (Correctly rejected OOD): 3.50%
+False Rejection Rate (Incorrectly rejected valid): 1.20%
+False Acceptance Rate (Accepted OOD as valid): 96.50%
+OOD Precision: 0.7447
+OOD Recall: 0.0350

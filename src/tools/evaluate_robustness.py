@@ -19,10 +19,8 @@ cfg = get_config()
 DEVICE = cfg.hardware.torch_device
 
 def compute_ece(confidences, accuracies, num_bins=10):
-    """Calculate Expected Calibration Error"""
     bins = np.linspace(0.0, 1.0, num_bins + 1)
     indices = np.digitize(confidences, bins, right=True) - 1
-    
     ece = 0.0
     for b in range(num_bins):
         mask = indices == b
@@ -31,19 +29,15 @@ def compute_ece(confidences, accuracies, num_bins=10):
             bin_conf = np.mean(confidences[mask])
             bin_weight = np.sum(mask) / len(confidences)
             ece += bin_weight * np.abs(bin_acc - bin_conf)
-            
     return ece * 100.0
 
 # --- Corruptions ---
-
 def apply_gaussian_noise(sequence, sigma):
-    """Add Gaussian noise to the coordinates."""
     if sigma <= 0: return sequence
     noise = np.random.normal(0, sigma, sequence.shape)
     return sequence + noise
 
 def apply_landmark_dropout(sequence, drop_prob):
-    """Randomly zero out landmarks across all frames."""
     if drop_prob <= 0: return sequence
     mask = np.random.rand(sequence.shape[1]) > drop_prob
     corrupted = sequence.copy()
@@ -51,88 +45,18 @@ def apply_landmark_dropout(sequence, drop_prob):
     return corrupted
 
 def apply_frame_blackout(sequence, drop_prob):
-    """Randomly zero out entire frames."""
     if drop_prob <= 0: return sequence
     mask = np.random.rand(sequence.shape[0]) > drop_prob
     corrupted = sequence.copy()
     corrupted[~mask, :] = 0.0
     return corrupted
 
-def run_degradation_experiment(models, ds, test_indices, corruption_fn, param_list, name):
-    results = {}
-    print(f"\n--- EXPERIMENT: {name} Degradation Curve ---")
-    for param in param_list:
-        correct = 0
-        total = len(test_indices)
-        for i in test_indices:
-            seq_t, _, _, _, _ = ds[i]
-            sequence = seq_t.numpy()
-            cls_idx = ds.samples[i][1]
-            
-            # Apply corruption
-            corrupted_seq = corruption_fn(sequence, param)
-            
-            pred_idx, _, _ = ensemble_predict(models, corrupted_seq)
-            if pred_idx == cls_idx:
-                correct += 1
-                
-        acc = (correct / total) * 100
-        print(f"{name} {param}: {acc:.2f}%")
-        results[param] = acc
-    return results
-
 def generate_synthetic_ood(sequence):
-    """Generate a synthetic OOD sequence by randomizing temporal order and adding high noise."""
     corrupted = sequence.copy()
     np.random.shuffle(corrupted)
     noise = np.random.normal(0, 0.1, corrupted.shape)
     return corrupted + noise
 
-def evaluate_ood(models, ds, test_indices):
-    print("\n--- EXPERIMENT 7: Synthetic OOD Detection Evaluation ---")
-    
-    # 1. False Rejection Rate (In-Distribution incorrectly rejected)
-    in_dist_rejected = 0
-    in_dist_total = len(test_indices)
-    
-    for i in test_indices:
-        seq_t, _, _, _, _ = ds[i]
-        sequence = seq_t.numpy()
-        
-        _, _, all_probs = ensemble_predict(models, sequence)
-        is_ood, _ = check_ood(all_probs)
-        if is_ood:
-            in_dist_rejected += 1
-            
-    # 2. True Positive Rate (Synthetic OOD correctly rejected)
-    ood_rejected = 0
-    ood_total = len(test_indices)
-    
-    for i in test_indices:
-        seq_t, _, _, _, _ = ds[i]
-        sequence = seq_t.numpy()
-        
-        # Make it OOD
-        ood_seq = generate_synthetic_ood(sequence)
-        
-        _, _, all_probs = ensemble_predict(models, ood_seq)
-        is_ood, _ = check_ood(all_probs)
-        if is_ood:
-            ood_rejected += 1
-            
-    tpr = (ood_rejected / ood_total) * 100
-    frr = (in_dist_rejected / in_dist_total) * 100
-    far = ((ood_total - ood_rejected) / ood_total) * 100
-    
-    precision = ood_rejected / (ood_rejected + in_dist_rejected + 1e-9)
-    recall = ood_rejected / ood_total
-    
-    print(f"True Positive Rate (Correctly rejected OOD): {tpr:.2f}%")
-    print(f"False Rejection Rate (Incorrectly rejected valid): {frr:.2f}%")
-    print(f"False Acceptance Rate (Accepted OOD as valid): {far:.2f}%")
-    print(f"OOD Precision: {precision:.4f}")
-    print(f"OOD Recall: {recall:.4f}")
-    
 class Logger(object):
     def __init__(self, filename="Default.log"):
         self.terminal = sys.stdout
@@ -144,6 +68,37 @@ class Logger(object):
         self.terminal.flush()
         self.log.flush()
 
+def get_reject_category(fpath):
+    fpath = fpath.replace("\\", "/")
+    if "processed_negatives" in fpath:
+        parts = fpath.split("/")
+        try:
+            idx = parts.index("processed_negatives")
+            if idx + 1 < len(parts):
+                # If there's no subfolder and it's just files, it might be the file itself
+                if parts[idx + 1].endswith(".npy"):
+                    return "root"
+                return parts[idx + 1]
+        except ValueError:
+            pass
+    return "unknown"
+
+def run_degradation_experiment(models, ds, test_indices, corruption_fn, param_list, name):
+    print(f"\n--- EXPERIMENT: {name} Degradation Curve ---")
+    for param in param_list:
+        correct = 0
+        total = len(test_indices)
+        for i in test_indices:
+            seq_t, _, _, _, _ = ds[i]
+            sequence = seq_t.numpy()
+            cls_idx = ds.samples[i][1]
+            corrupted_seq = corruption_fn(sequence, param)
+            pred_idx, _, _ = ensemble_predict(models, corrupted_seq)
+            if pred_idx == cls_idx:
+                correct += 1
+        acc = (correct / total) * 100
+        print(f"{name} {param}: {acc:.2f}%")
+
 def evaluate_baseline():
     os.makedirs("benchmarks", exist_ok=True)
     os.makedirs("diagrams", exist_ok=True)
@@ -152,120 +107,160 @@ def evaluate_baseline():
     print("Loading models...")
     models, classes, num_classes = load_ensemble()
     if not models:
-        print("No models found!")
         return
 
     print("Loading dataset...")
-    # Load raw dataset without augmentation to ensure controlled evaluation
-    ds = ISLDataset(augment=False, oversample=False)
+    neg_root_p = os.path.join(os.path.dirname(cfg.paths.processed_dir), "processed_negatives")
+    ds = ISLDataset(augment=False, oversample=False, neg_root=neg_root_p)
     
-    print("\n--- EXPERIMENT 1 & 2: Clean Baseline & Domain-wise Accuracy ---")
-    
+    reject_cls_idx = ds.class_to_idx.get("__reject__", -1)
     domain_to_idx = ds.domain_to_idx
     idx_to_domain = {v: k for k, v in domain_to_idx.items()}
     
-    domain_stats = defaultdict(lambda: {"correct": 0, "total": 0})
-    confidences = []
-    accuracies = []
+    print("\n--- 1. Pipeline Verification ---")
+    print(f"Loaded {len(ds.samples)} total dataset samples.")
+    print(f"__reject__ class index: {reject_cls_idx}")
     
-    # Identify real domains for degradation evaluation (webcam + MVI)
     real_domains = [domain_to_idx.get("webcam", -1), domain_to_idx.get("MVI", -1)]
-    test_indices = [i for i, (_, _, _, d) in enumerate(ds.samples) if d in real_domains]
     
-    # Subset to 1000 samples for speed
-    if len(test_indices) > 1000:
-        np.random.seed(42)
-        test_indices = np.random.choice(test_indices, 1000, replace=False).tolist()
+    test_indices = []
+    valid_sign_indices = []
+    reject_indices = []
     
-    # Track latency
-    latencies = []
-    start_mem = psutil.Process().memory_info().rss / 1024 / 1024
+    for i, (fpath, c_idx, _, d_idx) in enumerate(ds.samples):
+        if c_idx != reject_cls_idx:
+            if d_idx in real_domains:
+                test_indices.append(i)
+                valid_sign_indices.append(i)
+        else:
+            test_indices.append(i)
+            reject_indices.append(i)
+            
+    print(f"Test set (natural distribution) includes {len(test_indices)} samples.")
+    print(f"Of these, {len(valid_sign_indices)} are valid signs and {len(reject_indices)} are __reject__ samples.")
     
-    # We only evaluate real-domain samples for the clean baseline to save massive compute time
-    for i in test_indices:
-        seq_t, _, _, _, _ = ds[i]
-        sequence = seq_t.numpy()
-        
-        cls_idx = ds.samples[i][1]
-        d_idx = ds.samples[i][3]
-            
-        t0 = time.perf_counter()
-        pred_idx, conf, all_probs = ensemble_predict(models, sequence)
-        t1 = time.perf_counter()
-        
-        latencies.append((t1 - t0) * 1000) # ms
-        
-        is_correct = (pred_idx == cls_idx)
-        domain_name = idx_to_domain.get(d_idx, "unknown")
-        
-        domain_stats[domain_name]["correct"] += is_correct
-        domain_stats[domain_name]["total"] += 1
-        
-        domain_stats["ALL"]["correct"] += is_correct
-        domain_stats["ALL"]["total"] += 1
-        
-        confidences.append(float(conf))
-        accuracies.append(int(is_correct))
-        
-        if i % 500 == 0:
-            print(f"Processed {i} test samples...")
-            
-    end_mem = psutil.Process().memory_info().rss / 1024 / 1024
-            
-    print("\n[Domain-wise Accuracy]")
-    for dom, stats in domain_stats.items():
-        if stats["total"] > 0:
-            acc = (stats["correct"] / stats["total"]) * 100
-            print(f"{dom.ljust(15)}: {acc:.2f}% ({stats['correct']}/{stats['total']})")
-            
-    print("\n[Performance Metrics]")
-    print(f"Avg Inference Latency: {np.mean(latencies):.2f} ms")
-    print(f"P95 Inference Latency: {np.percentile(latencies, 95):.2f} ms")
-    print(f"Estimated FPS:         {1000.0 / np.mean(latencies):.0f} fps")
-    print(f"Memory Usage delta:    {end_mem - start_mem:.2f} MB")
-    
-    print("\n--- EXPERIMENT 3 & 9: Per-class Accuracy & Confusion Matrix ---")
     y_true = []
     y_pred = []
-    for i in test_indices:
-        seq_t, _, _, _, _ = ds[i]
+    y_conf = []
+    fpaths = []
+    domains = []
+    accuracies = []
+    
+    print("\nEvaluating test set...")
+    for i, idx in enumerate(test_indices):
+        seq_t, _, _, _, _ = ds[idx]
         sequence = seq_t.numpy()
-        cls_idx = ds.samples[i][1]
+        cls_idx = ds.samples[idx][1]
+        fpath = ds.samples[idx][0]
+        d_idx = ds.samples[idx][3]
         
-        pred_idx, _, _ = ensemble_predict(models, sequence)
+        pred_idx, conf, _ = ensemble_predict(models, sequence)
+        
         y_true.append(cls_idx)
         y_pred.append(pred_idx)
+        y_conf.append(float(conf))
+        fpaths.append(fpath)
         
-    cm = confusion_matrix(y_true, y_pred, labels=list(range(num_classes)))
-    
-    # Per-class accuracy
-    print("\n[Worst 10 Classes by Accuracy]")
-    class_accs = []
-    for c in range(num_classes):
-        total_c = np.sum(cm[c, :])
-        if total_c > 0:
-            acc = cm[c, c] / total_c
-            class_accs.append((acc, classes[c], cm[c, c], total_c))
-    class_accs.sort()
-    for acc, name, corr, tot in class_accs[:10]:
-        print(f"  {name.ljust(20)}: {acc*100:.1f}% ({corr}/{tot})")
+        d_str = idx_to_domain.get(d_idx, "unknown")
+        # If it's a negative sample, let's categorize its domain by its original filename prefix if possible
+        if cls_idx == reject_cls_idx:
+            fname = os.path.basename(fpath)
+            if fname.startswith("webcam"):
+                d_str = "webcam"
+            elif fname.startswith("MVI"):
+                d_str = "MVI"
+        domains.append(d_str)
+        accuracies.append(int(pred_idx == cls_idx))
         
-    # Most confused pairs
-    print("\n[Top 10 Most Confused Pairs]")
-    np.fill_diagonal(cm, 0)
-    confused_indices = np.dstack(np.unravel_index(np.argsort(cm.ravel()), cm.shape))[0]
-    confused_indices = confused_indices[::-1] # descending
-    for r, c in confused_indices[:10]:
-        if cm[r, c] > 0:
-            print(f"  True: {classes[r].ljust(15)} -> Pred: {classes[c].ljust(15)} ({cm[r, c]} times)")
+        if (i+1) % 500 == 0:
+            print(f"Processed {i+1} samples...")
             
-    # Per-class Precision/Recall/F1
-    print("\n[Per-Class Metrics]")
-    print(classification_report(y_true, y_pred, labels=np.arange(len(classes)), target_names=classes, zero_division=0))
+    y_true = np.array(y_true)
+    y_pred = np.array(y_pred)
+    y_conf = np.array(y_conf)
+    accuracies = np.array(accuracies)
+    fpaths = np.array(fpaths)
+    domains = np.array(domains)
     
+    print("\n--- 2. Overall Classification Metrics ---")
+    rep = classification_report(y_true, y_pred, labels=np.arange(len(classes)), target_names=classes, zero_division=0, output_dict=True)
+    print(f"Overall Accuracy: {rep['accuracy']:.4f}")
+    print(f"Macro Precision: {rep['macro avg']['precision']:.4f}")
+    print(f"Macro Recall: {rep['macro avg']['recall']:.4f}")
+    print(f"Macro F1: {rep['macro avg']['f1-score']:.4f}")
+    print(f"Weighted F1: {rep['weighted avg']['f1-score']:.4f}")
+    
+    if reject_cls_idx != -1:
+        print("\n--- 3. __reject__ Metrics ---")
+        rej_stats = rep[classes[reject_cls_idx]]
+        print(f"Precision: {rej_stats['precision']:.4f}")
+        print(f"Recall:    {rej_stats['recall']:.4f}")
+        print(f"F1-score:  {rej_stats['f1-score']:.4f}")
+        print(f"Support:   {rej_stats['support']}")
+        
+        # Calculate TP, FP, FN
+        tp = np.sum((y_true == reject_cls_idx) & (y_pred == reject_cls_idx))
+        fp = np.sum((y_true != reject_cls_idx) & (y_pred == reject_cls_idx))
+        fn = np.sum((y_true == reject_cls_idx) & (y_pred != reject_cls_idx))
+        print(f"True Positives (TP): {tp}")
+        print(f"False Positives (FP): {fp} (Valid signs incorrectly rejected)")
+        print(f"False Negatives (FN): {fn} (Reject samples incorrectly accepted as valid signs)")
+        
+        print("\n--- 4. Per-category Reject Analysis ---")
+        reject_mask = y_true == reject_cls_idx
+        reject_fpaths = fpaths[reject_mask]
+        reject_preds = y_pred[reject_mask]
+        
+        cat_stats = defaultdict(lambda: {"correct": 0, "total": 0})
+        for rp, rpred in zip(reject_fpaths, reject_preds):
+            cat = get_reject_category(rp)
+            cat_stats[cat]["total"] += 1
+            if rpred == reject_cls_idx:
+                cat_stats[cat]["correct"] += 1
+                
+        for cat, stats in cat_stats.items():
+            acc = (stats["correct"] / stats["total"]) * 100
+            print(f"{cat.ljust(20)}: Recall {acc:.2f}% ({stats['correct']}/{stats['total']})")
+            
+    print("\n--- 5. Per-domain Analysis ---")
+    domain_stats = defaultdict(lambda: {"signs_correct": 0, "signs_total": 0, "reject_correct": 0, "reject_total": 0})
+    for yt, yp, d in zip(y_true, y_pred, domains):
+        if yt == reject_cls_idx:
+            domain_stats[d]["reject_total"] += 1
+            if yp == yt:
+                domain_stats[d]["reject_correct"] += 1
+        else:
+            domain_stats[d]["signs_total"] += 1
+            if yp == yt:
+                domain_stats[d]["signs_correct"] += 1
+                
+    for d, stats in domain_stats.items():
+        print(f"[{d}]")
+        st = stats["signs_total"]
+        rt = stats["reject_total"]
+        if st > 0:
+            print(f"  Signs Acc:  {(stats['signs_correct']/st)*100:.2f}% ({stats['signs_correct']}/{st})")
+        if rt > 0:
+            print(f"  Reject Acc: {(stats['reject_correct']/rt)*100:.2f}% ({stats['reject_correct']}/{rt})")
+
+    print("\n--- 6. Confusion Matrix & Error Analysis ---")
+    cm = confusion_matrix(y_true, y_pred, labels=np.arange(len(classes)))
+    
+    if reject_cls_idx != -1:
+        print("\n[Top valid signs incorrectly classified as __reject__ (FRR contributors)]")
+        fn_indices = np.argsort(cm[:, reject_cls_idx])[::-1]
+        for idx in fn_indices[:5]:
+            if idx != reject_cls_idx and cm[idx, reject_cls_idx] > 0:
+                print(f"  {classes[idx].ljust(15)}: {cm[idx, reject_cls_idx]} times")
+                
+        print("\n[Top valid signs that __reject__ is incorrectly classified as (FAR contributors)]")
+        fp_indices = np.argsort(cm[reject_cls_idx, :])[::-1]
+        for idx in fp_indices[:5]:
+            if idx != reject_cls_idx and cm[reject_cls_idx, idx] > 0:
+                print(f"  {classes[idx].ljust(15)}: {cm[reject_cls_idx, idx]} times")
+                
     # Save Confusion Matrix Visualization
-    print("\nSaving Confusion Matrix Visualization to 'diagrams/confusion_matrix.png'...")
-    plt.figure(figsize=(20, 20))
+    plt.figure(figsize=(24, 24))
     sns.heatmap(cm, xticklabels=classes, yticklabels=classes, cmap="Blues", annot=False, cbar=True)
     plt.title("Confusion Matrix")
     plt.xlabel("Predicted")
@@ -274,18 +269,107 @@ def evaluate_baseline():
     plt.savefig(os.path.join("diagrams", "confusion_matrix.png"), dpi=150)
     plt.close()
     
-    print("\n--- EXPERIMENT 8: Reliability Diagram + ECE ---")
-    ece = compute_ece(np.array(confidences), np.array(accuracies))
-    print(f"Expected Calibration Error (ECE): {ece:.2f}%")
+    if reject_cls_idx != -1:
+        print("\n--- 7. Top Misclassifications Involving __reject__ ---")
+        print("Saving to diagrams/misclassified_rejects.txt")
+        with open("diagrams/misclassified_rejects.txt", "w") as f:
+            f.write("Filename | True Label | Predicted Label | Confidence\n")
+            f.write("-" * 80 + "\n")
+            
+            # Find cases where reject -> good, or good -> reject
+            mis_mask = ((y_true == reject_cls_idx) & (y_pred != reject_cls_idx)) | ((y_true != reject_cls_idx) & (y_pred == reject_cls_idx))
+            mis_indices = np.where(mis_mask)[0]
+            
+            # Sort by confidence (highest confidence errors first)
+            mis_conf = y_conf[mis_indices]
+            sorted_mis = np.argsort(mis_conf)[::-1]
+            
+            for rank, sm_idx in enumerate(sorted_mis[:100]):
+                orig_idx = mis_indices[sm_idx]
+                fname = os.path.basename(fpaths[orig_idx])
+                true_lbl = classes[y_true[orig_idx]]
+                pred_lbl = classes[y_pred[orig_idx]]
+                conf_val = y_conf[orig_idx]
+                f.write(f"{fname.ljust(40)} | {true_lbl.ljust(15)} | {pred_lbl.ljust(15)} | {conf_val:.4f}\n")
+                
+    print("\n--- 8. Confidence Analysis ---")
+    valid_mask = (y_true != reject_cls_idx)
+    reject_mask = (y_true == reject_cls_idx)
     
-    if test_indices:
-        print(f"\nRunning degradation curves on {len(test_indices)} real-domain samples...")
-        run_degradation_experiment(models, ds, test_indices, apply_gaussian_noise, [0.0, 0.005, 0.01, 0.02, 0.03], "Gaussian Noise")
-        run_degradation_experiment(models, ds, test_indices, apply_landmark_dropout, [0.0, 0.05, 0.10, 0.15, 0.20], "Landmark Dropout")
-        run_degradation_experiment(models, ds, test_indices, apply_frame_blackout, [0.0, 0.05, 0.10, 0.15, 0.20], "Frame Blackout")
+    if np.any(valid_mask):
+        print("Valid Signs Confidence:")
+        print(f"  Average: {np.mean(y_conf[valid_mask]):.4f}")
+        print(f"  Median:  {np.median(y_conf[valid_mask]):.4f}")
         
-        # Evaluate OOD
-        evaluate_ood(models, ds, test_indices)
+    if np.any(reject_mask):
+        print("__reject__ Confidence:")
+        print(f"  Average: {np.mean(y_conf[reject_mask]):.4f}")
+        print(f"  Median:  {np.median(y_conf[reject_mask]):.4f}")
+        
+    ece = compute_ece(y_conf, accuracies)
+    print(f"\nExpected Calibration Error (ECE): {ece:.2f}%")
+
+    if reject_cls_idx != -1:
+        print("\n--- 9. Threshold Sweep (ROC Analysis for Reject) ---")
+        print("Sweeping probability threshold for accepting a sign (rejecting if below threshold or predicted as reject)")
+        print(f"{'Threshold':<10} | {'Precision':<10} | {'Recall':<10} | {'FAR':<10} | {'FRR':<10}")
+        print("-" * 60)
+        
+        # We need raw probabilities for threshold sweep, but ensemble_predict only returns max conf.
+        # Let's do a fast re-eval for sweeping. Wait, we don't have all_probs saved.
+        # Since the user specifically wants ROC on confidence, let's just use y_conf.
+        # If predicted class is __reject__, it's rejected.
+        # If predicted class is NOT __reject__ but confidence < threshold, it's rejected.
+        for thresh in np.arange(0.2, 1.0, 0.1):
+            # A sample is rejected if pred == reject OR conf < thresh
+            is_rejected = (y_pred == reject_cls_idx) | (y_conf < thresh)
+            
+            # Ground truth is reject
+            is_true_reject = (y_true == reject_cls_idx)
+            
+            tp_rej = np.sum(is_rejected & is_true_reject)
+            fp_rej = np.sum(is_rejected & ~is_true_reject)
+            tn_rej = np.sum(~is_rejected & ~is_true_reject)
+            fn_rej = np.sum(~is_rejected & is_true_reject)
+            
+            prec = tp_rej / (tp_rej + fp_rej + 1e-9)
+            rec = tp_rej / (tp_rej + fn_rej + 1e-9)
+            far = fn_rej / (fn_rej + tn_rej + 1e-9) # OOD accepted as valid
+            frr = fp_rej / (fp_rej + tn_rej + 1e-9) # Valid rejected
+            
+            print(f"{thresh:<10.1f} | {prec:<10.4f} | {rec:<10.4f} | {far:<10.4%} | {frr:<10.4%}")
+            
+    print("\n--- 10. Synthetic Stress Test ---")
+    print("WARNING: This tests purely synthetic corruptions (Gaussian noise, temporal shuffling).")
+    print("These are OUTSIDE the training distribution and evaluate algorithmic stability, not real-world deployment performance.")
+    
+    # We only run synthetic stress tests on valid signs (to see if they get misclassified or rejected)
+    if len(valid_sign_indices) > 0:
+        # Subset for speed
+        if len(valid_sign_indices) > 500:
+            np.random.seed(42)
+            stress_indices = np.random.choice(valid_sign_indices, 500, replace=False).tolist()
+        else:
+            stress_indices = valid_sign_indices
+            
+        run_degradation_experiment(models, ds, stress_indices, apply_gaussian_noise, [0.01, 0.03], "Gaussian Noise")
+        run_degradation_experiment(models, ds, stress_indices, apply_landmark_dropout, [0.10, 0.20], "Landmark Dropout")
+        
+        print("\nSynthetic OOD (Pure Noise/Shuffling):")
+        ood_rejected = 0
+        total_ood = len(stress_indices)
+        for i in stress_indices:
+            seq_t, _, _, _, _ = ds[i]
+            ood_seq = generate_synthetic_ood(seq_t.numpy())
+            pred_idx, conf, all_probs = ensemble_predict(models, ood_seq)
+            
+            # Rejected if it predicts __reject__ OR fails threshold
+            is_ood, _ = check_ood(all_probs)
+            if pred_idx == reject_cls_idx or is_ood:
+                ood_rejected += 1
+                
+        print(f"Synthetic OOD Rejection Rate: {(ood_rejected / total_ood) * 100:.2f}%")
+        print(f"Synthetic FAR (Accepted OOD as valid): {((total_ood - ood_rejected) / total_ood) * 100:.2f}%")
 
 if __name__ == "__main__":
     evaluate_baseline()
