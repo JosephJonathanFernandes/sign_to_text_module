@@ -44,14 +44,13 @@
 * **June 9-12**: Built a rigorous model quantization pipeline (`quantize_onnx.py`, `quantize_model.py`) to aggressively reduce inference latency.
 * **June 14-18**: Integrated multi-checkpoint prediction blending via `src/inference/ensemble.py` and `onnx_ensemble_integration.py` to maximize accuracy on complex continuous sequences.
 * **June 20-23**: Engineered deep latency profiling logic (`src/utils/profiling.py`) and benchmarked the inference engine (`benchmark_inference.py`), compiling the findings into `PROFILING_LATENCY_REPORT.md`.
-* **June 24-28**: Architected the backend service (`api/app.py`). Exposed the inference loop via a persistent FastAPI WebSocket (`/ws/translate`). Defined strict Pydantic payload schemas to enforce a 506-dimensional vector contract (`FEATURE_CONTRACT.md`).
-
-**July 2026**
-
-* **July 1-3**: Resolved a critical WebSocket bug where frozen frontend streams stalled the model. Engineered a jitter-resistant sequence hashing mechanism in `api/session.py` to detect and reject static payload loops.
-* **July 5-7**: Deployed the DevOps infrastructure. Engineered a comprehensive `pytest` matrix (`tests/`) spanning unit, integration, e2e, and API tests.
-* **July 8-9**: Configured Continuous Integration via GitHub Actions (`.github/workflows/ci.yml`) to enforce build integrity on push. Wrote cross-platform bootstrapping scripts (`scripts/setup.sh`, `verify_repo.py`).
-* **July 10-11**: Ran final end-to-end WebSocket simulations. Enforced strict code quality via Ruff/Black (`pyproject.toml`, `.pre-commit-config.yaml`). Wrapped up all architectural documentation (`docs/`) and compiled extensive Final Year Project (FYP) dissertation chapters and Viva preparation materials (`docs/Project_Report_Help/`).
+* **June 24-28**: Repository Transformation v2.0. Architected the backend service (`api/app.py`) with a persistent FastAPI WebSocket (`/ws/translate`). Defined strict Pydantic payload schemas (`FEATURE_CONTRACT.md`). Deployed DevOps infrastructure including GitHub Actions CI (`.github/workflows/ci.yml`) and reorganized a comprehensive `pytest` matrix. Integrated Domain Adversarial Neural Network (DANN) via Gradient Reversal Layer (GRL).
+* **June 29-30**: Massive Data Engineering Overhaul. Replaced manual sign classifications with dataset-derived heuristics (`keypoints.csv`). Built an automated spatial augmentation pipeline. Implemented a hybrid dataset curation pipeline featuring quality filtering, diversity embeddings, and duplicate suppression. Built performance benchmarking and ONNX validation tools.
+* **July 1-2**: Inference & NLP Upgrades. Implemented `ISLDataset` with HDF5 support for 200x faster I/O. Engineered the `SentenceBuilder` for real-time sign recognition, handling state-based word transitions and NLP post-processing. Created a lightweight MLP adapter (`AdapterTrainingManager`) for ensemble output correction and domain adaptation.
+* **July 3-4**: Architectural Expansion. Engineered a lightweight Spatial GNN (Graph Neural Network) to learn structural relationships across the 21 MediaPipe hand nodes. Wrote dataset balancing scripts (pruning, duplication, random downsampling) to enforce class equilibrium.
+* **July 5-11**: Documentation & Finalization. Synchronized core documentation (`ARCHITECTURE_AND_DESIGN.md`). Compiled exhaustive Final Year Project (FYP) dissertation chapters, technical audits, and Viva preparation materials. Ran end-to-end WebSocket simulations.
+* **July 12**: Identified a critical flaw in real-world Out-of-Distribution (OOD) data handling where the model forced random noise and idle states into valid signs (high False Acceptance Rate). Began **Phase 2 Robustness**, explicitly collecting over 3,000 negative sequences (idle, transitions, random hand movements) to train a dedicated `__reject__` class.
+* **July 13**: Finalized the robustness evaluation. Implemented a confidence threshold sweep (ROC analysis) and discovered that the model learns the `__reject__` concept primarily through slashed confidence (median 0.37 vs 0.97 for valid signs). Established an optimal 0.5 operating threshold yielding a 0.74% False Rejection Rate. Consolidated all fragmented documentation and performed a massive repository cleanup, deleting cache folders and legacy scripts.
 
 ---
 
