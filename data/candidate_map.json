@@ -250,7 +250,8 @@
     "z"
   ],
   "one_hand|unknown|neutral_space|pointing": [
-    "itself"
+    "itself",
+    "cancel"
   ],
   "one_hand|unknown|unknown|open_palm": [
     "them"

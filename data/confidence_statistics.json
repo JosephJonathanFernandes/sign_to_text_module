@@ -2000,5 +2000,18 @@
     "trajectory_pattern_agreement": "64.5%",
     "dominant_hand_agreement": "73.5%",
     "motion_speed_agreement": "36.0%"
+  },
+  "cancel": {
+    "hand_count_agreement": "80.2%",
+    "movement_agreement": "30.2%",
+    "location_agreement": "56.0%",
+    "orientation_agreement": "73.8%",
+    "symmetry_agreement": "92.8%",
+    "finger_state_agreement": "97.0%",
+    "hand_shape_agreement": "91.8%",
+    "motion_direction_agreement": "66.5%",
+    "trajectory_pattern_agreement": "66.5%",
+    "dominant_hand_agreement": "80.2%",
+    "motion_speed_agreement": "30.2%"
   }
 }
