@@ -1950,6 +1950,19 @@
       "trajectory_pattern": "linear",
       "dominant_hand": "left",
       "motion_speed": "unknown"
+    },
+    "climb_up": {
+      "hand_count": "two_hands",
+      "movement": "unknown",
+      "location": "neutral_space",
+      "orientation": "forward",
+      "symmetry": "unknown",
+      "finger_state": "10000",
+      "hand_shape": "unknown",
+      "motion_direction": "up",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "both",
+      "motion_speed": "unknown"
     }
   }
 }
