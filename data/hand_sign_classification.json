@@ -1859,6 +1859,19 @@
       "trajectory_pattern": "unknown",
       "dominant_hand": "both",
       "motion_speed": "unknown"
+    },
+    "praise": {
+      "hand_count": "two_hands",
+      "movement": "unknown",
+      "location": "face_near",
+      "orientation": "unknown",
+      "symmetry": "asymmetric",
+      "finger_state": "11111",
+      "hand_shape": "open_palm",
+      "motion_direction": "circular",
+      "trajectory_pattern": "circular",
+      "dominant_hand": "both",
+      "motion_speed": "unknown"
     }
   }
 }
