@@ -264,5 +264,8 @@
   ],
   "two_hands|unknown|face_near|open_palm": [
     "praise"
+  ],
+  "two_hands|unknown|neutral_space|pointing": [
+    "examine"
   ]
 }
