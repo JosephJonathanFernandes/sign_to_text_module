@@ -150,7 +150,8 @@
     "chew",
     "carry",
     "build",
-    "brush"
+    "brush",
+    "welcome"
   ],
   "two_hands|medium_motion|neutral_space|unknown": [
     "hard"
