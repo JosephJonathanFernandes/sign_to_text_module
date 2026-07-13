@@ -20,8 +20,7 @@
   ],
   "one_hand|small_motion|neutral_space|open_palm": [
     "4",
-    "5",
-    "thank_you"
+    "5"
   ],
   "one_hand|medium_motion|upper_space|unknown": [
     "6",
@@ -143,6 +142,7 @@
   "two_hands|unknown|neutral_space|open_palm": [
     "happy",
     "sad",
+    "thank_you",
     "w",
     "weak",
     "ourselves",

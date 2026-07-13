@@ -1250,17 +1250,17 @@
       "motion_speed": "unknown"
     },
     "thank_you": {
-      "hand_count": "one_hand",
-      "movement": "small_motion",
+      "hand_count": "two_hands",
+      "movement": "unknown",
       "location": "neutral_space",
-      "orientation": "forward",
-      "symmetry": "unknown",
+      "orientation": "unknown",
+      "symmetry": "asymmetric",
       "finger_state": "11111",
       "hand_shape": "open_palm",
       "motion_direction": "circular",
       "trajectory_pattern": "circular",
-      "dominant_hand": "right",
-      "motion_speed": "slow"
+      "dominant_hand": "both",
+      "motion_speed": "unknown"
     },
     "they": {
       "hand_count": "two_hands",
