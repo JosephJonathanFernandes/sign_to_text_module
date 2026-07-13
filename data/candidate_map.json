@@ -151,7 +151,8 @@
     "carry",
     "build",
     "brush",
-    "welcome"
+    "welcome",
+    "dangerous"
   ],
   "two_hands|medium_motion|neutral_space|unknown": [
     "hard"
