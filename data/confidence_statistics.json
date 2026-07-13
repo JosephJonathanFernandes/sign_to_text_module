@@ -1714,5 +1714,18 @@
     "trajectory_pattern_agreement": "53.8%",
     "dominant_hand_agreement": "93.2%",
     "motion_speed_agreement": "35.2%"
+  },
+  "evening": {
+    "hand_count_agreement": "94.2%",
+    "movement_agreement": "39.0%",
+    "location_agreement": "51.2%",
+    "orientation_agreement": "96.2%",
+    "symmetry_agreement": "94.2%",
+    "finger_state_agreement": "99.0%",
+    "hand_shape_agreement": "98.8%",
+    "motion_direction_agreement": "64.8%",
+    "trajectory_pattern_agreement": "64.8%",
+    "dominant_hand_agreement": "94.2%",
+    "motion_speed_agreement": "39.0%"
   }
 }
