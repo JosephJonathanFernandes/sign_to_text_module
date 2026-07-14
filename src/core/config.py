@@ -321,6 +321,9 @@ class TrainingConfig:
         - 0.5: sqrt inverse frequency
         - 1.0: full inverse frequency
     """
+    
+    adapter_learning_rate: float = 1e-4
+    adapter_hidden_dim: int = 128
 
     adapter_class_weight_clip_min: float = 0.5
     """Lower bound for normalized adapter class weights."""
