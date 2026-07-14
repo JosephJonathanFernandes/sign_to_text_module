@@ -24,6 +24,7 @@ API is available at `http://localhost:8000`. Interactive docs at `http://localho
 |--------|------|---------|
 | `GET` | `/health` | Check model status + get config dimensions |
 | `POST` | `/predict` | Single-shot stateless inference (testing only) |
+| `POST` | `/feedback` | Submit corrected sequence to train active learning adapter |
 | `POST` | `/validate_features` | Validate your JS feature extraction matches backend |
 | `WS` | `/ws/translate` | **Real-time streaming translation** (main endpoint) |
 
@@ -71,6 +72,60 @@ if (backend.schema_version !== "1.0" || backend.feature_dimension !== 506) {
   "device": "cpu"
 }
 ```
+
+---
+
+## Step 1.5 — The "Active Learning" Feedback Loop (Crucial Feature)
+
+To make the app personalize to the user, you need to build a **Correction UI**. If the model makes a mistake, the user should be able to correct it. When they do, the backend will train itself in the background to learn their specific hand shape.
+
+### 1. How the UI should work:
+- When a `prediction` comes through the WebSocket (e.g. it says `"APPLE"`), display it on screen.
+- Next to the predicted word, add a small 👎 (Thumbs Down) or ✏️ (Edit) button.
+- If the user clicks it, open a dropdown or text input where they can select/type the **actual word** they meant to sign (e.g., `"HELP"`).
+
+### 2. How to capture the data:
+Because the backend needs the exact video frames that caused the mistake, your Next.js app needs to keep a running buffer of the last 20 frames you send over the WebSocket.
+
+```javascript
+// Add this to your frontend state
+let frameBuffer = [];
+
+// Inside your onMediaPipeResult loop (Step 3):
+const features = [...spatial, ...velocity]; 
+frameBuffer.push(features);
+if (frameBuffer.length > 20) {
+    frameBuffer.shift(); // Keep only the last 20 frames
+}
+```
+
+### 3. How to send the correction:
+When the user selects the correct word (e.g. `"HELP"`), send your `frameBuffer` to the new `/feedback` endpoint.
+
+```javascript
+async function submitCorrection(correctWord) {
+    // Make sure we have exactly 20 frames
+    if (frameBuffer.length !== 20) {
+        console.error("Not enough frames to submit feedback");
+        return;
+    }
+
+    const res = await fetch("http://localhost:8000/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            session_id: "user-session-uuid",  // Optional but recommended
+            correct_word: correctWord.toUpperCase(), // e.g. "HELP"
+            sequence: frameBuffer, // The 20x506 array you buffered
+        }),
+    });
+    
+    const result = await res.json();
+    console.log(result.message); // "Feedback for 'HELP' received. Training adapter in background."
+}
+```
+
+**Why this is awesome:** The API returns `202 Accepted` immediately so your UI doesn't freeze. In the background, it trains a personalized neural network adapter just for this user. The very next sign they do will be more accurate!
 
 ---
 

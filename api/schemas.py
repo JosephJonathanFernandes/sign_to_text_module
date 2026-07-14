@@ -62,6 +62,15 @@ class ValidateFeaturesResponse(BaseModel):
     errors: List[str]
 
 
+class FeedbackRequest(BaseModel):
+    """
+    Feedback submission from the client for Active Learning adapter training.
+    """
+    session_id: str
+    correct_word: str
+    sequence: List[List[float]]
+
+
 class Top5Entry(BaseModel):
     word: str
     confidence: float

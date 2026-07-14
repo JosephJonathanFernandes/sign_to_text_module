@@ -34,7 +34,7 @@ from typing import Dict
 import numpy as np
 import torch
 import torch.nn.functional as F
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.core.config import get_config
@@ -46,9 +46,11 @@ from api.emergency import EmergencyDetector
 from api.inference import run_predict
 from api.schemas import (
     HealthResponse, PredictRequest, PredictResponse,
-    ValidateFeaturesRequest, ValidateFeaturesResponse
+    ValidateFeaturesRequest, ValidateFeaturesResponse,
+    FeedbackRequest
 )
 from api.session import InferenceSession, create_session
+from api.feedback import process_feedback_async
 from src.shared.feature_extractor import build_single_frame_features
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -422,12 +424,49 @@ async def validate_features(request: ValidateFeaturesRequest) -> dict:
         "mae": difference,
         "dimension_check": dimension_check,
         "range_check": range_check,
-        "errors": errors,
+        "errors": list(errors)
     }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# WebSocket /ws/translate
+# POST /feedback
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.post("/feedback", status_code=202)
+async def submit_feedback(req: FeedbackRequest, background_tasks: BackgroundTasks):
+    """
+    Submit a corrected sequence from the frontend.
+    This sequence is saved to the pseudo_data directory.
+    A background task is spawned to re-train the active learning adapter.
+    """
+    if not getattr(app.state, "model_loaded", False):
+        raise HTTPException(status_code=503, detail="Model not loaded yet")
+        
+    correct_word = req.correct_word.upper()
+    if correct_word not in app.state.classes:
+        raise HTTPException(status_code=400, detail=f"Unknown class: {correct_word}")
+        
+    sequence_length = len(req.sequence)
+    if sequence_length != NUM_FRAMES:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Expected {NUM_FRAMES} frames, got {sequence_length}"
+        )
+        
+    # Dispatch the I/O and training work to the background
+    background_tasks.add_task(
+        process_feedback_async,
+        app,
+        req.sequence,
+        correct_word,
+        req.session_id
+    )
+    
+    return {"status": "accepted", "message": f"Feedback for '{correct_word}' received. Training adapter in background."}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WebSocket Streaming
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.websocket("/ws/translate")
