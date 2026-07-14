@@ -1,7 +1,7 @@
 # Continual Learning Evaluation
 
-- Baseline Latency: 18.80 ms
-- Adapted Latency: 23.66 ms
-- Training Time: 121.1 s
+- Baseline Latency: 16.16 ms
+- Adapted Latency: 31.22 ms
+- Training Time: 10.1 s
 
 *Note: Accuracy deltas require real `.npy` sequences. Dummy random data was used for system performance validation.*
