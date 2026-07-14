@@ -32,11 +32,15 @@ from functools import partial
 from typing import Dict
 
 import numpy as np
+import torch
+import torch.nn.functional as F
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.core.config import get_config
-from src.inference.ensemble import ensemble_predict, load_ensemble
+from src.inference.ensemble import check_ood
+from src.inference.onnx_ensemble import detect_and_load_models, ensemble_predict_mixed
+from src.training.adapter_model import AdapterModel
 
 from api.emergency import EmergencyDetector
 from api.inference import run_predict
@@ -95,15 +99,57 @@ async def lifespan(app: FastAPI):
     Clean up sessions on shutdown.
     """
     logger.info("startup_started", extra={"event": "startup_started"})
-    models, classes, num_classes = load_ensemble()
-    for m in models:
-        m.eval()
+
+    # ── Load models — auto-detect ONNX (INT8 > FP32) then PyTorch fallback ───
+    # Priority: model_int8.onnx > model.onnx > model.pth
+    # Searches models/ and models/ensemble/ (picks up fold checkpoints too)
+    model_dirs = [
+        cfg.paths.model_save_path.replace("model.pth", "").rstrip("/\\"),
+        cfg.paths.ensemble_dir,
+    ]
+    models, load_meta = detect_and_load_models(
+        ensemble_dir=model_dirs,
+        max_models=cfg.live_inference.ensemble_size,
+        device=DEVICE,
+    )
+    if not models:
+        raise RuntimeError("No models found. Train with --train or --kfold first.")
+
+    logger.info(
+        "models_loaded",
+        extra={
+            "onnx_models": load_meta["onnx_models"],
+            "pytorch_models": load_meta["pytorch_models"],
+            "total": load_meta["total_models"],
+            "artifacts": [
+                f"{a['family']} ({a['kind']})"
+                for a in load_meta["selected_artifacts"]
+            ],
+        },
+    )
+
+    # Read class list from processed dir (source of truth)
+    import os as _os
+    classes = sorted([
+        d for d in _os.listdir(cfg.paths.processed_dir)
+        if _os.path.isdir(_os.path.join(cfg.paths.processed_dir, d))
+    ])
+    num_classes = len(classes)
 
     # ── Warmup inference ──────────────────────────────────────────────────────
     logger.info("warmup_started", extra={"num_frames": NUM_FRAMES, "input_size": INPUT_SIZE})
     dummy_seq = np.zeros((NUM_FRAMES, INPUT_SIZE), dtype=np.float32)
     loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, partial(ensemble_predict, models, dummy_seq))
+    await loop.run_in_executor(
+        None,
+        partial(
+            ensemble_predict_mixed,
+            models, dummy_seq, DEVICE,
+            cfg.spatial.proximity_dim,
+            cfg.frame_features.input_sequence_dim,
+            cfg.frame_features.proximity_index,
+        ),
+    )
     logger.info("warmup_completed", extra={"event": "model_ready"})
 
     # Store in app state
@@ -112,6 +158,22 @@ async def lifespan(app: FastAPI):
     app.state.num_classes = num_classes
     app.state.model_loaded = True
     app.state.sessions = {}  # Dict[str, InferenceSession]
+
+    # ── Load Adapter (if exists) ──────────────────────────────────────────────
+    adapter_weights_dir = "adapter_weights"
+    app.state.adapter_model = None
+    if _os.path.exists(adapter_weights_dir):
+        pt_files = sorted([f for f in _os.listdir(adapter_weights_dir) if f.endswith(".pt")])
+        if pt_files:
+            latest_adapter_path = _os.path.join(adapter_weights_dir, pt_files[-1])
+            try:
+                adapter_model = AdapterModel(num_classes, hidden_dim=cfg.training.adapter_hidden_dim).to(DEVICE)
+                adapter_model.load_weights(latest_adapter_path)
+                adapter_model.eval()
+                app.state.adapter_model = adapter_model
+                logger.info("adapter_loaded", extra={"path": latest_adapter_path})
+            except Exception as e:
+                logger.warning(f"Failed to load adapter weights from {latest_adapter_path}: {e}")
 
     # ── Emergency detector — loaded from data/emergency_config.json ──────────
     app.state.emergency_detector = EmergencyDetector.from_config()
@@ -483,19 +545,40 @@ async def ws_translate(websocket: WebSocket) -> None:
                 session.pending_count += 1
                 sequence = np.array(list(session.buffer), dtype=np.float32)
 
+                # Blocking inference — run in thread pool to not block event loop
+                # Uses ONNX (INT8 or FP32) if available, falls back to PyTorch
                 try:
-                    # Blocking torch call — run in thread pool
                     t0 = time.perf_counter()
                     pred_idx, confidence, all_probs = await loop.run_in_executor(
                         None,
-                        partial(ensemble_predict, app.state.models, sequence),
+                        partial(
+                            ensemble_predict_mixed,
+                            app.state.models,
+                            sequence,
+                            DEVICE,
+                            cfg.spatial.proximity_dim,
+                            cfg.frame_features.input_sequence_dim,
+                            cfg.frame_features.proximity_index,
+                        ),
                     )
                     t1 = time.perf_counter()
                     latency_ms = (t1 - t0) * 1000.0
-                    
+
+                    # ── Apply Adapter if loaded ──────────────────────────────────
+                    if getattr(app.state, "adapter_model", None) is not None:
+                        t2 = time.perf_counter()
+                        with torch.no_grad():
+                            probs_tensor = torch.from_numpy(all_probs.astype(np.float32)).unsqueeze(0).to(DEVICE)
+                            adapted_logits = app.state.adapter_model(probs_tensor)
+                            adapted_probs = F.softmax(adapted_logits, dim=1).cpu().numpy()[0]
+                            all_probs = adapted_probs
+                            pred_idx = int(np.argmax(all_probs))
+                            confidence = float(all_probs[pred_idx])
+                        latency_ms += (time.perf_counter() - t2) * 1000.0
+
                     TOTAL_PREDICTIONS += 1
                     LATENCY_HISTORY.append(latency_ms)
-                    
+
                     logger.info(
                         "prediction_completed",
                         extra={
@@ -507,6 +590,7 @@ async def ws_translate(websocket: WebSocket) -> None:
                     )
                 finally:
                     session.pending_count = max(0, session.pending_count - 1)
+
 
                 # ── Temporal post-processing (per-session state) ──────────────
                 stable_class, smoothed_conf = (
