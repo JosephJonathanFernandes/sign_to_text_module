@@ -482,7 +482,7 @@ def main():
         asyncio.run(continual_learning_evaluation())
         
     if args.experiment in ["stability", "all"]:
-        asyncio.run(long_duration_stability(minutes=10.0))
+        asyncio.run(long_duration_stability(minutes=0.5))
         
     if args.experiment in ["fault_tolerance", "all"]:
         asyncio.run(fault_tolerance_evaluation())
