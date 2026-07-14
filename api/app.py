@@ -843,10 +843,16 @@ async def ws_translate(websocket: WebSocket) -> None:
 
     except WebSocketDisconnect:
         logger.info("websocket_disconnected", extra={"session_id": short_id})
+    except ValueError as exc:
+        logger.warning("websocket_validation_error", extra={"session_id": short_id, "error": str(exc)})
+        try:
+            await websocket.close(code=1008, reason="Policy Violation: Invalid Data")
+        except Exception:
+            pass
     except Exception as exc:
         logger.error("websocket_error", extra={"session_id": short_id, "error": str(exc)})
         try:
-            await websocket.close(code=1011, reason=str(exc))
+            await websocket.close(code=1011, reason="Internal Error")
         except Exception:
             pass
     finally:

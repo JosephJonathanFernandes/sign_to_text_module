@@ -96,6 +96,7 @@
   "unknown|unknown|neutral_space|unknown": [
     "cold",
     "deaf",
+    "strong",
     "swing"
   ],
   "one_hand|large_motion|face_near|open_palm": [
@@ -234,9 +235,6 @@
     "slow",
     "they",
     "tight"
-  ],
-  "unknown|unknown|unknown|unknown": [
-    "strong"
   ],
   "two_hands|unknown|unknown|pointing": [
     "tall"

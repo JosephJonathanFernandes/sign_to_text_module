@@ -1213,8 +1213,8 @@
     "strong": {
       "hand_count": "unknown",
       "movement": "unknown",
-      "location": "unknown",
-      "orientation": "forward",
+      "location": "neutral_space",
+      "orientation": "palm_up",
       "symmetry": "unknown",
       "finger_state": "10000",
       "hand_shape": "unknown",
