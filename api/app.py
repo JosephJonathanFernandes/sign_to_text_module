@@ -575,14 +575,13 @@ async def ws_translate(websocket: WebSocket) -> None:
 
                 # ── Emergency detection — after temporal smoothing ─────────────
                 # check() is synchronous (no I/O) — edge detection + cooldown
-                # dispatch_notifications() is fire-and-forget — never delays inference
+                # dispatch_as_task() is fire-and-forget with task tracking —
+                # exceptions are caught and logged, never silently dropped.
                 emergency_word = word if smoothed_conf >= CONFIDENCE_THRESHOLD else None
                 alert = session.emergency.check(emergency_word, smoothed_conf)
                 if alert:
                     await websocket.send_json(alert)
-                    asyncio.create_task(
-                        session.emergency.dispatch_notifications(word, smoothed_conf)
-                    )
+                    session.emergency.dispatch_as_task(word, smoothed_conf)
 
             # ── stop ──────────────────────────────────────────────────────────
             elif msg_type == "stop":

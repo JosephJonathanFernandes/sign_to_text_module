@@ -20,10 +20,31 @@ import logging
 import os
 import time
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Set
 
 logger = logging.getLogger("sign_to_text.emergency")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# NotificationEvent — unified payload consumed by every notifier
+# ─────────────────────────────────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class NotificationEvent:
+    """
+    Immutable payload passed to every notifier.
+
+    Using a structured event instead of loose (word, confidence) args means
+    adding fields (session_id, severity, location) in future never requires
+    changing notifier method signatures — just add the field here.
+    """
+    word: str                   # uppercase display name e.g. "HELP"
+    confidence: float           # smoothed confidence from temporal post-processor
+    timestamp_ms: int           # unix milliseconds
+    session_id: str = ""        # WebSocket session UUID (for multi-user tracing)
+    severity: str = "urgent"    # reserved for future severity tiers
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Config loader
@@ -60,7 +81,7 @@ class BaseNotifier(ABC):
     """Interface all notifiers must implement."""
 
     @abstractmethod
-    async def send(self, word: str, confidence: float) -> bool:
+    async def send(self, event: NotificationEvent) -> bool:
         """
         Send an alert. Returns True on success, False on failure.
         Must never raise — catch and log internally.
@@ -87,23 +108,23 @@ class NtfyNotifier(BaseNotifier):
         self.priority = priority
         self.tags = tags
 
-    async def send(self, word: str, confidence: float) -> bool:
+    async def send(self, event: NotificationEvent) -> bool:
         try:
             import httpx
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.post(
                     f"{self.base_url}/{self.topic}",
-                    content=f"🚨 Emergency sign detected: {word.upper()} ({confidence:.0%} confidence)",
+                    content=f"\U0001f6a8 Emergency sign detected: {event.word} ({event.confidence:.0%} confidence)",
                     headers={
-                        "Title": f"ISL Alert: {word.upper()}",
+                        "Title": f"ISL Alert: {event.word}",
                         "Priority": self.priority,
                         "Tags": self.tags,
                     },
                 )
-            logger.info(f"[NtfyNotifier] Sent alert for '{word}' — status {resp.status_code}")
+            logger.info(f"[NtfyNotifier] Sent alert for '{event.word}' \u2014 status {resp.status_code}")
             return resp.status_code < 300
         except ImportError:
-            logger.warning("[NtfyNotifier] httpx not installed — skipping")
+            logger.warning("[NtfyNotifier] httpx not installed \u2014 skipping")
             return False
         except Exception as exc:
             logger.error(f"[NtfyNotifier] Failed to send alert: {exc}")
@@ -128,7 +149,7 @@ class TelegramNotifier(BaseNotifier):
         self.bot_token = bot_token
         self.chat_id = chat_id
 
-    async def send(self, word: str, confidence: float) -> bool:
+    async def send(self, event: NotificationEvent) -> bool:
         if not self.bot_token or not self.chat_id:
             logger.warning("[TelegramNotifier] bot_token or chat_id not set")
             return False
@@ -138,10 +159,10 @@ class TelegramNotifier(BaseNotifier):
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.post(url, json={
                     "chat_id": self.chat_id,
-                    "text": f"🚨 *Emergency detected*: {word.upper()}\nConfidence: {confidence:.0%}",
+                    "text": f"\U0001f6a8 *Emergency detected*: {event.word}\nConfidence: {event.confidence:.0%}",
                     "parse_mode": "Markdown",
                 })
-            logger.info(f"[TelegramNotifier] Sent alert for '{word}' — status {resp.status_code}")
+            logger.info(f"[TelegramNotifier] Sent alert for '{event.word}' \u2014 status {resp.status_code}")
             return resp.status_code < 300
         except Exception as exc:
             logger.error(f"[TelegramNotifier] Failed to send alert: {exc}")
@@ -164,16 +185,18 @@ class LocalNotifier(BaseNotifier):
         self.log_path = Path(log_path)
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
 
-    async def send(self, word: str, confidence: float) -> bool:
+    async def send(self, event: NotificationEvent) -> bool:
         try:
             from datetime import datetime
             entry = (
                 f"[{datetime.now().isoformat()}] "
-                f"EMERGENCY: {word.upper()} | confidence={confidence:.4f}\n"
+                f"EMERGENCY: {event.word} | "
+                f"confidence={event.confidence:.4f} | "
+                f"session={event.session_id or 'unknown'}\n"
             )
             with open(self.log_path, "a", encoding="utf-8") as f:
                 f.write(entry)
-            logger.info(f"[LocalNotifier] Logged emergency: '{word}'")
+            logger.info(f"[LocalNotifier] Logged emergency: '{event.word}'")
             return True
         except Exception as exc:
             logger.error(f"[LocalNotifier] Failed to write log: {exc}")
@@ -287,10 +310,13 @@ class EmergencySessionState:
             asyncio.create_task(state.dispatch_notifications(word, smoothed_conf))
     """
 
-    def __init__(self, config: EmergencyConfig):
+    def __init__(self, config: EmergencyConfig, session_id: str = ""):
         self._config = config
+        self._session_id = session_id
         self._previous_word: Optional[str] = None
         self._last_alert: dict[str, float] = {}
+        # Tracked task set prevents 'Task exception was never retrieved' warnings
+        self._background_tasks: Set["asyncio.Task"] = set()
 
     def _is_cooldown_active(self, word: str) -> bool:
         last = self._last_alert.get(word.lower(), 0.0)
@@ -333,20 +359,44 @@ class EmergencySessionState:
             "word": word.upper(),
             "confidence": round(float(confidence), 4),
             "timestamp": int(time.time() * 1000),
+            "session_id": self._session_id,
         }
 
-    async def dispatch_notifications(self, word: str, confidence: float) -> None:
+    def dispatch_as_task(self, word: str, confidence: float) -> None:
         """
-        Fire-and-forget coroutine: fans out to all configured notifiers.
+        Schedule notification dispatch as a tracked background task.
 
-        Call via asyncio.create_task() so it never blocks inference latency:
-            asyncio.create_task(state.dispatch_notifications(word, conf))
+        Use this instead of bare asyncio.create_task() — tasks are stored in
+        _background_tasks so exceptions are retrieved and logged rather than
+        silently dropped (avoids 'Task exception was never retrieved' warnings).
 
-        One notifier failing does not affect others.
+        In the WS handler:
+            session.emergency.dispatch_as_task(word, conf)
         """
         import asyncio
+        task = asyncio.create_task(self._dispatch(word, confidence))
+        self._background_tasks.add(task)
+        task.add_done_callback(self._on_task_done)
+
+    def _on_task_done(self, task: "asyncio.Task") -> None:
+        """Callback: remove task from set and log any unexpected exception."""
+        self._background_tasks.discard(task)
+        if not task.cancelled() and task.exception() is not None:
+            logger.error(
+                f"[EmergencySessionState] Notification task raised: {task.exception()}"
+            )
+
+    async def _dispatch(self, word: str, confidence: float) -> None:
+        """Internal coroutine that fans out to all notifiers with a unified event."""
+        import asyncio
+        event = NotificationEvent(
+            word=word.upper(),
+            confidence=round(float(confidence), 4),
+            timestamp_ms=int(time.time() * 1000),
+            session_id=self._session_id,
+        )
         results = await asyncio.gather(
-            *[n.send(word, confidence) for n in self._config.notifiers],
+            *[n.send(event) for n in self._config.notifiers],
             return_exceptions=True,
         )
         success_count = sum(1 for r in results if r is True)
@@ -354,6 +404,11 @@ class EmergencySessionState:
             f"[EmergencySessionState] Notifications dispatched for '{word}' — "
             f"{success_count}/{len(self._config.notifiers)} succeeded"
         )
+
+    # Keep the awaitable form for test code that wants to await directly
+    async def dispatch_notifications(self, word: str, confidence: float) -> None:
+        """Awaitable version of _dispatch. Use dispatch_as_task() in production."""
+        await self._dispatch(word, confidence)
 
     def reset(self) -> None:
         """Call when the session is reset (stop/clear signal). Clears edge state."""

@@ -101,11 +101,12 @@ def create_session(num_frames: int, emergency_config: "EmergencyConfig" = None) 
     """
     from api.emergency import EmergencyConfig, EmergencySessionState
     cfg = emergency_config or EmergencyConfig.from_config()
+    sid = uuid.uuid4().hex
     return InferenceSession(
-        session_id=uuid.uuid4().hex,
+        session_id=sid,
         buffer=deque(maxlen=num_frames),
         postprocessor=_make_postprocessor(),
         sentence_builder=_make_sentence_builder(),
-        emergency=EmergencySessionState(cfg),
+        emergency=EmergencySessionState(cfg, session_id=sid),
         created_at=time.time(),
     )
