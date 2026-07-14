@@ -290,9 +290,9 @@ async def continual_learning_evaluation():
     lats, _ = await simulate_ws_client(0, 100)
     baseline_lat = np.mean(lats) if lats else 0
     
-    print("Submitting 20 dummy feedback corrections...")
+    print("Submitting 50 dummy feedback corrections...")
     feat_dim = cfg.frame_features.input_sequence_dim
-    for i in range(20):
+    for i in range(50):
         dummy_seq = np.random.randn(20, feat_dim).astype(np.float32).tolist()
         payload = {
             "sequence": dummy_seq,

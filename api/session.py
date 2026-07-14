@@ -47,6 +47,7 @@ class InferenceSession:
     write_idx: int = 0
     frames_received: int = 0
     idle_frames: int = 0
+    pending_count: int = 0
 
     def reset(self) -> None:
         """
