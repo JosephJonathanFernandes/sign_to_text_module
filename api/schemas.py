@@ -121,3 +121,17 @@ class TranslationMessage(BaseModel):
 class ErrorMessage(BaseModel):
     type: str = "error"
     message: str
+
+
+class EmergencyAlert(BaseModel):
+    """
+    Emitted over the WebSocket when an emergency sign is detected with
+    sufficient confidence, after temporal smoothing.
+
+    The frontend should use this to show a red alert banner and/or
+    trigger navigator.vibrate() on supported devices.
+    """
+    type: str = "emergency_alert"
+    word: str           # uppercase, e.g. "HELP"
+    confidence: float   # smoothed confidence from temporal post-processor
+    timestamp: int      # unix milliseconds

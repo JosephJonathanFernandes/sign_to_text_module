@@ -1,0 +1,35 @@
+{
+  "description": "Emergency sign detection configuration. Edit this file to add/remove emergency words. No code changes required.",
+  "emergency": {
+    "confidence_threshold": 0.6,
+    "cooldown_seconds": 10.0,
+    "words": [
+      "help",
+      "stop",
+      "danger",
+      "fire",
+      "emergency",
+      "hospital",
+      "doctor",
+      "police"
+    ]
+  },
+  "notifiers": {
+    "ntfy": {
+      "enabled": true,
+      "topic": "isl-emergency-demo",
+      "base_url": "https://ntfy.sh",
+      "priority": "urgent",
+      "tags": "rotating_light"
+    },
+    "telegram": {
+      "enabled": false,
+      "bot_token": "",
+      "chat_id": ""
+    },
+    "local": {
+      "enabled": true,
+      "log_to_file": "logs/emergency_alerts.log"
+    }
+  }
+}

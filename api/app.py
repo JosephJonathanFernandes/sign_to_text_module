@@ -38,6 +38,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.core.config import get_config
 from src.inference.ensemble import ensemble_predict, load_ensemble
 
+from api.emergency import EmergencyDetector
 from api.inference import run_predict
 from api.schemas import (
     HealthResponse, PredictRequest, PredictResponse,
@@ -111,6 +112,10 @@ async def lifespan(app: FastAPI):
     app.state.num_classes = num_classes
     app.state.model_loaded = True
     app.state.sessions: Dict[str, InferenceSession] = {}
+
+    # ── Emergency detector — loaded from data/emergency_config.json ──────────
+    app.state.emergency_detector = EmergencyDetector.from_config()
+    logger.info("emergency_detector_ready", extra={"event": "emergency_ready"})
 
     yield
 
@@ -567,6 +572,14 @@ async def ws_translate(websocket: WebSocket) -> None:
                     }
 
                 await websocket.send_json(response)
+
+                # ── Emergency detection — after temporal smoothing ─────────────
+                # Only runs on confident predictions. Notifiers are fanned out
+                # concurrently and never block the main inference loop.
+                if smoothed_conf >= CONFIDENCE_THRESHOLD:
+                    alert = await app.state.emergency_detector.check(word, smoothed_conf)
+                    if alert:
+                        await websocket.send_json(alert)
 
             # ── stop ──────────────────────────────────────────────────────────
             elif msg_type == "stop":
