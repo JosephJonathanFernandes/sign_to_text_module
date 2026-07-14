@@ -181,24 +181,15 @@ class LocalNotifier(BaseNotifier):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# EmergencyDetector — wires config, notifiers, cooldown, and word list
+# EmergencyConfig — stateless, loaded once at startup, shared across sessions
 # ─────────────────────────────────────────────────────────────────────────────
 
-class EmergencyDetector:
+class EmergencyConfig:
     """
-    Sits at the end of the inference pipeline.
+    Holds the emergency word list, thresholds, and notifier instances.
 
-    Pipeline position:
-        Model → Temporal Processor → [here] → Notifiers
-                                          └──► WebSocket event
-
-    Usage:
-        detector = EmergencyDetector.from_config()
-
-        # Inside WS handler, after temporal post-processing:
-        alert = await detector.check(word, smoothed_confidence)
-        if alert:
-            await websocket.send_json(alert)
+    Loaded once at startup via EmergencyConfig.from_config().
+    Shared across all WebSocket sessions — contains no per-session state.
     """
 
     def __init__(
@@ -208,14 +199,13 @@ class EmergencyDetector:
         cooldown_seconds: float,
         notifiers: list[BaseNotifier],
     ):
-        self._words = words
-        self._confidence_threshold = confidence_threshold
-        self._cooldown = cooldown_seconds
-        self._notifiers = notifiers
-        self._last_alert: dict[str, float] = {}
+        self.words = words
+        self.confidence_threshold = confidence_threshold
+        self.cooldown_seconds = cooldown_seconds
+        self.notifiers = notifiers
 
     @classmethod
-    def from_config(cls, config: Optional[dict] = None) -> "EmergencyDetector":
+    def from_config(cls, config: Optional[dict] = None) -> "EmergencyConfig":
         """Build from emergency_config.json. Call once at startup."""
         cfg = config or load_emergency_config()
         ecfg = cfg.get("emergency", {})
@@ -251,48 +241,92 @@ class EmergencyDetector:
             ))
 
         logger.info(
-            f"[EmergencyDetector] Loaded {len(words)} emergency words, "
+            f"[EmergencyConfig] Loaded {len(words)} emergency words, "
             f"{len(notifiers)} notifier(s), "
             f"threshold={confidence_threshold}, cooldown={cooldown}s"
         )
         return cls(words, confidence_threshold, cooldown, notifiers)
 
     def is_emergency(self, word: str, confidence: float) -> bool:
-        """Returns True if word is in the emergency list AND meets threshold."""
-        return word.lower() in self._words and confidence >= self._confidence_threshold
+        """True if word is in the emergency list AND meets the confidence threshold."""
+        return word.lower() in self.words and confidence >= self.confidence_threshold
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# EmergencySessionState — per-session, owns edge-detection and cooldown state
+# ─────────────────────────────────────────────────────────────────────────────
+
+class EmergencySessionState:
+    """
+    Tracks emergency alert state for a single WebSocket session.
+
+    Attach one instance to each InferenceSession so that concurrent connections
+    never share cooldown timers or previous-word state.
+
+    Edge-triggered detection:
+        An alert fires only on the RISING EDGE — when the predicted word
+        transitions from a non-emergency (or different) sign into an emergency
+        sign. Holding the same sign continuously produces at most one alert
+        per cooldown period.
+
+        Previous  Current   Action
+        ────────  ───────   ──────
+        None      HELP      → Alert
+        HELP      HELP      → Suppress (same sign, no edge)
+        HELP      None      → (resets edge state)
+        None      HELP      → Alert again (new occurrence)
+
+    Usage:
+        # At session creation:
+        state = EmergencySessionState(config)
+
+        # In the WS handler, after temporal smoothing:
+        payload = state.check(word, smoothed_conf)
+        if payload:
+            await websocket.send_json(payload)
+            asyncio.create_task(state.dispatch_notifications(word, smoothed_conf))
+    """
+
+    def __init__(self, config: EmergencyConfig):
+        self._config = config
+        self._previous_word: Optional[str] = None
+        self._last_alert: dict[str, float] = {}
 
     def _is_cooldown_active(self, word: str) -> bool:
-        last = self._last_alert.get(word.lower(), 0)
-        return (time.time() - last) < self._cooldown
+        last = self._last_alert.get(word.lower(), 0.0)
+        return (time.time() - last) < self._config.cooldown_seconds
 
-    async def check(self, word: str, confidence: float) -> Optional[dict]:
+    def check(self, word: Optional[str], confidence: float) -> Optional[dict]:
         """
-        Call this after temporal smoothing — i.e., on stable predictions only.
+        Synchronous edge-detection check. Call on every temporally-smoothed
+        prediction (word may be None when confidence < threshold).
 
-        Returns a WebSocket-ready dict if an alert was triggered, else None.
-        The caller is responsible for sending it over the WebSocket.
+        Returns a WebSocket-ready emergency_alert dict on a rising edge,
+        or None if the sign is held, not an emergency, or on cooldown.
+
+        After receiving a non-None result, the caller should also call
+        dispatch_notifications() as a fire-and-forget task.
         """
-        if not self.is_emergency(word, confidence):
+        prev = self._previous_word
+        self._previous_word = word  # always update edge state
+
+        if word is None:
+            return None  # below confidence threshold — reset edge
+
+        if not self._config.is_emergency(word, confidence):
             return None
 
+        # ── Edge detection: suppress if the same emergency sign is held ───────
+        if word.lower() == (prev or "").lower():
+            return None  # same sign still active — no rising edge
+
+        # ── Cooldown check ────────────────────────────────────────────────────
         if self._is_cooldown_active(word):
-            logger.info(f"[EmergencyDetector] Cooldown active for '{word}', skipping")
+            logger.info(f"[EmergencySessionState] Cooldown active for '{word}', suppressing")
             return None
 
         self._last_alert[word.lower()] = time.time()
-
-        # Fan out to all notifiers concurrently — one failure won't block others
-        import asyncio
-        results = await asyncio.gather(
-            *[n.send(word, confidence) for n in self._notifiers],
-            return_exceptions=True,
-        )
-
-        success = any(r is True for r in results)
-        logger.info(
-            f"[EmergencyDetector] Alert dispatched for '{word}' "
-            f"({confidence:.0%}) — success={success}"
-        )
+        logger.info(f"[EmergencySessionState] Rising edge detected: '{word}' ({confidence:.0%})")
 
         return {
             "type": "emergency_alert",
@@ -300,3 +334,35 @@ class EmergencyDetector:
             "confidence": round(float(confidence), 4),
             "timestamp": int(time.time() * 1000),
         }
+
+    async def dispatch_notifications(self, word: str, confidence: float) -> None:
+        """
+        Fire-and-forget coroutine: fans out to all configured notifiers.
+
+        Call via asyncio.create_task() so it never blocks inference latency:
+            asyncio.create_task(state.dispatch_notifications(word, conf))
+
+        One notifier failing does not affect others.
+        """
+        import asyncio
+        results = await asyncio.gather(
+            *[n.send(word, confidence) for n in self._config.notifiers],
+            return_exceptions=True,
+        )
+        success_count = sum(1 for r in results if r is True)
+        logger.info(
+            f"[EmergencySessionState] Notifications dispatched for '{word}' — "
+            f"{success_count}/{len(self._config.notifiers)} succeeded"
+        )
+
+    def reset(self) -> None:
+        """Call when the session is reset (stop/clear signal). Clears edge state."""
+        self._previous_word = None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Backwards-compat alias — app.py calls EmergencyDetector.from_config()
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Keep the old name so app.py import doesn't need to change yet.
+EmergencyDetector = EmergencyConfig

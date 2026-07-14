@@ -111,7 +111,7 @@ async def lifespan(app: FastAPI):
     app.state.classes = classes
     app.state.num_classes = num_classes
     app.state.model_loaded = True
-    app.state.sessions: Dict[str, InferenceSession] = {}
+    app.state.sessions = {}  # Dict[str, InferenceSession]
 
     # ── Emergency detector — loaded from data/emergency_config.json ──────────
     app.state.emergency_detector = EmergencyDetector.from_config()
@@ -399,7 +399,7 @@ async def ws_translate(websocket: WebSocket) -> None:
     await websocket.accept()
 
     # ── Create session with UUID — never keyed by websocket object ────────────
-    session = create_session(NUM_FRAMES)
+    session = create_session(NUM_FRAMES, emergency_config=app.state.emergency_detector)
     session_id = session.session_id
     websocket.state.session_id = session_id
     app.state.sessions[session_id] = session
@@ -574,12 +574,15 @@ async def ws_translate(websocket: WebSocket) -> None:
                 await websocket.send_json(response)
 
                 # ── Emergency detection — after temporal smoothing ─────────────
-                # Only runs on confident predictions. Notifiers are fanned out
-                # concurrently and never block the main inference loop.
-                if smoothed_conf >= CONFIDENCE_THRESHOLD:
-                    alert = await app.state.emergency_detector.check(word, smoothed_conf)
-                    if alert:
-                        await websocket.send_json(alert)
+                # check() is synchronous (no I/O) — edge detection + cooldown
+                # dispatch_notifications() is fire-and-forget — never delays inference
+                emergency_word = word if smoothed_conf >= CONFIDENCE_THRESHOLD else None
+                alert = session.emergency.check(emergency_word, smoothed_conf)
+                if alert:
+                    await websocket.send_json(alert)
+                    asyncio.create_task(
+                        session.emergency.dispatch_notifications(word, smoothed_conf)
+                    )
 
             # ── stop ──────────────────────────────────────────────────────────
             elif msg_type == "stop":

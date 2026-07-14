@@ -14,9 +14,13 @@ import uuid
 import time
 from collections import deque
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from src.inference.temporal_postprocessor import TemporalPostProcessor
 from src.inference.sentence_builder import SentenceBuilder
+
+if TYPE_CHECKING:
+    from api.emergency import EmergencyConfig, EmergencySessionState
 
 
 @dataclass
@@ -36,6 +40,7 @@ class InferenceSession:
     buffer: deque
     postprocessor: TemporalPostProcessor
     sentence_builder: SentenceBuilder
+    emergency: "EmergencySessionState"
     pending_count: int = 0
     created_at: float = field(default_factory=time.time)
 
@@ -46,12 +51,13 @@ class InferenceSession:
         - Clears the sliding buffer (retains maxlen)
         - Resets temporal smoother and stability predictor
         - Replaces SentenceBuilder to clear all word and stability tracking
+        - Resets emergency edge-detection state
         - Resets flood counter
         """
         self.buffer.clear()
         self.postprocessor.reset()
-        # Replace builder to reset all internal tracking state cleanly
         self.sentence_builder = _make_sentence_builder()
+        self.emergency.reset()
         self.pending_count = 0
 
 
@@ -81,20 +87,25 @@ def _make_sentence_builder() -> SentenceBuilder:
     )
 
 
-def create_session(num_frames: int) -> InferenceSession:
+def create_session(num_frames: int, emergency_config: "EmergencyConfig" = None) -> InferenceSession:
     """
     Factory: create a fresh InferenceSession with correctly-sized buffer.
 
     Args:
-        num_frames: Sequence length from config (e.g., 20). Sets deque maxlen.
+        num_frames:        Sequence length from config (e.g., 20). Sets deque maxlen.
+        emergency_config:  Shared EmergencyConfig loaded at startup. If None,
+                           a default config is created (for testing only).
 
     Returns:
         InferenceSession ready for use.
     """
+    from api.emergency import EmergencyConfig, EmergencySessionState
+    cfg = emergency_config or EmergencyConfig.from_config()
     return InferenceSession(
         session_id=uuid.uuid4().hex,
         buffer=deque(maxlen=num_frames),
         postprocessor=_make_postprocessor(),
         sentence_builder=_make_sentence_builder(),
+        emergency=EmergencySessionState(cfg),
         created_at=time.time(),
     )
