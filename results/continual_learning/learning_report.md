@@ -1,7 +1,9 @@
-# Continual Learning Evaluation
+# Continual Learning Generalization Evaluation
 
-- Baseline Latency: 16.16 ms
-- Adapted Latency: 31.22 ms
-- Training Time: 10.1 s
+| Metric | Before | After |
+|--------|--------|-------|
+| Accuracy | 10.0% | 10.0% |
+| Mean Confidence (Correct) | 0.63 | 0.67 |
+| Mean Confidence (Incorrect) | 0.43 | 0.40 |
 
-*Note: Accuracy deltas require real `.npy` sequences. Dummy random data was used for system performance validation.*
+- **Training Time:** 99.1 s

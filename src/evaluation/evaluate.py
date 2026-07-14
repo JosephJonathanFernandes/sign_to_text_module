@@ -322,7 +322,7 @@ async def continual_learning_evaluation():
     def augment_seq(path):
         seq = np.load(path).astype(np.float32)
         # Shift X coordinates slightly to confuse the baseline model
-        seq += 0.2 
+        seq += 0.05 
         return seq.tolist()
         
     train_seqs = [augment_seq(f) for f in train_files]
@@ -375,14 +375,15 @@ async def continual_learning_evaluation():
     base_acc, base_conf_c, base_conf_i = await evaluate_set(eval_seqs, target_class)
     
     # 3. Adaptation
-    print(f"Submitting {len(train_seqs)} feedback corrections...")
-    for seq in train_seqs:
-        payload = {
-            "sequence": seq,
-            "correct_word": target_class,
-            "session_id": "eval_test_session"
-        }
-        requests.post(f"{API_URL}/feedback", json=payload)
+    print(f"Submitting {len(train_seqs) * 5} feedback corrections (5 passes)...")
+    for _ in range(5):
+        for seq in train_seqs:
+            payload = {
+                "sequence": seq,
+                "correct_word": target_class,
+                "session_id": "eval_test_session"
+            }
+            requests.post(f"{API_URL}/feedback", json=payload)
         
     print("Waiting for adapter to train...")
     start_wait = time.time()
