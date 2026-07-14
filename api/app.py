@@ -510,8 +510,29 @@ async def get_metrics():
     }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# WebSocket Streaming
+# WEBSOCKET TRANSLATE ENDPOINT
 # ─────────────────────────────────────────────────────────────────────────────
+def _run_inference_with_adapter(models, sequence, device, prox_dim, seq_dim, prox_idx, adapter):
+    import time
+    t_start = time.perf_counter()
+    pred_idx, confidence, all_probs = ensemble_predict_mixed(
+        models, sequence, device, prox_dim, seq_dim, prox_idx
+    )
+    if adapter is not None:
+        import torch
+        import torch.nn.functional as F
+        import numpy as np
+        with torch.no_grad():
+            probs_tensor = torch.from_numpy(all_probs.astype(np.float32)).unsqueeze(0).to(device)
+            adapted_logits = adapter(probs_tensor)
+            adapted_probs = F.softmax(adapted_logits, dim=1).cpu().numpy()[0]
+            all_probs = adapted_probs
+            pred_idx = int(np.argmax(all_probs))
+            confidence = float(all_probs[pred_idx])
+            
+    t_end = time.perf_counter()
+    return pred_idx, confidence, all_probs, (t_end - t_start) * 1000.0
+
 
 @app.websocket("/ws/translate")
 async def ws_translate(websocket: WebSocket) -> None:
@@ -665,35 +686,26 @@ async def ws_translate(websocket: WebSocket) -> None:
                 # Blocking inference — run in dedicated thread pool
                 try:
                     t0 = time.perf_counter()
-                    pred_idx, confidence, all_probs = await loop.run_in_executor(
+                    active_adapter = getattr(app.state, "adapter_model", None)
+                    
+                    pred_idx, confidence, all_probs, inf_time_ms = await loop.run_in_executor(
                         app.state.inference_executor,
                         partial(
-                            ensemble_predict_mixed,
+                            _run_inference_with_adapter,
                             app.state.models,
                             sequence,
                             DEVICE,
                             cfg.spatial.proximity_dim,
                             cfg.frame_features.input_sequence_dim,
                             cfg.frame_features.proximity_index,
+                            active_adapter
                         ),
                     )
                     t1 = time.perf_counter()
                     latency_ms = (t1 - t0) * 1000.0
 
-                    # ── Apply Adapter if loaded ──────────────────────────────────
-                    if getattr(app.state, "adapter_model", None) is not None:
-                        t2 = time.perf_counter()
-                        with torch.no_grad():
-                            probs_tensor = torch.from_numpy(all_probs.astype(np.float32)).unsqueeze(0).to(DEVICE)
-                            adapted_logits = app.state.adapter_model(probs_tensor)
-                            adapted_probs = F.softmax(adapted_logits, dim=1).cpu().numpy()[0]
-                            all_probs = adapted_probs
-                            pred_idx = int(np.argmax(all_probs))
-                            confidence = float(all_probs[pred_idx])
-                        latency_ms += (time.perf_counter() - t2) * 1000.0
-
                     TOTAL_PREDICTIONS += 1
-                    INFERENCE_TIME_HISTORY.append(latency_ms)
+                    INFERENCE_TIME_HISTORY.append(inf_time_ms)
                     LATENCY_HISTORY.append(latency_ms)
 
                     logger.info(
