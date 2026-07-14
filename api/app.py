@@ -453,7 +453,7 @@ async def submit_feedback(req: FeedbackRequest, background_tasks: BackgroundTask
     if not getattr(app.state, "model_loaded", False):
         raise HTTPException(status_code=503, detail="Model not loaded yet")
         
-    correct_word = req.correct_word.upper()
+    correct_word = req.correct_word.lower()
     if correct_word not in app.state.classes:
         raise HTTPException(status_code=400, detail=f"Unknown class: {correct_word}")
         

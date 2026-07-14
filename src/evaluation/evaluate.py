@@ -75,7 +75,11 @@ async def simulate_ws_client(client_id: int, num_frames: int, frame_delay: float
                 frame = np.random.randn(feat_dim).astype(np.float32)
                 
                 t0 = time.perf_counter()
-                await ws.send(frame.tobytes())
+                payload = {
+                    "type": "landmarks",
+                    "features": frame.tolist()
+                }
+                await ws.send(json.dumps(payload))
                 
                 try:
                     response = await asyncio.wait_for(ws.recv(), timeout=2.0)
@@ -225,7 +229,11 @@ async def long_duration_stability(minutes: float = 30.0):
                 frame = np.random.randn(feat_dim).astype(np.float32)
                 
                 t0 = time.perf_counter()
-                await ws.send(frame.tobytes())
+                payload = {
+                    "type": "landmarks",
+                    "features": frame.tolist()
+                }
+                await ws.send(json.dumps(payload))
                 
                 try:
                     await asyncio.wait_for(ws.recv(), timeout=2.0)
@@ -361,8 +369,8 @@ async def fault_tolerance_evaluation():
     # Test 2: Invalid feature vector size
     try:
         async with websockets.connect(WS_URL) as ws:
-            bad_frame = np.random.randn(10).astype(np.float32) # wrong size
-            await ws.send(bad_frame.tobytes())
+            bad_frame = np.random.randn(10).astype(np.float32).tolist() # wrong size
+            await ws.send(json.dumps({"type": "landmarks", "features": bad_frame}))
             res = await ws.recv()
             log_result("Invalid Feature Dimension", True, "Server rejected invalid feature size")
     except Exception as e:
@@ -372,8 +380,8 @@ async def fault_tolerance_evaluation():
     try:
         async with websockets.connect(WS_URL) as ws:
             feat_dim = cfg.frame_features.input_sequence_dim
-            bad_frame = np.full(feat_dim, np.nan, dtype=np.float32)
-            await ws.send(bad_frame.tobytes())
+            bad_frame = np.full(feat_dim, np.nan, dtype=np.float32).tolist()
+            await ws.send(json.dumps({"type": "landmarks", "features": bad_frame}))
             res = await ws.recv()
             log_result("NaN Value Injection", True, "Server survived NaN injection")
     except Exception as e:
