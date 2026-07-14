@@ -130,8 +130,14 @@ class EmergencyAlert(BaseModel):
 
     The frontend should use this to show a red alert banner and/or
     trigger navigator.vibrate() on supported devices.
+
+    severity values:
+        "critical" — immediate danger (help, fire, danger, emergency, police)
+        "warning"  — medical/assistance needed (stop, hospital, doctor)
     """
     type: str = "emergency_alert"
     word: str           # uppercase, e.g. "HELP"
     confidence: float   # smoothed confidence from temporal post-processor
+    severity: str       # "critical" | "warning" — drives banner color and vibration pattern
     timestamp: int      # unix milliseconds
+    session_id: str = ""  # WebSocket session UUID

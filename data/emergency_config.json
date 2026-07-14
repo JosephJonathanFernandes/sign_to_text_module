@@ -1,7 +1,7 @@
 {
   "description": "Emergency sign detection configuration. Edit this file to add/remove emergency words. No code changes required.",
   "emergency": {
-    "confidence_threshold": 0.6,
+    "confidence_threshold": 0.75,
     "cooldown_seconds": 10.0,
     "words": [
       "help",
@@ -12,7 +12,17 @@
       "hospital",
       "doctor",
       "police"
-    ]
+    ],
+    "severity": {
+      "help": "critical",
+      "fire": "critical",
+      "danger": "critical",
+      "emergency": "critical",
+      "police": "critical",
+      "stop": "warning",
+      "hospital": "warning",
+      "doctor": "warning"
+    }
   },
   "notifiers": {
     "ntfy": {

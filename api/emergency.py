@@ -221,11 +221,15 @@ class EmergencyConfig:
         confidence_threshold: float,
         cooldown_seconds: float,
         notifiers: list[BaseNotifier],
+        severity_map: dict[str, str] = None,
     ):
         self.words = words
         self.confidence_threshold = confidence_threshold
         self.cooldown_seconds = cooldown_seconds
         self.notifiers = notifiers
+        # severity_map: word (lowercase) -> "critical" | "warning" | "info"
+        # Words not in the map fall back to "warning"
+        self._severity_map: dict[str, str] = severity_map or {}
 
     @classmethod
     def from_config(cls, config: Optional[dict] = None) -> "EmergencyConfig":
@@ -237,6 +241,7 @@ class EmergencyConfig:
         words = frozenset(w.lower() for w in ecfg.get("words", []))
         confidence_threshold = float(ecfg.get("confidence_threshold", 0.75))
         cooldown = float(ecfg.get("cooldown_seconds", 10.0))
+        severity_map = {k.lower(): v for k, v in ecfg.get("severity", {}).items()}
 
         notifiers: list[BaseNotifier] = []
 
@@ -268,11 +273,15 @@ class EmergencyConfig:
             f"{len(notifiers)} notifier(s), "
             f"threshold={confidence_threshold}, cooldown={cooldown}s"
         )
-        return cls(words, confidence_threshold, cooldown, notifiers)
+        return cls(words, confidence_threshold, cooldown, notifiers, severity_map)
 
     def is_emergency(self, word: str, confidence: float) -> bool:
         """True if word is in the emergency list AND meets the confidence threshold."""
         return word.lower() in self.words and confidence >= self.confidence_threshold
+
+    def get_severity(self, word: str) -> str:
+        """Return the severity tier for a word. Defaults to 'warning' if not mapped."""
+        return self._severity_map.get(word.lower(), "warning")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -352,12 +361,17 @@ class EmergencySessionState:
             return None
 
         self._last_alert[word.lower()] = time.time()
-        logger.info(f"[EmergencySessionState] Rising edge detected: '{word}' ({confidence:.0%})")
+        severity = self._config.get_severity(word)
+        logger.info(
+            f"[EmergencySessionState] Rising edge detected: '{word}' "
+            f"({confidence:.0%}) severity={severity}"
+        )
 
         return {
             "type": "emergency_alert",
             "word": word.upper(),
             "confidence": round(float(confidence), 4),
+            "severity": severity,
             "timestamp": int(time.time() * 1000),
             "session_id": self._session_id,
         }
@@ -394,6 +408,7 @@ class EmergencySessionState:
             confidence=round(float(confidence), 4),
             timestamp_ms=int(time.time() * 1000),
             session_id=self._session_id,
+            severity=self._config.get_severity(word),
         )
         results = await asyncio.gather(
             *[n.send(event) for n in self._config.notifiers],
