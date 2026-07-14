@@ -288,8 +288,8 @@ async def continual_learning_evaluation():
         dummy_seq = np.random.randn(20, feat_dim).astype(np.float32).tolist()
         payload = {
             "sequence": dummy_seq,
-            "corrected_label": "hello",
-            "original_prediction": "goodbye"
+            "correct_word": "hello",
+            "session_id": "eval_test_session"
         }
         res = requests.post(f"{API_URL}/feedback", json=payload)
         if res.status_code != 200:
@@ -393,8 +393,8 @@ async def fault_tolerance_evaluation():
     dummy_seq = np.random.randn(20, feat_dim).astype(np.float32).tolist()
     res = requests.post(f"{API_URL}/feedback", json={
         "sequence": dummy_seq,
-        "corrected_label": "NOT_A_REAL_SIGN_12345",
-        "original_prediction": "hello"
+        "correct_word": "NOT_A_REAL_SIGN_12345",
+        "session_id": "eval_test_session"
     })
     if res.status_code != 200:
         log_result("Invalid Feedback Label", True, f"Server rejected invalid label: {res.status_code}")
@@ -404,8 +404,8 @@ async def fault_tolerance_evaluation():
     # Test 6: Duplicate Feedback
     payload = {
         "sequence": dummy_seq,
-        "corrected_label": "hello",
-        "original_prediction": "goodbye"
+        "correct_word": "hello",
+        "session_id": "eval_test_session"
     }
     # Send first feedback
     requests.post(f"{API_URL}/feedback", json=payload)
