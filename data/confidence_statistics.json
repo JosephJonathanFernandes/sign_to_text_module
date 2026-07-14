@@ -2234,5 +2234,18 @@
     "trajectory_pattern_agreement": "52.8%",
     "dominant_hand_agreement": "88.8%",
     "motion_speed_agreement": "36.2%"
+  },
+  "jealous": {
+    "hand_count_agreement": "96.8%",
+    "movement_agreement": "40.5%",
+    "location_agreement": "99.2%",
+    "orientation_agreement": "98.0%",
+    "symmetry_agreement": "96.8%",
+    "finger_state_agreement": "98.8%",
+    "hand_shape_agreement": "97.8%",
+    "motion_direction_agreement": "78.8%",
+    "trajectory_pattern_agreement": "78.8%",
+    "dominant_hand_agreement": "96.8%",
+    "motion_speed_agreement": "40.5%"
   }
 }
