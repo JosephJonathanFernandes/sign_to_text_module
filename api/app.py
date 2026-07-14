@@ -133,12 +133,27 @@ async def lifespan(app: FastAPI):
         },
     )
 
-    # Read class list from processed dir (source of truth)
+    # Read class list from model metadata (source of truth for trained models)
     import os as _os
-    classes = sorted([
-        d for d in _os.listdir(cfg.paths.processed_dir)
-        if _os.path.isdir(_os.path.join(cfg.paths.processed_dir, d))
-    ])
+    import json as _json
+    classes = []
+    
+    # Try to load from model metadata first
+    meta_path = _os.path.join(cfg.paths.model_save_path.replace("model.pth", "").rstrip("/\\"), "model_metadata.json")
+    if _os.path.exists(meta_path):
+        try:
+            with open(meta_path, 'r', encoding='utf-8') as f:
+                meta = _json.load(f)
+                classes = meta.get("checkpoint", {}).get("classes", [])
+        except Exception as e:
+            logger.warning(f"Could not load classes from {meta_path}: {e}")
+            
+    # Fallback to processed dir
+    if not classes:
+        classes = sorted([
+            d for d in _os.listdir(cfg.paths.processed_dir)
+            if _os.path.isdir(_os.path.join(cfg.paths.processed_dir, d))
+        ])
     num_classes = len(classes)
 
     # ── Warmup inference ──────────────────────────────────────────────────────
