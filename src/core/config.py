@@ -1044,7 +1044,10 @@ def get_config() -> Config:
         _config_instance.validate()
         _config_instance.hardware.apply_torch_settings()
         if DEBUG_MODE or True:  # Always print on module init
-            print(_config_instance.summary())
+            try:
+                print(_config_instance.summary())
+            except Exception:
+                pass
     return _config_instance
 
 

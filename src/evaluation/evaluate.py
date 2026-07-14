@@ -374,6 +374,13 @@ async def continual_learning_evaluation():
     print("Measuring baseline accuracy on shifted evaluation set...")
     base_acc, base_conf_c, base_conf_i = await evaluate_set(eval_seqs, target_class)
     
+    # Get initial metrics
+    initial_runs = 0
+    try:
+        initial_runs = requests.get(f"{API_URL}/metrics").json().get("adapter_success_runs", 0)
+    except Exception:
+        pass
+        
     # 3. Adaptation
     print(f"Submitting {len(train_seqs) * 5} feedback corrections (5 passes)...")
     for pass_idx in range(5):
@@ -396,7 +403,7 @@ async def continual_learning_evaluation():
             res = requests.get(f"{API_URL}/metrics")
             if res.status_code == 200:
                 data = res.json()
-                if data.get("adapter_success_runs", 0) > 0:
+                if data.get("adapter_success_runs", 0) > initial_runs:
                     trained = True
                     break
         except Exception:

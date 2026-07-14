@@ -2,8 +2,8 @@
 
 | Metric | Before | After |
 |--------|--------|-------|
-| Accuracy | 10.0% | 10.0% |
-| Mean Confidence (Correct) | 0.63 | 0.67 |
-| Mean Confidence (Incorrect) | 0.43 | 0.40 |
+| Accuracy | 65.0% | 60.0% |
+| Mean Confidence (Correct) | 0.94 | 1.00 |
+| Mean Confidence (Incorrect) | 0.27 | 0.27 |
 
-- **Training Time:** 99.1 s
+- **Training Time:** 2.1 s
