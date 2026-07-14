@@ -253,6 +253,7 @@ async def long_duration_stability(minutes: float = 30.0):
         print(f"Stability test interrupted: {e}")
         
     csv_path = os.path.join(out_dir, "stability.csv")
+    os.makedirs(out_dir, exist_ok=True)
     with open(csv_path, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["time_sec", "latency_ms", "memory_mb"])

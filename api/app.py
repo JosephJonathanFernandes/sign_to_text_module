@@ -268,21 +268,34 @@ async def metrics() -> dict:
     Exposes runtime observability metrics.
     Keeps collection lightweight and in-memory.
     """
+    from api.feedback import FEEDBACK_STATE
+
     uptime = int(time.time() - START_TIME)
     active_sessions = getattr(app.state, "sessions", {})
     
     latencies = list(LATENCY_HISTORY)
+    inf_times = list(INFERENCE_TIME_HISTORY)
     if latencies:
         arr = np.array(latencies)
-        avg_ms = round(float(np.mean(arr)), 2)
+        avg_latency = float(np.mean(arr))
+        avg_ms = round(avg_latency, 2)
         p50 = round(float(np.percentile(arr, 50)), 2)
         p95 = round(float(np.percentile(arr, 95)), 2)
         p99 = round(float(np.percentile(arr, 99)), 2)
     else:
-        avg_ms = p50 = p95 = p99 = 0.0
+        avg_latency = avg_ms = p50 = p95 = p99 = 0.0
+
+    if inf_times:
+        arr_inf = np.array(inf_times)
+        avg_inf_time = float(np.mean(arr_inf))
+    else:
+        avg_inf_time = 0.0
+
+    avg_queue_wait = max(0.0, avg_latency - avg_inf_time)
 
     mem_mb = round(process.memory_info().rss / (1024 * 1024), 2)
     cpu = process.cpu_percent(interval=None)
+    fps = TOTAL_PREDICTIONS / uptime if uptime > 0 else 0.0
 
     # Read model version if available
     model_version = "unknown"
@@ -299,15 +312,25 @@ async def metrics() -> dict:
         "uptime_seconds": uptime,
         "active_sessions": len(active_sessions),
         "total_predictions": TOTAL_PREDICTIONS,
-        "avg_inference_ms": avg_ms,
+        "dropped_frames": DROPPED_FRAMES,
+        "fps_processed": round(fps, 2),
+        "avg_latency_ms": avg_ms,
+        "avg_inference_time_ms": round(avg_inf_time, 2),
+        "avg_queue_wait_ms": round(avg_queue_wait, 2),
         "p50_inference_ms": p50,
         "p95_inference_ms": p95,
         "p99_inference_ms": p99,
-        "dropped_frames": DROPPED_FRAMES,
         "process_memory_mb": mem_mb,
         "cpu_percent": cpu,
         "model_version": model_version,
-        "api_version": "v1"
+        "api_version": "v1",
+        "current_model": f"Ensemble ({len(getattr(app.state, 'models', []))} models)",
+        "active_adapter_version": FEEDBACK_STATE.get("active_adapter_version"),
+        "total_feedback_received": FEEDBACK_STATE.get("total_feedback_received", 0),
+        "training_in_progress": FEEDBACK_STATE.get("training_in_progress", False),
+        "pending_feedback_samples": FEEDBACK_STATE.get("pending_feedback_count", 0),
+        "adapter_success_runs": FEEDBACK_STATE.get("success_runs", 0),
+        "adapter_failed_runs": FEEDBACK_STATE.get("failed_runs", 0),
     }
 
 
@@ -476,38 +499,7 @@ async def submit_feedback(req: FeedbackRequest, background_tasks: BackgroundTask
     return {"status": "accepted", "message": f"Feedback for '{correct_word}' received. Training adapter in background."}
 
 
-@app.get("/metrics")
-async def get_metrics():
-    from api.feedback import FEEDBACK_STATE
-    
-    uptime = time.time() - START_TIME
-    avg_latency = sum(LATENCY_HISTORY) / len(LATENCY_HISTORY) if LATENCY_HISTORY else 0.0
-    avg_inf_time = sum(INFERENCE_TIME_HISTORY) / len(INFERENCE_TIME_HISTORY) if INFERENCE_TIME_HISTORY else 0.0
-    avg_motion = sum(MOTION_SCORE_HISTORY) / len(MOTION_SCORE_HISTORY) if MOTION_SCORE_HISTORY else 0.0
-    fps = TOTAL_PREDICTIONS / uptime if uptime > 0 else 0.0
-    
-    # Calculate average queue wait implicitly based on difference
-    avg_queue_wait = max(0.0, avg_latency - avg_inf_time)
-    
-    return {
-        "uptime_seconds": round(uptime, 2),
-        "active_sessions": ACTIVE_SESSIONS,
-        "total_predictions": TOTAL_PREDICTIONS,
-        "dropped_frames": DROPPED_FRAMES,
-        "fps_processed": round(fps, 2),
-        "avg_latency_ms": round(avg_latency, 2),
-        "avg_inference_time_ms": round(avg_inf_time, 2),
-        "avg_queue_wait_ms": round(avg_queue_wait, 2),
-        "avg_motion_score": round(avg_motion, 4),
-        "memory_rss_mb": round(process.memory_info().rss / 1024 / 1024, 2),
-        "current_model": f"Ensemble ({len(app.state.models)} models)",
-        "active_adapter_version": FEEDBACK_STATE.get("active_adapter_version"),
-        "total_feedback_received": FEEDBACK_STATE.get("total_feedback_received", 0),
-        "training_in_progress": FEEDBACK_STATE.get("training_in_progress", False),
-        "pending_feedback_samples": FEEDBACK_STATE.get("pending_feedback_count", 0),
-        "adapter_success_runs": FEEDBACK_STATE.get("success_runs", 0),
-        "adapter_failed_runs": FEEDBACK_STATE.get("failed_runs", 0),
-    }
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # WEBSOCKET TRANSLATE ENDPOINT

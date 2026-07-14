@@ -1,0 +1,8 @@
+test,passed,detail
+Malformed WS Payload,True,Server responded/handled malformed payload
+Invalid Feature Dimension,True,Server rejected invalid feature size
+NaN Value Injection,True,Handled NaN safely: received 1011 (internal error) probs contains NaN or Inf values; then sent 1011 (internal error) probs contains NaN or Inf values
+Abrupt WS Disconnect,True,Server survived abrupt transport closure
+Invalid Feedback Label,True,Server rejected invalid label: 400
+Duplicate Feedback,True,Duplicate feedback safely dropped by backend
+API Survival Check,True,API is fully responsive after fault injections
