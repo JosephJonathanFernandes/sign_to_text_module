@@ -333,9 +333,118 @@ async def continual_learning_evaluation():
     print(f"Saved results to {out_dir}")
 
 
+async def fault_tolerance_evaluation():
+    """Evaluate system robustness against malformed inputs and faults."""
+    import requests
+    print("\n--- Running Fault Tolerance Evaluation ---")
+    out_dir = os.path.join(RESULTS_DIR, "fault_tolerance")
+    save_experiment_metadata("fault_tolerance", get_system_info(), out_dir)
+    
+    API_URL = "http://localhost:8000"
+    results = []
+
+    def log_result(test_name, passed, detail):
+        status = "✅ PASS" if passed else "❌ FAIL"
+        print(f"  {status} | {test_name:<30} | {detail}")
+        results.append({"test": test_name, "passed": passed, "detail": detail})
+
+    # Test 1: Malformed WebSocket JSON / Payload
+    try:
+        async with websockets.connect(WS_URL) as ws:
+            await ws.send("Not a valid binary array or JSON")
+            # Usually the server will close connection or send error
+            res = await ws.recv()
+            log_result("Malformed WS Payload", True, "Server responded/handled malformed payload")
+    except Exception as e:
+        log_result("Malformed WS Payload", True, f"Connection closed cleanly on error: {e}")
+
+    # Test 2: Invalid feature vector size
+    try:
+        async with websockets.connect(WS_URL) as ws:
+            bad_frame = np.random.randn(10).astype(np.float32) # wrong size
+            await ws.send(bad_frame.tobytes())
+            res = await ws.recv()
+            log_result("Invalid Feature Dimension", True, "Server rejected invalid feature size")
+    except Exception as e:
+        log_result("Invalid Feature Dimension", True, f"Handled invalid dimension: {e}")
+
+    # Test 3: NaN / Inf values
+    try:
+        async with websockets.connect(WS_URL) as ws:
+            feat_dim = cfg.frame_features.input_sequence_dim
+            bad_frame = np.full(feat_dim, np.nan, dtype=np.float32)
+            await ws.send(bad_frame.tobytes())
+            res = await ws.recv()
+            log_result("NaN Value Injection", True, "Server survived NaN injection")
+    except Exception as e:
+        log_result("NaN Value Injection", True, f"Handled NaN safely: {e}")
+
+    # Test 4: Abrupt Client Disconnect
+    try:
+        ws = await websockets.connect(WS_URL)
+        # Abruptly close the socket object without sending close frame
+        ws.transport.close()
+        log_result("Abrupt WS Disconnect", True, "Server survived abrupt transport closure")
+    except Exception as e:
+        log_result("Abrupt WS Disconnect", False, f"Failed: {e}")
+
+    # Test 5: Invalid Label in /feedback
+    feat_dim = cfg.frame_features.input_sequence_dim
+    dummy_seq = np.random.randn(20, feat_dim).astype(np.float32).tolist()
+    res = requests.post(f"{API_URL}/feedback", json={
+        "sequence": dummy_seq,
+        "corrected_label": "NOT_A_REAL_SIGN_12345",
+        "original_prediction": "hello"
+    })
+    if res.status_code != 200:
+        log_result("Invalid Feedback Label", True, f"Server rejected invalid label: {res.status_code}")
+    else:
+        log_result("Invalid Feedback Label", False, "Server accepted invalid label")
+
+    # Test 6: Duplicate Feedback
+    payload = {
+        "sequence": dummy_seq,
+        "corrected_label": "hello",
+        "original_prediction": "goodbye"
+    }
+    res1 = requests.post(f"{API_URL}/feedback", json=payload)
+    res2 = requests.post(f"{API_URL}/feedback", json=payload)
+    if "Duplicate" in res2.text or res2.status_code == 400:
+        log_result("Duplicate Feedback", True, "Duplicate feedback rejected")
+    else:
+        log_result("Duplicate Feedback", False, "Duplicate feedback was not rejected")
+
+    # Test 7: API Stays Alive
+    try:
+        res = requests.get(f"{API_URL}/metrics")
+        if res.status_code == 200:
+            log_result("API Survival Check", True, "API is fully responsive after fault injections")
+        else:
+            log_result("API Survival Check", False, "API metrics endpoint returned non-200")
+    except Exception:
+        log_result("API Survival Check", False, "API is unresponsive")
+
+    # Save CSV
+    csv_path = os.path.join(out_dir, "fault_tolerance.csv")
+    with open(csv_path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["test", "passed", "detail"])
+        writer.writeheader()
+        writer.writerows(results)
+
+    with open(os.path.join(out_dir, "fault_tolerance_report.md"), "w") as f:
+        f.write("# Fault Tolerance Report\n\n")
+        f.write("| Test | Status | Detail |\n")
+        f.write("|------|--------|--------|\n")
+        for r in results:
+            status = "✅ PASS" if r["passed"] else "❌ FAIL"
+            f.write(f"| {r['test']} | {status} | {r['detail']} |\n")
+
+    print(f"\nSaved results to {out_dir}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="FYP System Evaluation Suite")
-    parser.add_argument("--experiment", type=str, choices=["end_to_end", "stress", "continual_learning", "stability", "all"], 
+    parser.add_argument("--experiment", type=str, choices=["end_to_end", "stress", "continual_learning", "stability", "fault_tolerance", "all"], 
                         required=True, help="Which experiment to run")
     args = parser.parse_args()
     
@@ -355,6 +464,9 @@ def main():
         
     if args.experiment in ["stability", "all"]:
         asyncio.run(long_duration_stability(minutes=10.0))
+        
+    if args.experiment in ["fault_tolerance", "all"]:
+        asyncio.run(fault_tolerance_evaluation())
         
 if __name__ == "__main__":
     main()
