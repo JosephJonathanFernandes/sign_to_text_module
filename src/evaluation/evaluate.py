@@ -324,7 +324,7 @@ async def continual_learning_evaluation():
     print(f"  Adapter Latency:  {adapted_lat:.2f} ms")
     print(f"  Training Time:    {train_time:.1f} s")
     
-    with open(os.path.join(out_dir, "learning_report.md"), "w") as f:
+    with open(os.path.join(out_dir, "learning_report.md"), "w", encoding="utf-8") as f:
         f.write("# Continual Learning Evaluation\n\n")
         f.write(f"- Baseline Latency: {baseline_lat:.2f} ms\n")
         f.write(f"- Adapted Latency: {adapted_lat:.2f} ms\n")
@@ -407,12 +407,20 @@ async def fault_tolerance_evaluation():
         "corrected_label": "hello",
         "original_prediction": "goodbye"
     }
-    res1 = requests.post(f"{API_URL}/feedback", json=payload)
-    res2 = requests.post(f"{API_URL}/feedback", json=payload)
-    if "Duplicate" in res2.text or res2.status_code == 400:
-        log_result("Duplicate Feedback", True, "Duplicate feedback rejected")
+    # Send first feedback
+    requests.post(f"{API_URL}/feedback", json=payload)
+    time.sleep(1) # wait for background task
+    count_1 = requests.get(f"{API_URL}/metrics").json().get("total_feedback_received", 0)
+    
+    # Send duplicate feedback
+    requests.post(f"{API_URL}/feedback", json=payload)
+    time.sleep(1) # wait for background task
+    count_2 = requests.get(f"{API_URL}/metrics").json().get("total_feedback_received", 0)
+    
+    if count_2 == count_1:
+        log_result("Duplicate Feedback", True, "Duplicate feedback safely dropped by backend")
     else:
-        log_result("Duplicate Feedback", False, "Duplicate feedback was not rejected")
+        log_result("Duplicate Feedback", False, "Duplicate feedback incremented total count")
 
     # Test 7: API Stays Alive
     try:
@@ -431,7 +439,7 @@ async def fault_tolerance_evaluation():
         writer.writeheader()
         writer.writerows(results)
 
-    with open(os.path.join(out_dir, "fault_tolerance_report.md"), "w") as f:
+    with open(os.path.join(out_dir, "fault_tolerance_report.md"), "w", encoding="utf-8") as f:
         f.write("# Fault Tolerance Report\n\n")
         f.write("| Test | Status | Detail |\n")
         f.write("|------|--------|--------|\n")
