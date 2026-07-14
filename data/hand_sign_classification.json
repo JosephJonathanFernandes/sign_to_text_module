@@ -809,16 +809,16 @@
     },
     "long": {
       "hand_count": "two_hands",
-      "movement": "large_motion",
+      "movement": "unknown",
       "location": "neutral_space",
-      "orientation": "forward",
+      "orientation": "unknown",
       "symmetry": "asymmetric",
-      "finger_state": "unknown",
+      "finger_state": "10000",
       "hand_shape": "unknown",
       "motion_direction": "circular",
       "trajectory_pattern": "circular",
       "dominant_hand": "both",
-      "motion_speed": "fast"
+      "motion_speed": "unknown"
     },
     "loose": {
       "hand_count": "two_hands",

@@ -301,7 +301,7 @@ async def continual_learning_evaluation():
             "session_id": "eval_test_session"
         }
         res = requests.post(f"{API_URL}/feedback", json=payload)
-        if res.status_code != 200:
+        if res.status_code not in (200, 202):
             print(f"Feedback {i} failed: {res.text}")
             
     print("Waiting for adapter to train...")

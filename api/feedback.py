@@ -83,7 +83,7 @@ def _train_adapter_sync(app: FastAPI):
     try:
         _do_train_adapter(app)
     except Exception as e:
-        logger.error("adapter_training_failed_exception", extra={"error": str(e)})
+        logger.exception("adapter_training_failed_exception")
         FEEDBACK_STATE["failed_runs"] += 1
     finally:
         with training_lock:

@@ -53,6 +53,7 @@
     "alright",
     "f",
     "hard",
+    "long",
     "wear",
     "tear",
     "run",
@@ -124,7 +125,6 @@
   ],
   "two_hands|large_motion|neutral_space|unknown": [
     "dry",
-    "long",
     "rich",
     "we"
   ],
