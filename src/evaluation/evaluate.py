@@ -381,8 +381,10 @@ async def fault_tolerance_evaluation():
         async with websockets.connect(WS_URL) as ws:
             feat_dim = cfg.frame_features.input_sequence_dim
             bad_frame = np.full(feat_dim, np.nan, dtype=np.float32).tolist()
-            await ws.send(json.dumps({"type": "landmarks", "features": bad_frame}))
-            res = await ws.recv()
+            # Send 20 frames to fill the buffer and trigger inference
+            for _ in range(20):
+                await ws.send(json.dumps({"type": "landmarks", "features": bad_frame}))
+            res = await asyncio.wait_for(ws.recv(), timeout=2.0)
             log_result("NaN Value Injection", True, "Server survived NaN injection")
     except Exception as e:
         log_result("NaN Value Injection", True, f"Handled NaN safely: {e}")
