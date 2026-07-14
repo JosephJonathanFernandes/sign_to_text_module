@@ -76,7 +76,11 @@ class AdapterModel(nn.Module):
     def load_weights(self, path: str):
         """Load adapter weights from disk."""
         if os.path.exists(path):
-            self.load_state_dict(torch.load(path))
+            ckpt = torch.load(path, map_location="cpu", weights_only=False)
+            if "state_dict" in ckpt:
+                self.load_state_dict(ckpt["state_dict"])
+            else:
+                self.load_state_dict(ckpt)
     
     def get_checkpoint(self) -> dict:
         """Get current weights as checkpoint."""
