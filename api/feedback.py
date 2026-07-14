@@ -9,6 +9,9 @@ import numpy as np
 from fastapi import FastAPI
 import torch
 
+import hashlib
+import threading
+
 from src.core.config import get_config
 from src.inference.onnx_ensemble import ensemble_predict_mixed
 from src.training.adapter_model import AdapterTrainer, AdapterModel
@@ -17,20 +20,37 @@ from src.utils.pseudo_utilities import load_pseudo_data
 logger = logging.getLogger("sign_to_text.api.feedback")
 cfg = get_config()
 
+FEEDBACK_STATE = {
+    "training_in_progress": False,
+    "last_training_time": 0.0,
+    "pending_feedback_count": 0,
+    "total_feedback_received": 0,
+    "success_runs": 0,
+    "failed_runs": 0,
+    "active_adapter_version": "None",
+}
+training_lock = threading.Lock()
 
-def _save_feedback_data(sequence: np.ndarray, correct_word: str, session_id: str):
-    """Save the corrected sequence to the pseudo_data directory."""
+
+def _save_feedback_data(sequence: np.ndarray, correct_word: str, session_id: str) -> bool:
+    """Save the corrected sequence to the pseudo_data directory. Returns True if saved."""
     # Ensure word is lowercase for directory matching
     correct_word = correct_word.lower()
     save_dir = os.path.join(cfg.paths.pseudo_data_dir, correct_word)
     os.makedirs(save_dir, exist_ok=True)
     
-    timestamp = int(time.time() * 1000)
-    filename = f"{timestamp}_{session_id}.npy"
+    # Duplicate detection via MD5
+    seq_hash = hashlib.md5(sequence.tobytes()).hexdigest()
+    filename = f"{correct_word}_{seq_hash}.npy"
     filepath = os.path.join(save_dir, filename)
+    
+    if os.path.exists(filepath):
+        logger.info("feedback_duplicate_skipped", extra={"word": correct_word, "hash": seq_hash})
+        return False
     
     np.save(filepath, sequence)
     logger.info("feedback_saved", extra={"word": correct_word, "file": filename})
+    return True
 
 
 def _train_adapter_sync(app: FastAPI):
@@ -39,7 +59,38 @@ def _train_adapter_sync(app: FastAPI):
         logger.warning("No base models found. Cannot train adapter.")
         return
 
+    # ── Cooldown & Threshold Check ──
+    with training_lock:
+        if FEEDBACK_STATE["training_in_progress"]:
+            logger.info("adapter_training_skipped", extra={"reason": "already_in_progress"})
+            return
+            
+        time_since_last = time.time() - FEEDBACK_STATE["last_training_time"]
+        if time_since_last < 300:  # 5 minute cooldown
+            logger.info("adapter_training_skipped", extra={"reason": "cooldown_active", "remaining_s": int(300 - time_since_last)})
+            return
+            
+        if FEEDBACK_STATE["pending_feedback_count"] < 3:
+            logger.info("adapter_training_skipped", extra={"reason": "insufficient_samples", "pending": FEEDBACK_STATE["pending_feedback_count"]})
+            return
+
+        # Mark as started
+        FEEDBACK_STATE["training_in_progress"] = True
+        FEEDBACK_STATE["pending_feedback_count"] = 0  # reset pending count
+
     logger.info("adapter_training_started", extra={"event": "adapter_train_start"})
+    
+    try:
+        _do_train_adapter(app)
+    except Exception as e:
+        logger.error("adapter_training_failed_exception", extra={"error": str(e)})
+        FEEDBACK_STATE["failed_runs"] += 1
+    finally:
+        with training_lock:
+            FEEDBACK_STATE["training_in_progress"] = False
+            FEEDBACK_STATE["last_training_time"] = time.time()
+
+def _do_train_adapter(app: FastAPI):
     
     # 1. Load all pseudo data
     data = load_pseudo_data(cfg.paths.pseudo_data_dir)
@@ -128,14 +179,24 @@ def _train_adapter_sync(app: FastAPI):
         trainer.save_model(save_path)
         logger.info("adapter_training_complete", extra={"loss": result["history"]["losses"][-1], "saved": save_path})
         
-        # 5. Hot-reload the adapter in the API state!
-        new_adapter = AdapterModel(app.state.num_classes, hidden_dim=cfg.training.adapter_hidden_dim).to(device)
-        new_adapter.load_weights(save_path)
-        new_adapter.eval()
-        app.state.adapter_model = new_adapter
-        logger.info("adapter_reloaded_in_api", extra={"event": "adapter_hot_reload"})
+        # 5. Hot-reload the adapter in the API state (Rollback mechanism)
+        try:
+            new_adapter = AdapterModel(app.state.num_classes, hidden_dim=cfg.training.adapter_hidden_dim).to(device)
+            new_adapter.load_weights(save_path)
+            new_adapter.eval()
+            
+            # Atomic swap only after successful load
+            app.state.adapter_model = new_adapter
+            version = timestamp
+            FEEDBACK_STATE["active_adapter_version"] = version
+            FEEDBACK_STATE["success_runs"] += 1
+            logger.info("adapter_reloaded_in_api", extra={"event": "adapter_hot_reload", "version": version})
+        except Exception as e:
+            logger.error("adapter_reload_failed", extra={"error": str(e), "note": "keeping previous adapter"})
+            FEEDBACK_STATE["failed_runs"] += 1
     else:
         logger.error("adapter_training_failed", extra={"reason": result.get("reason")})
+        FEEDBACK_STATE["failed_runs"] += 1
 
 
 async def process_feedback_async(
@@ -150,10 +211,27 @@ async def process_feedback_async(
     """
     seq_np = np.array(sequence, dtype=np.float32)
     
+    # ── Validation ──
+    if seq_np.shape != (cfg.preprocessing.num_frames, cfg.frame_features.input_sequence_dim):
+        logger.warning("feedback_rejected_shape", extra={"shape": seq_np.shape})
+        return
+    if np.isnan(seq_np).any() or np.isinf(seq_np).any():
+        logger.warning("feedback_rejected_nan", extra={})
+        return
+    if correct_word not in app.state.classes:
+        logger.warning("feedback_rejected_unknown_word", extra={"word": correct_word})
+        return
+        
+    velocity = seq_np[:, 253:506]
+    vel_sum = float(np.sum(np.abs(velocity)))
+    if vel_sum < 1.0: # Requires minimal motion across 20 frames
+        logger.warning("feedback_rejected_low_motion", extra={"vel_sum": vel_sum})
+        return
+    
     loop = asyncio.get_running_loop()
     
     # Save the file (fast I/O)
-    await loop.run_in_executor(
+    saved = await loop.run_in_executor(
         None,
         _save_feedback_data,
         seq_np,
@@ -161,9 +239,15 @@ async def process_feedback_async(
         session_id
     )
     
-    # Train the adapter on the updated dataset (slower computation)
-    await loop.run_in_executor(
-        None,
-        _train_adapter_sync,
-        app
-    )
+    if saved:
+        with training_lock:
+            FEEDBACK_STATE["pending_feedback_count"] += 1
+            FEEDBACK_STATE["total_feedback_received"] += 1
+            
+        # Train the adapter on the updated dataset (slower computation)
+        # It will exit early if cooldown or threshold not met
+        await loop.run_in_executor(
+            None,
+            _train_adapter_sync,
+            app
+        )

@@ -43,10 +43,10 @@ class InferenceSession:
     postprocessor: TemporalPostProcessor
     sentence_builder: SentenceBuilder
     emergency: "EmergencySessionState"
-    pending_count: int = 0
     created_at: float = field(default_factory=time.time)
     write_idx: int = 0
     frames_received: int = 0
+    idle_frames: int = 0
 
     def reset(self) -> None:
         """
@@ -65,6 +65,7 @@ class InferenceSession:
         self.pending_count = 0
         self.write_idx = 0
         self.frames_received = 0
+        self.idle_frames = 0
 
     def append_frame(self, frame: np.ndarray) -> None:
         self.buffer[self.write_idx] = frame

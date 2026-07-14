@@ -478,11 +478,16 @@ async def submit_feedback(req: FeedbackRequest, background_tasks: BackgroundTask
 
 @app.get("/metrics")
 async def get_metrics():
+    from api.feedback import FEEDBACK_STATE
+    
     uptime = time.time() - START_TIME
     avg_latency = sum(LATENCY_HISTORY) / len(LATENCY_HISTORY) if LATENCY_HISTORY else 0.0
     avg_inf_time = sum(INFERENCE_TIME_HISTORY) / len(INFERENCE_TIME_HISTORY) if INFERENCE_TIME_HISTORY else 0.0
     avg_motion = sum(MOTION_SCORE_HISTORY) / len(MOTION_SCORE_HISTORY) if MOTION_SCORE_HISTORY else 0.0
     fps = TOTAL_PREDICTIONS / uptime if uptime > 0 else 0.0
+    
+    # Calculate average queue wait implicitly based on difference
+    avg_queue_wait = max(0.0, avg_latency - avg_inf_time)
     
     return {
         "uptime_seconds": round(uptime, 2),
@@ -492,8 +497,16 @@ async def get_metrics():
         "fps_processed": round(fps, 2),
         "avg_latency_ms": round(avg_latency, 2),
         "avg_inference_time_ms": round(avg_inf_time, 2),
+        "avg_queue_wait_ms": round(avg_queue_wait, 2),
         "avg_motion_score": round(avg_motion, 4),
-        "memory_rss_mb": round(process.memory_info().rss / 1024 / 1024, 2)
+        "memory_rss_mb": round(process.memory_info().rss / 1024 / 1024, 2),
+        "current_model": f"Ensemble ({len(app.state.models)} models)",
+        "active_adapter_version": FEEDBACK_STATE.get("active_adapter_version"),
+        "total_feedback_received": FEEDBACK_STATE.get("total_feedback_received", 0),
+        "training_in_progress": FEEDBACK_STATE.get("training_in_progress", False),
+        "pending_feedback_samples": FEEDBACK_STATE.get("pending_feedback_count", 0),
+        "adapter_success_runs": FEEDBACK_STATE.get("success_runs", 0),
+        "adapter_failed_runs": FEEDBACK_STATE.get("failed_runs", 0),
     }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -616,6 +629,11 @@ async def ws_translate(websocket: WebSocket) -> None:
                 MOTION_SCORE_HISTORY.append(vel_sum)
                 
                 if vel_sum < 0.15:  # IDLE_THRESHOLD
+                    session.idle_frames += 1
+                else:
+                    session.idle_frames = 0
+                
+                if session.idle_frames >= 3:
                     # Feed explicit idle state
                     idle_class_idx = app.state.classes.index("...") if "..." in app.state.classes else 0
                     idle_probs = np.zeros(app.state.num_classes, dtype=np.float32)
