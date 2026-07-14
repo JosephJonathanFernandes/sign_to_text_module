@@ -84,6 +84,9 @@ START_TIME = time.time()
 TOTAL_PREDICTIONS = 0
 DROPPED_FRAMES = 0
 LATENCY_HISTORY = deque(maxlen=1000)
+ACTIVE_SESSIONS = 0
+INFERENCE_TIME_HISTORY = deque(maxlen=1000)
+MOTION_SCORE_HISTORY = deque(maxlen=1000)
 
 # Initialize psutil CPU percent (first call returns 0.0)
 process = psutil.Process(os.getpid())
@@ -161,6 +164,12 @@ async def lifespan(app: FastAPI):
     app.state.model_loaded = True
     app.state.sessions = {}  # Dict[str, InferenceSession]
 
+    from concurrent.futures import ThreadPoolExecutor
+    app.state.inference_executor = ThreadPoolExecutor(
+        max_workers=max(1, min(4, _os.cpu_count() or 1)),
+        thread_name_prefix="inference"
+    )
+
     # ── Load Adapter (if exists) ──────────────────────────────────────────────
     adapter_weights_dir = "adapter_weights"
     app.state.adapter_model = None
@@ -185,6 +194,8 @@ async def lifespan(app: FastAPI):
 
     # ── Shutdown ──────────────────────────────────────────────────────────────
     app.state.sessions.clear()
+    if hasattr(app.state, "inference_executor"):
+        app.state.inference_executor.shutdown(wait=False)
     logger.info("shutdown_completed", extra={"event": "shutdown"})
 
 
@@ -465,6 +476,26 @@ async def submit_feedback(req: FeedbackRequest, background_tasks: BackgroundTask
     return {"status": "accepted", "message": f"Feedback for '{correct_word}' received. Training adapter in background."}
 
 
+@app.get("/metrics")
+async def get_metrics():
+    uptime = time.time() - START_TIME
+    avg_latency = sum(LATENCY_HISTORY) / len(LATENCY_HISTORY) if LATENCY_HISTORY else 0.0
+    avg_inf_time = sum(INFERENCE_TIME_HISTORY) / len(INFERENCE_TIME_HISTORY) if INFERENCE_TIME_HISTORY else 0.0
+    avg_motion = sum(MOTION_SCORE_HISTORY) / len(MOTION_SCORE_HISTORY) if MOTION_SCORE_HISTORY else 0.0
+    fps = TOTAL_PREDICTIONS / uptime if uptime > 0 else 0.0
+    
+    return {
+        "uptime_seconds": round(uptime, 2),
+        "active_sessions": ACTIVE_SESSIONS,
+        "total_predictions": TOTAL_PREDICTIONS,
+        "dropped_frames": DROPPED_FRAMES,
+        "fps_processed": round(fps, 2),
+        "avg_latency_ms": round(avg_latency, 2),
+        "avg_inference_time_ms": round(avg_inf_time, 2),
+        "avg_motion_score": round(avg_motion, 4),
+        "memory_rss_mb": round(process.memory_info().rss / 1024 / 1024, 2)
+    }
+
 # ─────────────────────────────────────────────────────────────────────────────
 # WebSocket Streaming
 # ─────────────────────────────────────────────────────────────────────────────
@@ -500,7 +531,7 @@ async def ws_translate(websocket: WebSocket) -> None:
     await websocket.accept()
 
     # ── Create session with UUID — never keyed by websocket object ────────────
-    session = create_session(NUM_FRAMES, emergency_config=app.state.emergency_detector)
+    session = create_session(NUM_FRAMES, INPUT_SIZE, emergency_config=app.state.emergency_detector)
     session_id = session.session_id
     websocket.state.session_id = session_id
     app.state.sessions[session_id] = session
@@ -516,7 +547,8 @@ async def ws_translate(websocket: WebSocket) -> None:
 
     loop = asyncio.get_running_loop()
     
-    global TOTAL_PREDICTIONS, DROPPED_FRAMES
+    global TOTAL_PREDICTIONS, DROPPED_FRAMES, ACTIVE_SESSIONS
+    ACTIVE_SESSIONS += 1
 
     try:
         while True:
@@ -565,31 +597,58 @@ async def ws_translate(websocket: WebSocket) -> None:
                     continue
 
                 # ── Flood protection ──────────────────────────────────────────
-                # If too many inferences are already queued, drop this frame.
-                # This keeps predictions responding to the LATEST frames,
-                # not a backlog of old ones.
                 if session.pending_count > MAX_PENDING:
                     DROPPED_FRAMES += 1
                     continue
 
-                # ── Append to sliding buffer ──────────────────────────────────
+                # ── Append to circular buffer (zero-copy) ─────────────────────
                 frame = np.array(features, dtype=np.float32)
-                session.buffer.append(frame)
+                session.append_frame(frame)
 
-                # ── Predict on every frame once buffer is full ────────────────
-                # deque(maxlen=20): frames 1–20 → predict, 2–21 → predict, etc.
-                if len(session.buffer) < NUM_FRAMES:
+                sequence = session.get_sequence()
+                if sequence is None:
                     continue  # Still filling — not enough frames yet
 
-                session.pending_count += 1
-                sequence = np.array(list(session.buffer), dtype=np.float32)
+                # ── Motion-Triggered Inference ────────────────────────────────
+                # Features 253-505 are velocity (frame-to-frame delta)
+                velocity = frame[253:506]
+                vel_sum = float(np.sum(np.abs(velocity)))
+                MOTION_SCORE_HISTORY.append(vel_sum)
+                
+                if vel_sum < 0.15:  # IDLE_THRESHOLD
+                    # Feed explicit idle state
+                    idle_class_idx = app.state.classes.index("...") if "..." in app.state.classes else 0
+                    idle_probs = np.zeros(app.state.num_classes, dtype=np.float32)
+                    idle_probs[idle_class_idx] = 1.0
+                    
+                    stable_class, smoothed_conf = session.postprocessor.update_with_confidence(idle_probs)
+                    if stable_class is None:
+                        continue
+                    word = app.state.classes[stable_class]
+                    session.sentence_builder.update(word, smoothed_conf)
+                    
+                    response = {
+                        "type": "prediction",
+                        "word": word.upper() if smoothed_conf >= CONFIDENCE_THRESHOLD else None,
+                        "confidence": round(float(smoothed_conf), 4),
+                        "sentence_so_far": session.sentence_builder.current_sentence,
+                    }
+                    if DEBUG:
+                        response["debug"] = {
+                            "top5": [], "raw_confidence": 1.0, 
+                            "stable_class": int(stable_class), "pending_count": session.pending_count,
+                            "idle": True
+                        }
+                    await websocket.send_json(response)
+                    continue
 
-                # Blocking inference — run in thread pool to not block event loop
-                # Uses ONNX (INT8 or FP32) if available, falls back to PyTorch
+                session.pending_count += 1
+
+                # Blocking inference — run in dedicated thread pool
                 try:
                     t0 = time.perf_counter()
                     pred_idx, confidence, all_probs = await loop.run_in_executor(
-                        None,
+                        app.state.inference_executor,
                         partial(
                             ensemble_predict_mixed,
                             app.state.models,
@@ -616,6 +675,7 @@ async def ws_translate(websocket: WebSocket) -> None:
                         latency_ms += (time.perf_counter() - t2) * 1000.0
 
                     TOTAL_PREDICTIONS += 1
+                    INFERENCE_TIME_HISTORY.append(latency_ms)
                     LATENCY_HISTORY.append(latency_ms)
 
                     logger.info(
@@ -753,6 +813,7 @@ async def ws_translate(websocket: WebSocket) -> None:
         except Exception:
             pass
     finally:
+        ACTIVE_SESSIONS = max(0, ACTIVE_SESSIONS - 1)
         app.state.sessions.pop(session_id, None)
         logger.info(
             "session_cleanup",
