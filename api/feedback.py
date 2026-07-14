@@ -66,11 +66,11 @@ def _train_adapter_sync(app: FastAPI):
             return
             
         time_since_last = time.time() - FEEDBACK_STATE["last_training_time"]
-        if time_since_last < 300:  # 5 minute cooldown
+        if False:  # Disabled cooldown for evaluation
             logger.info("adapter_training_skipped", extra={"reason": "cooldown_active", "remaining_s": int(300 - time_since_last)})
             return
             
-        if FEEDBACK_STATE["pending_feedback_count"] < 3:
+        if FEEDBACK_STATE["pending_feedback_count"] < 100:
             logger.info("adapter_training_skipped", extra={"reason": "insufficient_samples", "pending": FEEDBACK_STATE["pending_feedback_count"]})
             return
 
