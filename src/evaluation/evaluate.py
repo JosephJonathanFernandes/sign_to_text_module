@@ -1,0 +1,360 @@
+import os
+import sys
+import time
+import json
+import asyncio
+import argparse
+import datetime
+import platform
+import csv
+import numpy as np
+import matplotlib.pyplot as plt
+import websockets
+from collections import deque
+import psutil
+
+# Add project root to path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
+from src.core.config import get_config
+from src.preprocessing.dataset import ISLDataset
+
+cfg = get_config()
+
+WS_URL = "ws://localhost:8000/ws/translate"
+RESULTS_DIR = os.path.join(os.path.dirname(__file__), '../../results')
+os.makedirs(RESULTS_DIR, exist_ok=True)
+
+
+def get_system_info():
+    """Collect system and environment information."""
+    try:
+        import git
+        repo = git.Repo(search_parent_directories=True)
+        commit = repo.head.commit.hexsha[:8]
+    except Exception:
+        commit = "unknown"
+
+    ram_gb = round(psutil.virtual_memory().total / (1024.**3), 2)
+    
+    # Platform safe way to get CPU info
+    try:
+        cpu_freq = psutil.cpu_freq().max if psutil.cpu_freq() else "unknown"
+    except Exception:
+        cpu_freq = "unknown"
+
+    return {
+        "timestamp": datetime.datetime.now().isoformat(),
+        "commit": commit,
+        "python": platform.python_version(),
+        "os": platform.system() + " " + platform.release(),
+        "cpu": platform.processor(),
+        "cpu_cores": psutil.cpu_count(logical=False),
+        "cpu_threads": psutil.cpu_count(logical=True),
+        "ram_gb": ram_gb,
+    }
+
+
+def save_experiment_metadata(experiment_name: str, info: dict, output_dir: str):
+    """Save experiment run configuration and system info."""
+    os.makedirs(output_dir, exist_ok=True)
+    with open(os.path.join(output_dir, "metadata.json"), "w") as f:
+        json.dump({"experiment": experiment_name, "system": info}, f, indent=4)
+
+
+async def simulate_ws_client(client_id: int, num_frames: int, frame_delay: float = 0.033, track_metrics: bool = True):
+    """Simulates a single WebSocket client sending random valid tensor payloads."""
+    feat_dim = cfg.frame_features.input_sequence_dim
+    
+    latencies = []
+    dropped = 0
+    
+    try:
+        async with websockets.connect(WS_URL) as ws:
+            for _ in range(num_frames):
+                frame = np.random.randn(feat_dim).astype(np.float32)
+                
+                t0 = time.perf_counter()
+                await ws.send(frame.tobytes())
+                
+                try:
+                    response = await asyncio.wait_for(ws.recv(), timeout=2.0)
+                    t1 = time.perf_counter()
+                    
+                    if track_metrics:
+                        latencies.append((t1 - t0) * 1000)
+                except asyncio.TimeoutError:
+                    dropped += 1
+                except websockets.exceptions.ConnectionClosed:
+                    dropped += 1
+                    break
+                
+                await asyncio.sleep(frame_delay)
+    except Exception as e:
+        print(f"[Client {client_id}] Error: {e}")
+        dropped += (num_frames - len(latencies))
+        
+    return latencies, dropped
+
+
+async def end_to_end_latency_test(num_frames: int = 300):
+    """Evaluate single-client end-to-end latency."""
+    print("\n--- Running End-to-End Latency Evaluation ---")
+    out_dir = os.path.join(RESULTS_DIR, "end_to_end")
+    save_experiment_metadata("end_to_end", get_system_info(), out_dir)
+    
+    print(f"Streaming {num_frames} frames at 30 FPS...")
+    latencies, dropped = await simulate_ws_client(0, num_frames, frame_delay=0.033)
+    
+    if not latencies:
+        print("No successful responses received. Is the API running?")
+        return
+
+    latencies = np.array(latencies)
+    mean_lat = latencies.mean()
+    p95_lat = np.percentile(latencies, 95)
+    
+    print(f"Mean Latency: {mean_lat:.2f} ms")
+    print(f"P95 Latency:  {p95_lat:.2f} ms")
+    print(f"Dropped:      {dropped}")
+    
+    csv_path = os.path.join(out_dir, "latency.csv")
+    with open(csv_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["frame", "latency_ms"])
+        for i, lat in enumerate(latencies):
+            writer.writerow([i, lat])
+            
+    plt.figure(figsize=(8, 5))
+    plt.hist(latencies, bins=30, color='skyblue', edgecolor='black')
+    plt.axvline(mean_lat, color='red', linestyle='dashed', linewidth=2, label=f'Mean: {mean_lat:.1f}ms')
+    plt.axvline(p95_lat, color='orange', linestyle='dashed', linewidth=2, label=f'P95: {p95_lat:.1f}ms')
+    plt.title('End-to-End WebSocket Latency Distribution')
+    plt.xlabel('Latency (ms)')
+    plt.ylabel('Frequency')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(out_dir, "latency_histogram.png"), dpi=300)
+    plt.close()
+    print(f"Saved results to {out_dir}")
+
+
+async def stress_test_evaluation(max_clients: int = 50, frames_per_client: int = 150):
+    """Evaluate system under concurrent loads."""
+    print(f"\n--- Running Stress Test (up to {max_clients} clients) ---")
+    out_dir = os.path.join(RESULTS_DIR, "stress")
+    save_experiment_metadata("stress", get_system_info(), out_dir)
+    
+    clients_schedule = [1, 5, 10, 20, max_clients]
+    results = []
+    
+    for n_clients in clients_schedule:
+        print(f"Testing {n_clients} concurrent clients...")
+        
+        tasks = [simulate_ws_client(i, frames_per_client) for i in range(n_clients)]
+        start_t = time.perf_counter()
+        completed = await asyncio.gather(*tasks)
+        elapsed = time.perf_counter() - start_t
+        
+        all_lats = []
+        total_dropped = 0
+        for lats, dropped in completed:
+            all_lats.extend(lats)
+            total_dropped += dropped
+            
+        if all_lats:
+            mean_lat = np.mean(all_lats)
+            p95 = np.percentile(all_lats, 95)
+        else:
+            mean_lat, p95 = 0, 0
+            
+        throughput = (frames_per_client * n_clients - total_dropped) / elapsed
+        
+        results.append({
+            "clients": n_clients,
+            "mean_latency": mean_lat,
+            "p95_latency": p95,
+            "dropped": total_dropped,
+            "throughput_fps": throughput
+        })
+        
+        print(f"  -> Mean Latency: {mean_lat:.1f}ms, P95: {p95:.1f}ms, Dropped: {total_dropped}, Throughput: {throughput:.1f} FPS")
+        await asyncio.sleep(2)
+        
+    csv_path = os.path.join(out_dir, "stress.csv")
+    with open(csv_path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["clients", "mean_latency", "p95_latency", "dropped", "throughput_fps"])
+        writer.writeheader()
+        writer.writerows(results)
+        
+    clients = [r["clients"] for r in results]
+    latencies = [r["mean_latency"] for r in results]
+    
+    plt.figure(figsize=(8, 5))
+    plt.plot(clients, latencies, marker='o', linestyle='-', color='red', label='Mean Latency')
+    plt.title('Stress Test: Latency vs. Concurrent Clients')
+    plt.xlabel('Concurrent Clients')
+    plt.ylabel('Mean Latency (ms)')
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(out_dir, "stress_curve.png"), dpi=300)
+    plt.close()
+    print(f"Saved results to {out_dir}")
+
+
+async def long_duration_stability(minutes: float = 30.0):
+    """Evaluate system stability over a long continuous run."""
+    print(f"\n--- Running Long Duration Stability Test ({minutes} minutes) ---")
+    out_dir = os.path.join(RESULTS_DIR, "stability")
+    save_experiment_metadata("stability", get_system_info(), out_dir)
+    
+    total_seconds = minutes * 60
+    start_time = time.time()
+    
+    mem_usage = []
+    latencies_over_time = []
+    timestamps = []
+    
+    feat_dim = cfg.frame_features.input_sequence_dim
+    dropped = 0
+    
+    try:
+        async with websockets.connect(WS_URL) as ws:
+            while (time.time() - start_time) < total_seconds:
+                frame = np.random.randn(feat_dim).astype(np.float32)
+                
+                t0 = time.perf_counter()
+                await ws.send(frame.tobytes())
+                
+                try:
+                    await asyncio.wait_for(ws.recv(), timeout=2.0)
+                    lat = (time.perf_counter() - t0) * 1000
+                    
+                    if int(time.time()) % 1 == 0 and (not timestamps or timestamps[-1] != int(time.time() - start_time)):
+                        timestamps.append(int(time.time() - start_time))
+                        latencies_over_time.append(lat)
+                        mem_usage.append(psutil.Process().memory_info().rss / (1024 * 1024))
+                        
+                except Exception:
+                    dropped += 1
+                
+                await asyncio.sleep(0.033)
+                
+    except Exception as e:
+        print(f"Stability test interrupted: {e}")
+        
+    csv_path = os.path.join(out_dir, "stability.csv")
+    with open(csv_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["time_sec", "latency_ms", "memory_mb"])
+        for t, l, m in zip(timestamps, latencies_over_time, mem_usage):
+            writer.writerow([t, l, m])
+            
+    fig, ax1 = plt.subplots(figsize=(10, 5))
+    ax1.set_xlabel('Time (s)')
+    ax1.set_ylabel('Latency (ms)', color='tab:red')
+    ax1.plot(timestamps, latencies_over_time, color='tab:red', alpha=0.6, label='Latency')
+    ax1.tick_params(axis='y', labelcolor='tab:red')
+    
+    ax2 = ax1.twinx()
+    ax2.set_ylabel('Memory (MB)', color='tab:blue')
+    ax2.plot(timestamps, mem_usage, color='tab:blue', alpha=0.8, label='Memory')
+    ax2.tick_params(axis='y', labelcolor='tab:blue')
+    
+    plt.title('Long Duration Stability: Latency & Memory Drift')
+    plt.tight_layout()
+    plt.savefig(os.path.join(out_dir, "stability_drift.png"), dpi=300)
+    plt.close()
+    print(f"Saved results to {out_dir}. Dropped frames: {dropped}")
+
+
+async def continual_learning_evaluation():
+    """Evaluate Continual Learning using /feedback."""
+    import requests
+    print("\n--- Running Continual Learning Evaluation ---")
+    out_dir = os.path.join(RESULTS_DIR, "continual_learning")
+    save_experiment_metadata("continual_learning", get_system_info(), out_dir)
+    
+    API_URL = "http://localhost:8000"
+    
+    print("Measuring baseline latency...")
+    lats, _ = await simulate_ws_client(0, 100)
+    baseline_lat = np.mean(lats) if lats else 0
+    
+    print("Submitting 20 dummy feedback corrections...")
+    feat_dim = cfg.frame_features.input_sequence_dim
+    for i in range(20):
+        dummy_seq = np.random.randn(20, feat_dim).astype(np.float32).tolist()
+        payload = {
+            "sequence": dummy_seq,
+            "corrected_label": "hello",
+            "original_prediction": "goodbye"
+        }
+        res = requests.post(f"{API_URL}/feedback", json=payload)
+        if res.status_code != 200:
+            print(f"Feedback {i} failed: {res.text}")
+            
+    print("Waiting for adapter to train...")
+    start_wait = time.time()
+    trained = False
+    
+    while time.time() - start_wait < 120:
+        try:
+            res = requests.get(f"{API_URL}/metrics")
+            if res.status_code == 200:
+                data = res.json()
+                if data.get("adapter_success_runs", 0) > 0:
+                    trained = True
+                    break
+        except Exception:
+            pass
+        time.sleep(2)
+        
+    train_time = time.time() - start_wait
+    if not trained:
+        print("Adapter did not finish training within 120s.")
+        
+    print("Measuring adapted latency...")
+    lats, _ = await simulate_ws_client(0, 100)
+    adapted_lat = np.mean(lats) if lats else 0
+    
+    print("\nContinual Learning Results:")
+    print(f"  Baseline Latency: {baseline_lat:.2f} ms")
+    print(f"  Adapter Latency:  {adapted_lat:.2f} ms")
+    print(f"  Training Time:    {train_time:.1f} s")
+    
+    with open(os.path.join(out_dir, "learning_report.md"), "w") as f:
+        f.write("# Continual Learning Evaluation\n\n")
+        f.write(f"- Baseline Latency: {baseline_lat:.2f} ms\n")
+        f.write(f"- Adapted Latency: {adapted_lat:.2f} ms\n")
+        f.write(f"- Training Time: {train_time:.1f} s\n")
+        f.write("\n*Note: Accuracy deltas require real `.npy` sequences. Dummy random data was used for system performance validation.*")
+    print(f"Saved results to {out_dir}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="FYP System Evaluation Suite")
+    parser.add_argument("--experiment", type=str, choices=["end_to_end", "stress", "continual_learning", "stability", "all"], 
+                        required=True, help="Which experiment to run")
+    args = parser.parse_args()
+    
+    print("="*60)
+    print(f"FYP Evaluation Suite")
+    print(f"System: {get_system_info()['os']} ({get_system_info()['cpu']})")
+    print("="*60)
+
+    if args.experiment in ["end_to_end", "all"]:
+        asyncio.run(end_to_end_latency_test())
+        
+    if args.experiment in ["stress", "all"]:
+        asyncio.run(stress_test_evaluation(max_clients=50))
+        
+    if args.experiment in ["continual_learning", "all"]:
+        asyncio.run(continual_learning_evaluation())
+        
+    if args.experiment in ["stability", "all"]:
+        asyncio.run(long_duration_stability(minutes=10.0))
+        
+if __name__ == "__main__":
+    main()
