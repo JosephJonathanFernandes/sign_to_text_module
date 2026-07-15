@@ -260,17 +260,17 @@
     "motion_speed_agreement": "74.8%"
   },
   "cheap": {
-    "hand_count_agreement": "63.1%",
-    "movement_agreement": "62.2%",
-    "location_agreement": "72.9%",
-    "orientation_agreement": "67.1%",
-    "symmetry_agreement": "63.3%",
-    "finger_state_agreement": "54.0%",
-    "hand_shape_agreement": "39.6%",
-    "motion_direction_agreement": "40.9%",
-    "trajectory_pattern_agreement": "40.9%",
-    "dominant_hand_agreement": "63.1%",
-    "motion_speed_agreement": "62.2%"
+    "hand_count_agreement": "93.5%",
+    "movement_agreement": "37.8%",
+    "location_agreement": "93.0%",
+    "orientation_agreement": "99.0%",
+    "symmetry_agreement": "93.5%",
+    "finger_state_agreement": "89.5%",
+    "hand_shape_agreement": "75.8%",
+    "motion_direction_agreement": "85.2%",
+    "trajectory_pattern_agreement": "85.2%",
+    "dominant_hand_agreement": "93.5%",
+    "motion_speed_agreement": "37.8%"
   },
   "clean": {
     "hand_count_agreement": "90.6%",
@@ -2364,5 +2364,18 @@
     "trajectory_pattern_agreement": "79.2%",
     "dominant_hand_agreement": "86.2%",
     "motion_speed_agreement": "34.0%"
+  },
+  "cute": {
+    "hand_count_agreement": "94.2%",
+    "movement_agreement": "39.8%",
+    "location_agreement": "100.0%",
+    "orientation_agreement": "95.2%",
+    "symmetry_agreement": "94.2%",
+    "finger_state_agreement": "92.5%",
+    "hand_shape_agreement": "77.5%",
+    "motion_direction_agreement": "48.5%",
+    "trajectory_pattern_agreement": "48.5%",
+    "dominant_hand_agreement": "94.2%",
+    "motion_speed_agreement": "39.8%"
   }
 }

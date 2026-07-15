@@ -24,7 +24,6 @@
   ],
   "one_hand|medium_motion|upper_space|unknown": [
     "6",
-    "cheap",
     "famous"
   ],
   "one_hand|small_motion|upper_space|pointing": [
@@ -92,6 +91,11 @@
   ],
   "one_hand|small_motion|upper_space|open_palm": [
     "c"
+  ],
+  "one_hand|unknown|neutral_space|pointing": [
+    "cheap",
+    "itself",
+    "cancel"
   ],
   "one_hand|large_motion|neutral_space|open_palm": [
     "clean",
@@ -266,10 +270,6 @@
   "two_hands|medium_motion|neutral_space|open_palm": [
     "z"
   ],
-  "one_hand|unknown|neutral_space|pointing": [
-    "itself",
-    "cancel"
-  ],
   "one_hand|unknown|unknown|open_palm": [
     "them"
   ],
@@ -282,7 +282,8 @@
     "ignore",
     "angry",
     "easy",
-    "better"
+    "better",
+    "cute"
   ],
   "one_hand|unknown|upper_space|pointing": [
     "think",
