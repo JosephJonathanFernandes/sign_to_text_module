@@ -682,6 +682,9 @@ async def ws_translate(websocket: WebSocket) -> None:
                 #    consecutive frames usually indicates a MediaPipe tracking glitch.
                 #    Uses session-level counter so 1-2 glitchy frames don't interrupt
                 #    a running sign (same pattern as idle_frames).
+                #    IMPORTANT: prev_frame is only updated on ACCEPTED frames so that
+                #    each bad frame is compared against the last known-good position,
+                #    not against the previous bad frame (which would mask continued drift).
                 if session.prev_frame is not None:
                     jump = float(np.mean(np.abs(raw_coords - session.prev_frame[:126])))
                     if jump > LANDMARK_JUMP_THRESHOLD:
@@ -689,11 +692,10 @@ async def ws_translate(websocket: WebSocket) -> None:
                         if session.landmark_jump_count >= MAX_CONSECUTIVE_JUMPS:
                             logger.warning("skeleton_quality_jump", extra={"session_id": short_id, "jump": round(jump, 4), "consecutive": session.landmark_jump_count})
                             session.landmark_jump_count = 0
-                        session.prev_frame = frame.copy()
-                        continue
+                        continue  # prev_frame intentionally NOT updated here
                     else:
                         session.landmark_jump_count = 0
-                session.prev_frame = frame.copy()
+                session.prev_frame = frame.copy()  # Only reached on accepted frames
 
                 session.append_frame(frame)
 
