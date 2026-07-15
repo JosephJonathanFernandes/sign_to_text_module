@@ -2587,6 +2587,19 @@
       "trajectory_pattern": "circular",
       "dominant_hand": "both",
       "motion_speed": "unknown"
+    },
+    "often": {
+      "hand_count": "two_hands",
+      "movement": "unknown",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric",
+      "finger_state": "11000",
+      "hand_shape": "pointing",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "both",
+      "motion_speed": "unknown"
     }
   }
 }

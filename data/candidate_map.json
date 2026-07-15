@@ -308,7 +308,8 @@
   ],
   "two_hands|unknown|neutral_space|pointing": [
     "examine",
-    "careful"
+    "careful",
+    "often"
   ],
   "one_hand|unknown|face_near|pointing": [
     "dream"
