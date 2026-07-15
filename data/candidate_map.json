@@ -38,6 +38,7 @@
   "one_hand|unknown|neutral_space|open_palm": [
     "alive",
     "dirty",
+    "new",
     "small_little",
     "me",
     "good_night",
@@ -223,9 +224,6 @@
     "yourself",
     "your",
     "they_themselves"
-  ],
-  "unknown|large_motion|neutral_space|open_palm": [
-    "new"
   ],
   "one_hand|large_motion|upper_space|open_palm": [
     "old",

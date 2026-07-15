@@ -938,8 +938,8 @@
       "motion_speed": "fast"
     },
     "new": {
-      "hand_count": "unknown",
-      "movement": "large_motion",
+      "hand_count": "one_hand",
+      "movement": "unknown",
       "location": "neutral_space",
       "orientation": "forward",
       "symmetry": "unknown",
@@ -947,8 +947,8 @@
       "hand_shape": "open_palm",
       "motion_direction": "circular",
       "trajectory_pattern": "circular",
-      "dominant_hand": "unknown",
-      "motion_speed": "fast"
+      "dominant_hand": "left",
+      "motion_speed": "unknown"
     },
     "nice": {
       "hand_count": "one_hand",

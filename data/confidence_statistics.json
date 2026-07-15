@@ -936,17 +936,17 @@
     "motion_speed_agreement": "93.3%"
   },
   "new": {
-    "hand_count_agreement": "49.6%",
-    "movement_agreement": "79.1%",
-    "location_agreement": "61.3%",
-    "orientation_agreement": "85.1%",
-    "symmetry_agreement": "50.4%",
-    "finger_state_agreement": "79.1%",
-    "hand_shape_agreement": "71.1%",
-    "motion_direction_agreement": "60.0%",
-    "trajectory_pattern_agreement": "60.0%",
-    "dominant_hand_agreement": "49.6%",
-    "motion_speed_agreement": "79.1%"
+    "hand_count_agreement": "93.2%",
+    "movement_agreement": "40.2%",
+    "location_agreement": "77.0%",
+    "orientation_agreement": "93.8%",
+    "symmetry_agreement": "93.2%",
+    "finger_state_agreement": "97.8%",
+    "hand_shape_agreement": "93.0%",
+    "motion_direction_agreement": "59.2%",
+    "trajectory_pattern_agreement": "59.2%",
+    "dominant_hand_agreement": "93.2%",
+    "motion_speed_agreement": "40.2%"
   },
   "nice": {
     "hand_count_agreement": "83.5%",
