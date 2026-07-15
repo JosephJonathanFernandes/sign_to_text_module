@@ -1,20 +1,11 @@
 # Engineering Log (February 21 - July 15, 2026)
 
-> **Note:** January and early-February entries cover pre-repository offline work (architecture research, local prototyping) before the Git repository was initialized on **February 21, 2026**. Entries from February 21 onward are fully backed by commit history.
-
-**January 2026 (Pre-Repository)**
-
-* **Jan 1-5**: Initiated the real-time sign language translation project. Evaluated OpenPose vs. MediaPipe Holistic for landmark extraction, selecting MediaPipe for its superior CPU efficiency and lack of GPU dependency.
-* **Jan 8-12**: Began modularizing the core engine (`src/core/`). Built the initial `camera_manager.py` and `landmark_processor.py`. Solved severe OpenCV I/O blocking by offloading video capture into a background daemon thread.
-* **Jan 15-20**: Encountered significant spatial variance issues from camera distance. Engineered a bounding-box normalization strategy to ensure coordinate consistency across different distances and camera angles.
-* **Jan 21-25**: Discovered that parsing raw video during PyTorch training was a severe I/O bottleneck. Wrote extraction scripts to pre-process landmarks into `.npy` arrays and prototyped dynamic PyTorch dataset loaders.
-* **Jan 27-30**: Prototyped the predictive architecture in `src/training/model.py`. Shifted from a pure GRU approach to a hybrid Conv1D + Bidirectional GRU (Bi-GRU) to capture both micro-temporal finger flicks and macro-sequence context.
+> **Note:** The project started in **February 2026**. The Git repository was initialized on **February 21, 2026**. All entries from that date onward are backed by commit history. March entries cover offline experimental work with no commits pushed.
 
 **February 2026**
 
-* **Feb 4-19** *(Pre-commit)*: Addressed early classification failures on visually similar signs by integrating Focal Loss. Centralized all hyperparameters into `src/core/config.py`. Overhauled the preprocessing pipeline — engineered a zero-padding strategy to handle MediaPipe frame drops from motion blur without corrupting sequence dimensions.
-* **Feb 21** *(first commit: `8c838b8e6`)* : Initialized the Git repository. First commit pushed the foundational codebase: core modules, preprocessing pipeline, training loop (`train.py`, `train_ablation.py`), and initial model architecture.
-* **Feb 22-28** *(commits: `57df43514` → `15dcdfd63`)* : Debugged validation leakage in the PyTorch `DataLoader`. Pushed multiple incremental fixes across the model training loop. Five additional "first commit" pushes stabilized the base pipeline.
+* **Feb 21** *(first commit: `8c838b8e6`)* : Initialized the Git repository. Pushed the foundational codebase: core preprocessing pipeline (`src/preprocessing/preprocess.py`), training loop (`train.py`, `train_ablation.py`), and initial Conv1D + Bidirectional GRU model architecture. Included bounding-box normalization, `.npy` landmark extraction pipeline, zero-padding for missing frames, and PyTorch `DataLoader` with validation split logic.
+* **Feb 22-28** *(commits: `57df43514` → `15dcdfd63`)* : Debugged validation leakage in the PyTorch `DataLoader`. Pushed incremental fixes stabilizing the base training pipeline.
 
 **March 2026 (No commits — offline experimental work)**
 
