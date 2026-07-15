@@ -2522,6 +2522,19 @@
       "trajectory_pattern": "unknown",
       "dominant_hand": "left",
       "motion_speed": "unknown"
+    },
+    "soft_speaking": {
+      "hand_count": "two_hands",
+      "movement": "unknown",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "unknown",
+      "finger_state": "10000",
+      "hand_shape": "unknown",
+      "motion_direction": "circular",
+      "trajectory_pattern": "circular",
+      "dominant_hand": "both",
+      "motion_speed": "unknown"
     }
   }
 }
