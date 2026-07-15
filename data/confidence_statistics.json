@@ -2546,5 +2546,18 @@
     "trajectory_pattern_agreement": "56.8%",
     "dominant_hand_agreement": "94.0%",
     "motion_speed_agreement": "34.0%"
+  },
+  "therefore": {
+    "hand_count_agreement": "69.2%",
+    "movement_agreement": "38.8%",
+    "location_agreement": "95.0%",
+    "orientation_agreement": "65.8%",
+    "symmetry_agreement": "60.5%",
+    "finger_state_agreement": "99.8%",
+    "hand_shape_agreement": "99.2%",
+    "motion_direction_agreement": "40.0%",
+    "trajectory_pattern_agreement": "40.0%",
+    "dominant_hand_agreement": "69.2%",
+    "motion_speed_agreement": "38.8%"
   }
 }
