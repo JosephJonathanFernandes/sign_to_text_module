@@ -275,6 +275,8 @@ def ensemble_predict_mixed(
 
     if proximity_feat_dim > 0 and tensor.shape[-1] >= frame_feat_dim:
         proximity = tensor[:, :, proximity_index : proximity_index + proximity_feat_dim]
+        if proximity.shape[-1] == 1:
+            proximity = proximity.squeeze(-1)
     else:
         proximity = None
 

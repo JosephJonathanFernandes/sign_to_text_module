@@ -1,0 +1,13 @@
+{
+    "experiment": "stability",
+    "system": {
+        "timestamp": "2026-07-14T20:34:12.832949",
+        "commit": "1873d4f0",
+        "python": "3.14.0",
+        "os": "Windows 11",
+        "cpu": "Intel64 Family 6 Model 154 Stepping 4, GenuineIntel",
+        "cpu_cores": 10,
+        "cpu_threads": 12,
+        "ram_gb": 15.71
+    }
+}

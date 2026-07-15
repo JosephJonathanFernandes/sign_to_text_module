@@ -24,7 +24,6 @@
   ],
   "one_hand|medium_motion|upper_space|unknown": [
     "6",
-    "cheap",
     "famous"
   ],
   "one_hand|small_motion|upper_space|pointing": [
@@ -38,6 +37,7 @@
   ],
   "one_hand|unknown|neutral_space|open_palm": [
     "alive",
+    "dirty",
     "small_little",
     "me",
     "good_night",
@@ -46,11 +46,15 @@
     "evening",
     "namaste",
     "coward",
-    "please"
+    "please",
+    "afraid",
+    "delicious"
   ],
   "two_hands|unknown|neutral_space|unknown": [
     "alright",
     "f",
+    "hard",
+    "long",
     "wear",
     "tear",
     "run",
@@ -58,7 +62,12 @@
     "climb_up",
     "climb_down",
     "break",
-    "cruel"
+    "cruel",
+    "fat",
+    "funny",
+    "tell",
+    "accessible",
+    "broken"
   ],
   "one_hand|large_motion|neutral_space|unknown": [
     "bad",
@@ -84,15 +93,21 @@
   "one_hand|small_motion|upper_space|open_palm": [
     "c"
   ],
+  "one_hand|unknown|neutral_space|pointing": [
+    "cheap",
+    "itself",
+    "cancel"
+  ],
   "one_hand|large_motion|neutral_space|open_palm": [
     "clean",
-    "dirty",
     "expensive"
   ],
   "unknown|unknown|neutral_space|unknown": [
     "cold",
     "deaf",
-    "swing"
+    "strong",
+    "swing",
+    "ancient"
   ],
   "one_hand|large_motion|face_near|open_palm": [
     "curved"
@@ -121,7 +136,6 @@
   ],
   "two_hands|large_motion|neutral_space|unknown": [
     "dry",
-    "long",
     "rich",
     "we"
   ],
@@ -137,7 +151,9 @@
     "myself",
     "good_morning",
     "hide",
-    "sorry"
+    "sorry",
+    "jealous",
+    "kind"
   ],
   "two_hands|unknown|neutral_space|open_palm": [
     "happy",
@@ -151,10 +167,11 @@
     "carry",
     "build",
     "brush",
-    "welcome"
-  ],
-  "two_hands|medium_motion|neutral_space|unknown": [
-    "hard"
+    "welcome",
+    "dangerous",
+    "dim",
+    "equal",
+    "abstract"
   ],
   "one_hand|large_motion|upper_space|unknown": [
     "he",
@@ -230,9 +247,6 @@
     "they",
     "tight"
   ],
-  "unknown|unknown|unknown|unknown": [
-    "strong"
-  ],
   "two_hands|unknown|unknown|pointing": [
     "tall"
   ],
@@ -257,10 +271,6 @@
   "two_hands|medium_motion|neutral_space|open_palm": [
     "z"
   ],
-  "one_hand|unknown|neutral_space|pointing": [
-    "itself",
-    "cancel"
-  ],
   "one_hand|unknown|unknown|open_palm": [
     "them"
   ],
@@ -271,10 +281,14 @@
   "one_hand|unknown|upper_space|open_palm": [
     "walk",
     "ignore",
-    "angry"
+    "angry",
+    "easy",
+    "better",
+    "cute"
   ],
   "one_hand|unknown|upper_space|pointing": [
-    "think"
+    "think",
+    "proud"
   ],
   "two_hands|unknown|face_near|open_palm": [
     "praise",

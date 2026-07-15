@@ -32,18 +32,25 @@ from functools import partial
 from typing import Dict
 
 import numpy as np
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+import torch
+import torch.nn.functional as F
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.core.config import get_config
-from src.inference.ensemble import ensemble_predict, load_ensemble
+from src.inference.ensemble import check_ood
+from src.inference.onnx_ensemble import detect_and_load_models, ensemble_predict_mixed
+from src.training.adapter_model import AdapterModel
 
+from api.emergency import EmergencyDetector
 from api.inference import run_predict
 from api.schemas import (
     HealthResponse, PredictRequest, PredictResponse,
-    ValidateFeaturesRequest, ValidateFeaturesResponse
+    ValidateFeaturesRequest, ValidateFeaturesResponse,
+    FeedbackRequest
 )
 from api.session import InferenceSession, create_session
+from api.feedback import process_feedback_async
 from src.shared.feature_extractor import build_single_frame_features
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -58,6 +65,23 @@ DEVICE: str = str(cfg.hardware.torch_device)             # e.g., "cpu"
 
 # Max in-flight inference calls per session before frames are dropped
 MAX_PENDING: int = 2
+
+# Maximum allowed WebSocket payload size (bytes) to prevent OOM
+MAX_PAYLOAD_SIZE: int = 50000
+
+# Velocity threshold below which a frame is considered idle
+IDLE_VELOCITY_THRESHOLD: float = 0.15
+
+# Directory containing continual learning adapter weights
+ADAPTER_WEIGHTS_DIR: str = "adapter_weights"
+
+# Skeleton quality thresholds
+# Fraction of raw hand coords (features 0-126) that must be non-zero for frame to be valid
+LANDMARK_ZERO_RATIO_THRESHOLD: float = 0.5
+# Mean absolute landmark jump (normalized) above which a frame is considered a tracking glitch
+LANDMARK_JUMP_THRESHOLD: float = 0.20
+# Consecutive jump frames before inference is paused (mirrors idle_frames pattern)
+MAX_CONSECUTIVE_JUMPS: int = 3
 
 # Enable debug mode via: DEBUG=true python run_api.py
 DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
@@ -77,6 +101,9 @@ START_TIME = time.time()
 TOTAL_PREDICTIONS = 0
 DROPPED_FRAMES = 0
 LATENCY_HISTORY = deque(maxlen=1000)
+ACTIVE_SESSIONS = 0
+INFERENCE_TIME_HISTORY = deque(maxlen=1000)
+MOTION_SCORE_HISTORY = deque(maxlen=1000)
 
 # Initialize psutil CPU percent (first call returns 0.0)
 process = psutil.Process(os.getpid())
@@ -94,15 +121,72 @@ async def lifespan(app: FastAPI):
     Clean up sessions on shutdown.
     """
     logger.info("startup_started", extra={"event": "startup_started"})
-    models, classes, num_classes = load_ensemble()
-    for m in models:
-        m.eval()
+
+    # ── Load models — auto-detect ONNX (INT8 > FP32) then PyTorch fallback ───
+    # Priority: model_int8.onnx > model.onnx > model.pth
+    # Searches models/ and models/ensemble/ (picks up fold checkpoints too)
+    model_dirs = [
+        cfg.paths.model_save_path.replace("model.pth", "").rstrip("/\\"),
+        cfg.paths.ensemble_dir,
+    ]
+    models, load_meta = detect_and_load_models(
+        ensemble_dir=model_dirs,
+        max_models=cfg.live_inference.ensemble_size,
+        device=DEVICE,
+    )
+    if not models:
+        raise RuntimeError("No models found. Train with --train or --kfold first.")
+
+    logger.info(
+        "models_loaded",
+        extra={
+            "onnx_models": load_meta["onnx_models"],
+            "pytorch_models": load_meta["pytorch_models"],
+            "total": load_meta["total_models"],
+            "artifacts": [
+                f"{a['family']} ({a['kind']})"
+                for a in load_meta["selected_artifacts"]
+            ],
+        },
+    )
+
+    # Read class list from model metadata (source of truth for trained models)
+    import os as _os
+    import json as _json
+    classes = []
+    
+    # Try to load from model metadata first
+    meta_path = _os.path.join(cfg.paths.model_save_path.replace("model.pth", "").rstrip("/\\"), "model_metadata.json")
+    if _os.path.exists(meta_path):
+        try:
+            with open(meta_path, 'r', encoding='utf-8') as f:
+                meta = _json.load(f)
+                classes = meta.get("checkpoint", {}).get("classes", [])
+        except Exception as e:
+            logger.warning(f"Could not load classes from {meta_path}: {e}")
+            
+    # Fallback to processed dir
+    if not classes:
+        classes = sorted([
+            d for d in _os.listdir(cfg.paths.processed_dir)
+            if _os.path.isdir(_os.path.join(cfg.paths.processed_dir, d))
+        ])
+    num_classes = len(classes)
 
     # ── Warmup inference ──────────────────────────────────────────────────────
     logger.info("warmup_started", extra={"num_frames": NUM_FRAMES, "input_size": INPUT_SIZE})
     dummy_seq = np.zeros((NUM_FRAMES, INPUT_SIZE), dtype=np.float32)
     loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, partial(ensemble_predict, models, dummy_seq))
+    await loop.run_in_executor(
+        None,
+        partial(
+            ensemble_predict_mixed,
+            models, dummy_seq, DEVICE,
+            cfg.spatial.proximity_dim,
+            cfg.frame_features.input_sequence_dim,
+            cfg.frame_features.proximity_index,
+        ),
+    )
     logger.info("warmup_completed", extra={"event": "model_ready"})
 
     # Store in app state
@@ -110,12 +194,40 @@ async def lifespan(app: FastAPI):
     app.state.classes = classes
     app.state.num_classes = num_classes
     app.state.model_loaded = True
-    app.state.sessions: Dict[str, InferenceSession] = {}
+    app.state.sessions = {}  # Dict[str, InferenceSession]
+
+    from concurrent.futures import ThreadPoolExecutor
+    app.state.inference_executor = ThreadPoolExecutor(
+        max_workers=max(1, min(4, _os.cpu_count() or 1)),
+        thread_name_prefix="inference"
+    )
+
+    # ── Load Adapter (if exists) ──────────────────────────────────────────────
+    adapter_weights_dir = ADAPTER_WEIGHTS_DIR
+    app.state.adapter_model = None
+    if _os.path.exists(adapter_weights_dir):
+        pt_files = sorted([f for f in _os.listdir(adapter_weights_dir) if f.endswith(".pt")])
+        if pt_files:
+            latest_adapter_path = _os.path.join(adapter_weights_dir, pt_files[-1])
+            try:
+                adapter_model = AdapterModel(num_classes, hidden_dim=cfg.training.adapter_hidden_dim).to(DEVICE)
+                adapter_model.load_weights(latest_adapter_path)
+                adapter_model.eval()
+                app.state.adapter_model = adapter_model
+                logger.info("adapter_loaded", extra={"path": latest_adapter_path})
+            except Exception as e:
+                logger.warning(f"Failed to load adapter weights from {latest_adapter_path}: {e}")
+
+    # ── Emergency detector — loaded from data/emergency_config.json ──────────
+    app.state.emergency_detector = EmergencyDetector.from_config()
+    logger.info("emergency_detector_ready", extra={"event": "emergency_ready"})
 
     yield
 
     # ── Shutdown ──────────────────────────────────────────────────────────────
     app.state.sessions.clear()
+    if hasattr(app.state, "inference_executor"):
+        app.state.inference_executor.shutdown(wait=False)
     logger.info("shutdown_completed", extra={"event": "shutdown"})
 
 
@@ -188,21 +300,34 @@ async def metrics() -> dict:
     Exposes runtime observability metrics.
     Keeps collection lightweight and in-memory.
     """
+    from api.feedback import FEEDBACK_STATE
+
     uptime = int(time.time() - START_TIME)
     active_sessions = getattr(app.state, "sessions", {})
     
     latencies = list(LATENCY_HISTORY)
+    inf_times = list(INFERENCE_TIME_HISTORY)
     if latencies:
         arr = np.array(latencies)
-        avg_ms = round(float(np.mean(arr)), 2)
+        avg_latency = float(np.mean(arr))
+        avg_ms = round(avg_latency, 2)
         p50 = round(float(np.percentile(arr, 50)), 2)
         p95 = round(float(np.percentile(arr, 95)), 2)
         p99 = round(float(np.percentile(arr, 99)), 2)
     else:
-        avg_ms = p50 = p95 = p99 = 0.0
+        avg_latency = avg_ms = p50 = p95 = p99 = 0.0
+
+    if inf_times:
+        arr_inf = np.array(inf_times)
+        avg_inf_time = float(np.mean(arr_inf))
+    else:
+        avg_inf_time = 0.0
+
+    avg_queue_wait = max(0.0, avg_latency - avg_inf_time)
 
     mem_mb = round(process.memory_info().rss / (1024 * 1024), 2)
     cpu = process.cpu_percent(interval=None)
+    fps = TOTAL_PREDICTIONS / uptime if uptime > 0 else 0.0
 
     # Read model version if available
     model_version = "unknown"
@@ -219,15 +344,25 @@ async def metrics() -> dict:
         "uptime_seconds": uptime,
         "active_sessions": len(active_sessions),
         "total_predictions": TOTAL_PREDICTIONS,
-        "avg_inference_ms": avg_ms,
+        "dropped_frames": DROPPED_FRAMES,
+        "fps_processed": round(fps, 2),
+        "avg_latency_ms": avg_ms,
+        "avg_inference_time_ms": round(avg_inf_time, 2),
+        "avg_queue_wait_ms": round(avg_queue_wait, 2),
         "p50_inference_ms": p50,
         "p95_inference_ms": p95,
         "p99_inference_ms": p99,
-        "dropped_frames": DROPPED_FRAMES,
         "process_memory_mb": mem_mb,
         "cpu_percent": cpu,
         "model_version": model_version,
-        "api_version": "v1"
+        "api_version": "v1",
+        "current_model": f"Ensemble ({len(getattr(app.state, 'models', []))} models)",
+        "active_adapter_version": FEEDBACK_STATE.get("active_adapter_version"),
+        "total_feedback_received": FEEDBACK_STATE.get("total_feedback_received", 0),
+        "training_in_progress": FEEDBACK_STATE.get("training_in_progress", False),
+        "pending_feedback_samples": FEEDBACK_STATE.get("pending_feedback_count", 0),
+        "adapter_success_runs": FEEDBACK_STATE.get("success_runs", 0),
+        "adapter_failed_runs": FEEDBACK_STATE.get("failed_runs", 0),
     }
 
 
@@ -362,13 +497,73 @@ async def validate_features(request: ValidateFeaturesRequest) -> dict:
         "mae": difference,
         "dimension_check": dimension_check,
         "range_check": range_check,
-        "errors": errors,
+        "errors": list(errors)
     }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# WebSocket /ws/translate
+# POST /feedback
 # ─────────────────────────────────────────────────────────────────────────────
+
+@app.post("/feedback", status_code=202)
+async def submit_feedback(req: FeedbackRequest, background_tasks: BackgroundTasks):
+    """
+    Submit a corrected sequence from the frontend.
+    This sequence is saved to the pseudo_data directory.
+    A background task is spawned to re-train the active learning adapter.
+    """
+    if not getattr(app.state, "model_loaded", False):
+        raise HTTPException(status_code=503, detail="Model not loaded yet")
+        
+    correct_word = req.correct_word.lower()
+    if correct_word not in app.state.classes:
+        raise HTTPException(status_code=400, detail=f"Unknown class: {correct_word}")
+        
+    sequence_length = len(req.sequence)
+    if sequence_length != NUM_FRAMES:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Expected {NUM_FRAMES} frames, got {sequence_length}"
+        )
+        
+    # Dispatch the I/O and training work to the background
+    background_tasks.add_task(
+        process_feedback_async,
+        app,
+        req.sequence,
+        correct_word,
+        req.session_id
+    )
+    
+    return {"status": "accepted", "message": f"Feedback for '{correct_word}' received. Training adapter in background."}
+
+
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WEBSOCKET TRANSLATE ENDPOINT
+# ─────────────────────────────────────────────────────────────────────────────
+def _run_inference_with_adapter(models, sequence, device, prox_dim, seq_dim, prox_idx, adapter):
+    import time
+    t_start = time.perf_counter()
+    pred_idx, confidence, all_probs = ensemble_predict_mixed(
+        models, sequence, device, prox_dim, seq_dim, prox_idx
+    )
+    if adapter is not None:
+        import torch
+        import torch.nn.functional as F
+        import numpy as np
+        with torch.no_grad():
+            probs_tensor = torch.from_numpy(all_probs.astype(np.float32)).unsqueeze(0).to(device)
+            adapted_logits = adapter(probs_tensor)
+            adapted_probs = F.softmax(adapted_logits, dim=1).cpu().numpy()[0]
+            all_probs = adapted_probs
+            pred_idx = int(np.argmax(all_probs))
+            confidence = float(all_probs[pred_idx])
+            
+    t_end = time.perf_counter()
+    return pred_idx, confidence, all_probs, (t_end - t_start) * 1000.0
+
 
 @app.websocket("/ws/translate")
 async def ws_translate(websocket: WebSocket) -> None:
@@ -401,7 +596,7 @@ async def ws_translate(websocket: WebSocket) -> None:
     await websocket.accept()
 
     # ── Create session with UUID — never keyed by websocket object ────────────
-    session = create_session(NUM_FRAMES)
+    session = create_session(NUM_FRAMES, INPUT_SIZE, emergency_config=app.state.emergency_detector)
     session_id = session.session_id
     websocket.state.session_id = session_id
     app.state.sessions[session_id] = session
@@ -417,11 +612,15 @@ async def ws_translate(websocket: WebSocket) -> None:
 
     loop = asyncio.get_running_loop()
     
-    global TOTAL_PREDICTIONS, DROPPED_FRAMES
+    global TOTAL_PREDICTIONS, DROPPED_FRAMES, ACTIVE_SESSIONS
+    ACTIVE_SESSIONS += 1
 
     try:
         while True:
             raw = await websocket.receive_text()
+
+            if len(raw) > MAX_PAYLOAD_SIZE:
+                raise ValueError(f"Payload too large: {len(raw)} bytes")
 
             try:
                 msg = json.loads(raw)
@@ -466,38 +665,116 @@ async def ws_translate(websocket: WebSocket) -> None:
                     continue
 
                 # ── Flood protection ──────────────────────────────────────────
-                # If too many inferences are already queued, drop this frame.
-                # This keeps predictions responding to the LATEST frames,
-                # not a backlog of old ones.
                 if session.pending_count > MAX_PENDING:
                     DROPPED_FRAMES += 1
                     continue
 
-                # ── Append to sliding buffer ──────────────────────────────────
+                # ── Append to circular buffer (zero-copy) ─────────────────────
                 frame = np.array(features, dtype=np.float32)
-                session.buffer.append(frame)
 
-                # ── Predict on every frame once buffer is full ────────────────
-                # deque(maxlen=20): frames 1–20 → predict, 2–21 → predict, etc.
-                if len(session.buffer) < NUM_FRAMES:
+                if not np.isfinite(frame).all():
+                    logger.warning("websocket_invalid_frame", extra={"session_id": short_id, "error": "NaN or Infinity detected"})
+                    continue
+
+                # ── Skeleton Quality Gate ─────────────────────────────────────
+                # 1. Zero-ratio check: >50% of raw hand coordinates are zero
+                #    means MediaPipe did not detect either hand reliably.
+                raw_coords = frame[:126]
+                zero_ratio = float(np.mean(np.abs(raw_coords) < 1e-6))
+                if zero_ratio > LANDMARK_ZERO_RATIO_THRESHOLD:
+                    logger.debug("skeleton_quality_zero", extra={"session_id": short_id, "zero_ratio": round(zero_ratio, 3)})
+                    continue
+
+                # 2. Landmark jump check: sudden large coordinate shift between
+                #    consecutive frames usually indicates a MediaPipe tracking glitch.
+                #    Uses session-level counter so 1-2 glitchy frames don't interrupt
+                #    a running sign (same pattern as idle_frames).
+                #    IMPORTANT: prev_frame is only updated on ACCEPTED frames so that
+                #    each bad frame is compared against the last known-good position,
+                #    not against the previous bad frame (which would mask continued drift).
+                if session.prev_frame is not None:
+                    jump = float(np.mean(np.abs(raw_coords - session.prev_frame[:126])))
+                    if jump > LANDMARK_JUMP_THRESHOLD:
+                        session.landmark_jump_count += 1
+                        if session.landmark_jump_count >= MAX_CONSECUTIVE_JUMPS:
+                            logger.warning("skeleton_quality_jump", extra={"session_id": short_id, "jump": round(jump, 4), "consecutive": session.landmark_jump_count})
+                            session.landmark_jump_count = 0
+                        continue  # prev_frame intentionally NOT updated here
+                    else:
+                        session.landmark_jump_count = 0
+                session.prev_frame = frame.copy()  # Only reached on accepted frames
+
+                session.append_frame(frame)
+
+                sequence = session.get_sequence()
+                if sequence is None:
                     continue  # Still filling — not enough frames yet
 
-                session.pending_count += 1
-                sequence = np.array(list(session.buffer), dtype=np.float32)
+                # ── Motion-Triggered Inference ────────────────────────────────
+                # Features 253-505 are velocity (frame-to-frame delta)
+                velocity = frame[253:506]
+                vel_sum = float(np.sum(np.abs(velocity)))
+                MOTION_SCORE_HISTORY.append(vel_sum)
+                
+                if vel_sum < IDLE_VELOCITY_THRESHOLD:  # IDLE_THRESHOLD
+                    session.idle_frames += 1
+                else:
+                    session.idle_frames = 0
+                
+                if session.idle_frames >= 3:
+                    # Feed explicit idle state
+                    idle_class_idx = app.state.classes.index("...") if "..." in app.state.classes else 0
+                    idle_probs = np.zeros(app.state.num_classes, dtype=np.float32)
+                    idle_probs[idle_class_idx] = 1.0
+                    
+                    stable_class, smoothed_conf = session.postprocessor.update_with_confidence(idle_probs)
+                    if stable_class is None:
+                        continue
+                    word = app.state.classes[stable_class]
+                    session.sentence_builder.update(word, smoothed_conf)
+                    
+                    response = {
+                        "type": "prediction",
+                        "word": word.upper() if smoothed_conf >= CONFIDENCE_THRESHOLD else None,
+                        "confidence": round(float(smoothed_conf), 4),
+                        "sentence_so_far": session.sentence_builder.current_sentence,
+                    }
+                    if DEBUG:
+                        response["debug"] = {
+                            "top5": [], "raw_confidence": 1.0, 
+                            "stable_class": int(stable_class), "pending_count": session.pending_count,
+                            "idle": True
+                        }
+                    await websocket.send_json(response)
+                    continue
 
+                session.pending_count += 1
+
+                # Blocking inference — run in dedicated thread pool
                 try:
-                    # Blocking torch call — run in thread pool
                     t0 = time.perf_counter()
-                    pred_idx, confidence, all_probs = await loop.run_in_executor(
-                        None,
-                        partial(ensemble_predict, app.state.models, sequence),
+                    active_adapter = getattr(app.state, "adapter_model", None)
+                    
+                    pred_idx, confidence, all_probs, inf_time_ms = await loop.run_in_executor(
+                        app.state.inference_executor,
+                        partial(
+                            _run_inference_with_adapter,
+                            app.state.models,
+                            sequence,
+                            DEVICE,
+                            cfg.spatial.proximity_dim,
+                            cfg.frame_features.input_sequence_dim,
+                            cfg.frame_features.proximity_index,
+                            active_adapter
+                        ),
                     )
                     t1 = time.perf_counter()
                     latency_ms = (t1 - t0) * 1000.0
-                    
+
                     TOTAL_PREDICTIONS += 1
+                    INFERENCE_TIME_HISTORY.append(inf_time_ms)
                     LATENCY_HISTORY.append(latency_ms)
-                    
+
                     logger.info(
                         "prediction_completed",
                         extra={
@@ -509,6 +786,7 @@ async def ws_translate(websocket: WebSocket) -> None:
                     )
                 finally:
                     session.pending_count = max(0, session.pending_count - 1)
+
 
                 # ── Temporal post-processing (per-session state) ──────────────
                 stable_class, smoothed_conf = (
@@ -575,6 +853,16 @@ async def ws_translate(websocket: WebSocket) -> None:
 
                 await websocket.send_json(response)
 
+                # ── Emergency detection — after temporal smoothing ─────────────
+                # check() is synchronous (no I/O) — edge detection + cooldown
+                # dispatch_as_task() is fire-and-forget with task tracking —
+                # exceptions are caught and logged, never silently dropped.
+                emergency_word = word if smoothed_conf >= CONFIDENCE_THRESHOLD else None
+                alert = session.emergency.check(emergency_word, smoothed_conf)
+                if alert:
+                    await websocket.send_json(alert)
+                    session.emergency.dispatch_as_task(word, smoothed_conf)
+
             # ── stop ──────────────────────────────────────────────────────────
             elif msg_type == "stop":
                 # Flush any sign still being held (not yet committed)
@@ -615,13 +903,20 @@ async def ws_translate(websocket: WebSocket) -> None:
 
     except WebSocketDisconnect:
         logger.info("websocket_disconnected", extra={"session_id": short_id})
+    except ValueError as exc:
+        logger.warning("websocket_validation_error", extra={"session_id": short_id, "error": str(exc)})
+        try:
+            await websocket.close(code=1008, reason="Policy Violation: Invalid Data")
+        except Exception:
+            pass
     except Exception as exc:
         logger.error("websocket_error", extra={"session_id": short_id, "error": str(exc)})
         try:
-            await websocket.close(code=1011, reason=str(exc))
+            await websocket.close(code=1011, reason="Internal Error")
         except Exception:
             pass
     finally:
+        ACTIVE_SESSIONS = max(0, ACTIVE_SESSIONS - 1)
         app.state.sessions.pop(session_id, None)
         logger.info(
             "session_cleanup",
