@@ -75,6 +75,14 @@ IDLE_VELOCITY_THRESHOLD: float = 0.15
 # Directory containing continual learning adapter weights
 ADAPTER_WEIGHTS_DIR: str = "adapter_weights"
 
+# Skeleton quality thresholds
+# Fraction of raw hand coords (features 0-126) that must be non-zero for frame to be valid
+LANDMARK_ZERO_RATIO_THRESHOLD: float = 0.5
+# Mean absolute landmark jump (normalized) above which a frame is considered a tracking glitch
+LANDMARK_JUMP_THRESHOLD: float = 0.20
+# Consecutive jump frames before inference is paused (mirrors idle_frames pattern)
+MAX_CONSECUTIVE_JUMPS: int = 3
+
 # Enable debug mode via: DEBUG=true python run_api.py
 DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
 ENV: str = os.getenv("ENV", "production").lower()
@@ -660,6 +668,32 @@ async def ws_translate(websocket: WebSocket) -> None:
                 if not np.isfinite(frame).all():
                     logger.warning("websocket_invalid_frame", extra={"session_id": short_id, "error": "NaN or Infinity detected"})
                     continue
+
+                # ── Skeleton Quality Gate ─────────────────────────────────────
+                # 1. Zero-ratio check: >50% of raw hand coordinates are zero
+                #    means MediaPipe did not detect either hand reliably.
+                raw_coords = frame[:126]
+                zero_ratio = float(np.mean(np.abs(raw_coords) < 1e-6))
+                if zero_ratio > LANDMARK_ZERO_RATIO_THRESHOLD:
+                    logger.debug("skeleton_quality_zero", extra={"session_id": short_id, "zero_ratio": round(zero_ratio, 3)})
+                    continue
+
+                # 2. Landmark jump check: sudden large coordinate shift between
+                #    consecutive frames usually indicates a MediaPipe tracking glitch.
+                #    Uses session-level counter so 1-2 glitchy frames don't interrupt
+                #    a running sign (same pattern as idle_frames).
+                if session.prev_frame is not None:
+                    jump = float(np.mean(np.abs(raw_coords - session.prev_frame[:126])))
+                    if jump > LANDMARK_JUMP_THRESHOLD:
+                        session.landmark_jump_count += 1
+                        if session.landmark_jump_count >= MAX_CONSECUTIVE_JUMPS:
+                            logger.warning("skeleton_quality_jump", extra={"session_id": short_id, "jump": round(jump, 4), "consecutive": session.landmark_jump_count})
+                            session.landmark_jump_count = 0
+                        session.prev_frame = frame.copy()
+                        continue
+                    else:
+                        session.landmark_jump_count = 0
+                session.prev_frame = frame.copy()
 
                 session.append_frame(frame)
 

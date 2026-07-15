@@ -48,6 +48,9 @@ class InferenceSession:
     frames_received: int = 0
     idle_frames: int = 0
     pending_count: int = 0
+    # Frame-to-frame landmark jump detection
+    prev_frame: np.ndarray = field(default=None)      # Raw coords of last accepted frame
+    landmark_jump_count: int = 0                       # Consecutive high-jump frames seen
 
     def reset(self) -> None:
         """
@@ -67,6 +70,8 @@ class InferenceSession:
         self.write_idx = 0
         self.frames_received = 0
         self.idle_frames = 0
+        self.prev_frame = None
+        self.landmark_jump_count = 0
 
     def append_frame(self, frame: np.ndarray) -> None:
         self.buffer[self.write_idx] = frame
