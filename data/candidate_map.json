@@ -305,5 +305,8 @@
   ],
   "one_hand|unknown|face_near|pointing": [
     "dream"
+  ],
+  "two_hands|unknown|unknown|unknown": [
+    "powerful"
   ]
 }

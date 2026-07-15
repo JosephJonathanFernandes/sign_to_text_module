@@ -2483,6 +2483,19 @@
       "trajectory_pattern": "unknown",
       "dominant_hand": "left",
       "motion_speed": "unknown"
+    },
+    "powerful": {
+      "hand_count": "two_hands",
+      "movement": "unknown",
+      "location": "unknown",
+      "orientation": "forward",
+      "symmetry": "asymmetric",
+      "finger_state": "10000",
+      "hand_shape": "unknown",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "both",
+      "motion_speed": "unknown"
     }
   }
 }
