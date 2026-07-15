@@ -2535,6 +2535,19 @@
       "trajectory_pattern": "circular",
       "dominant_hand": "both",
       "motion_speed": "unknown"
+    },
+    "confident": {
+      "hand_count": "one_hand",
+      "movement": "unknown",
+      "location": "neutral_space",
+      "orientation": "forward",
+      "symmetry": "unknown",
+      "finger_state": "unknown",
+      "hand_shape": "unknown",
+      "motion_direction": "circular",
+      "trajectory_pattern": "circular",
+      "dominant_hand": "left",
+      "motion_speed": "unknown"
     }
   }
 }
