@@ -66,6 +66,15 @@ DEVICE: str = str(cfg.hardware.torch_device)             # e.g., "cpu"
 # Max in-flight inference calls per session before frames are dropped
 MAX_PENDING: int = 2
 
+# Maximum allowed WebSocket payload size (bytes) to prevent OOM
+MAX_PAYLOAD_SIZE: int = 50000
+
+# Velocity threshold below which a frame is considered idle
+IDLE_VELOCITY_THRESHOLD: float = 0.15
+
+# Directory containing continual learning adapter weights
+ADAPTER_WEIGHTS_DIR: str = "adapter_weights"
+
 # Enable debug mode via: DEBUG=true python run_api.py
 DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
 ENV: str = os.getenv("ENV", "production").lower()
@@ -186,7 +195,7 @@ async def lifespan(app: FastAPI):
     )
 
     # ── Load Adapter (if exists) ──────────────────────────────────────────────
-    adapter_weights_dir = "adapter_weights"
+    adapter_weights_dir = ADAPTER_WEIGHTS_DIR
     app.state.adapter_model = None
     if _os.path.exists(adapter_weights_dir):
         pt_files = sorted([f for f in _os.listdir(adapter_weights_dir) if f.endswith(".pt")])
@@ -595,6 +604,9 @@ async def ws_translate(websocket: WebSocket) -> None:
         while True:
             raw = await websocket.receive_text()
 
+            if len(raw) > MAX_PAYLOAD_SIZE:
+                raise ValueError(f"Payload too large: {len(raw)} bytes")
+
             try:
                 msg = json.loads(raw)
             except json.JSONDecodeError:
@@ -644,6 +656,11 @@ async def ws_translate(websocket: WebSocket) -> None:
 
                 # ── Append to circular buffer (zero-copy) ─────────────────────
                 frame = np.array(features, dtype=np.float32)
+
+                if not np.isfinite(frame).all():
+                    logger.warning("websocket_invalid_frame", extra={"session_id": short_id, "error": "NaN or Infinity detected"})
+                    continue
+
                 session.append_frame(frame)
 
                 sequence = session.get_sequence()
@@ -656,7 +673,7 @@ async def ws_translate(websocket: WebSocket) -> None:
                 vel_sum = float(np.sum(np.abs(velocity)))
                 MOTION_SCORE_HISTORY.append(vel_sum)
                 
-                if vel_sum < 0.15:  # IDLE_THRESHOLD
+                if vel_sum < IDLE_VELOCITY_THRESHOLD:  # IDLE_THRESHOLD
                     session.idle_frames += 1
                 else:
                     session.idle_frames = 0
