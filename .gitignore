@@ -33,6 +33,7 @@ dataset.h5
 *.h5
 validation_report.json
 keypoints.csv
+data/tmp*
 
 # Model weights & checkpoints
 adapter_weights/
