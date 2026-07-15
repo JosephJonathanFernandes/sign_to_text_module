@@ -1235,17 +1235,17 @@
     "motion_speed_agreement": "100.0%"
   },
   "tall": {
-    "hand_count_agreement": "55.8%",
-    "movement_agreement": "44.0%",
-    "location_agreement": "44.0%",
-    "orientation_agreement": "86.4%",
-    "symmetry_agreement": "44.9%",
-    "finger_state_agreement": "68.4%",
-    "hand_shape_agreement": "60.9%",
-    "motion_direction_agreement": "50.7%",
-    "trajectory_pattern_agreement": "50.7%",
-    "dominant_hand_agreement": "55.8%",
-    "motion_speed_agreement": "44.0%"
+    "hand_count_agreement": "93.5%",
+    "movement_agreement": "34.2%",
+    "location_agreement": "73.5%",
+    "orientation_agreement": "82.8%",
+    "symmetry_agreement": "94.0%",
+    "finger_state_agreement": "97.8%",
+    "hand_shape_agreement": "95.0%",
+    "motion_direction_agreement": "33.0%",
+    "trajectory_pattern_agreement": "33.0%",
+    "dominant_hand_agreement": "93.5%",
+    "motion_speed_agreement": "34.2%"
   },
   "thank_you": {
     "hand_count_agreement": "68.8%",
