@@ -3014,5 +3014,18 @@
     "trajectory_pattern_agreement": "84.9%",
     "dominant_hand_agreement": "65.4%",
     "motion_speed_agreement": "35.4%"
+  },
+  "emergency": {
+    "hand_count_agreement": "100.0%",
+    "movement_agreement": "36.9%",
+    "location_agreement": "98.9%",
+    "orientation_agreement": "98.9%",
+    "symmetry_agreement": "50.3%",
+    "finger_state_agreement": "100.0%",
+    "hand_shape_agreement": "99.4%",
+    "motion_direction_agreement": "69.4%",
+    "trajectory_pattern_agreement": "69.4%",
+    "dominant_hand_agreement": "100.0%",
+    "motion_speed_agreement": "36.9%"
   }
 }
