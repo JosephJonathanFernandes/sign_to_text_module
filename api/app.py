@@ -77,7 +77,7 @@ ADAPTER_WEIGHTS_DIR: str = "adapter_weights"
 
 # Skeleton quality thresholds
 # Fraction of raw hand coords (features 0-126) that must be non-zero for frame to be valid
-LANDMARK_ZERO_RATIO_THRESHOLD: float = 0.5
+LANDMARK_ZERO_RATIO_THRESHOLD: float = 0.85
 # Mean absolute landmark jump (normalized) above which a frame is considered a tracking glitch
 LANDMARK_JUMP_THRESHOLD: float = 0.20
 # Consecutive jump frames before inference is paused (mirrors idle_frames pattern)
@@ -155,7 +155,7 @@ async def lifespan(app: FastAPI):
     import json as _json
     classes = []
     
-    # Try to load from model metadata first
+    # 1. Try to load from model metadata first
     meta_path = _os.path.join(cfg.paths.model_save_path.replace("model.pth", "").rstrip("/\\"), "model_metadata.json")
     if _os.path.exists(meta_path):
         try:
@@ -164,13 +164,43 @@ async def lifespan(app: FastAPI):
                 classes = meta.get("checkpoint", {}).get("classes", [])
         except Exception as e:
             logger.warning(f"Could not load classes from {meta_path}: {e}")
-            
-    # Fallback to processed dir
+
+    # 2. Try to load from model checkpoint directly if metadata is missing
+    if not classes and _os.path.exists(cfg.paths.model_save_path):
+        try:
+            import torch as _torch
+            ckpt = _torch.load(cfg.paths.model_save_path, map_location="cpu")
+            if isinstance(ckpt, dict) and "classes" in ckpt:
+                classes = ckpt["classes"]
+                logger.info("Loaded classes list directly from PyTorch checkpoint model.pth")
+        except Exception as e:
+            logger.warning(f"Could not load classes from model checkpoint: {e}")
+
+    # 3. Fallback to processed dir if it exists
+    if not classes and _os.path.exists(cfg.paths.processed_dir):
+        try:
+            classes = sorted([
+                d for d in _os.listdir(cfg.paths.processed_dir)
+                if _os.path.isdir(_os.path.join(cfg.paths.processed_dir, d))
+            ])
+        except Exception as e:
+            logger.warning(f"Could not load classes from processed_dir: {e}")
+
+    # 4. Fallback to hand_sign_classification.json
     if not classes:
-        classes = sorted([
-            d for d in _os.listdir(cfg.paths.processed_dir)
-            if _os.path.isdir(_os.path.join(cfg.paths.processed_dir, d))
-        ])
+        json_path = _os.path.join(cfg.paths.base_dir, "..", "..", "data", "hand_sign_classification.json")
+        if _os.path.exists(json_path):
+            try:
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    data = _json.load(f)
+                    classes = sorted(list(data.get("signs", {}).keys()))
+                    logger.info(f"Loaded {len(classes)} classes from hand_sign_classification.json fallback")
+            except Exception as e:
+                logger.warning(f"Could not load classes from hand_sign_classification.json: {e}")
+
+    if not classes:
+        raise RuntimeError("Could not find any classes. Please ensure model.pth or hand_sign_classification.json exists.")
+
     num_classes = len(classes)
 
     # ── Warmup inference ──────────────────────────────────────────────────────
@@ -697,9 +727,11 @@ async def ws_translate(websocket: WebSocket) -> None:
                     if jump > LANDMARK_JUMP_THRESHOLD:
                         session.landmark_jump_count += 1
                         if session.landmark_jump_count >= MAX_CONSECUTIVE_JUMPS:
-                            logger.warning("skeleton_quality_jump", extra={"session_id": short_id, "jump": round(jump, 4), "consecutive": session.landmark_jump_count})
+                            logger.warning("skeleton_quality_jump_reset", extra={"session_id": short_id, "jump": round(jump, 4), "consecutive": session.landmark_jump_count})
                             session.landmark_jump_count = 0
-                        continue  # prev_frame intentionally NOT updated here
+                            # Reset prev_frame to current frame to recover from persistent tracking change
+                            session.prev_frame = frame.copy()
+                        continue
                     else:
                         session.landmark_jump_count = 0
                 session.prev_frame = frame.copy()  # Only reached on accepted frames

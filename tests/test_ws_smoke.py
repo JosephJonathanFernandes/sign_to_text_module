@@ -9,7 +9,8 @@ NUM_FRAMES = 20
 INPUT_SIZE = 506
 
 async def send_valid_frame(ws):
-    frame = np.random.rand(INPUT_SIZE).astype(np.float32).tolist()
+    # Send a constant frame of 0.5 to avoid landmark jump rejection (jump = 0)
+    frame = np.full(INPUT_SIZE, 0.5, dtype=np.float32).tolist()
     await ws.send(json.dumps({
         "type": "landmarks",
         "features": frame

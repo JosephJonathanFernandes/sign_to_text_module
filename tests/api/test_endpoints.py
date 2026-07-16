@@ -48,8 +48,12 @@ def client(mock_classes):
     mock_model = MagicMock()
     app.state.models = [mock_model]
 
-    with patch("api.app.load_ensemble", return_value=([mock_model], mock_classes, len(mock_classes))), \
-         patch("api.app.ensemble_predict", return_value=(np.zeros((1, len(mock_classes))), np.zeros((1, len(mock_classes))))):
+    dummy_probs = np.zeros(len(mock_classes), dtype=np.float32)
+    dummy_probs[0] = 0.99
+
+    with patch("api.app.detect_and_load_models", return_value=([mock_model], {"pytorch_models": 1, "onnx_models": 0, "total_models": 1, "selected_artifacts": []})), \
+         patch("api.app.ensemble_predict_mixed", return_value=(0, 0.99, dummy_probs)), \
+         patch("api.inference.ensemble_predict", return_value=(0, 0.99, dummy_probs)):
         with TestClient(app, raise_server_exceptions=False) as c:
             yield c
 
