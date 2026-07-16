@@ -82,7 +82,8 @@
     "saturday",
     "sunday",
     "emergency",
-    "how_many"
+    "how_many",
+    "accident"
   ],
   "one_hand|large_motion|neutral_space|unknown": [
     "bad",
