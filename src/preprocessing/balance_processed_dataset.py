@@ -17,7 +17,7 @@ from dataclasses import dataclass
 
 
 ROOT_DIR = os.path.join("assets", "processed")
-TARGET_SAMPLES = 350
+TARGET_SAMPLES = 325
 WEBCAM_PREFIX = "webcam_"
 DUPLICATE_PREFIX = "webcam_dup_"
 

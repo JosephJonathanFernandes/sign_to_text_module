@@ -21,7 +21,7 @@ from dataclasses import dataclass
 
 
 ROOT_DIR = os.path.join("assets", "processed")
-DEFAULT_THRESHOLD = 350
+DEFAULT_THRESHOLD = 325
 
 
 @dataclass
