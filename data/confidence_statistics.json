@@ -3040,5 +3040,18 @@
     "trajectory_pattern_agreement": "78.9%",
     "dominant_hand_agreement": "55.4%",
     "motion_speed_agreement": "37.1%"
+  },
+  "earthquake": {
+    "hand_count_agreement": "69.1%",
+    "movement_agreement": "34.0%",
+    "location_agreement": "82.0%",
+    "orientation_agreement": "83.7%",
+    "symmetry_agreement": "47.4%",
+    "finger_state_agreement": "99.1%",
+    "hand_shape_agreement": "98.6%",
+    "motion_direction_agreement": "89.4%",
+    "trajectory_pattern_agreement": "89.4%",
+    "dominant_hand_agreement": "69.1%",
+    "motion_speed_agreement": "34.0%"
   }
 }
