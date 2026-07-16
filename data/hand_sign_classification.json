@@ -3289,6 +3289,19 @@
       "trajectory_pattern": "unknown",
       "dominant_hand": "both",
       "motion_speed": "unknown"
+    },
+    "pain": {
+      "hand_count": "two_hands",
+      "movement": "unknown",
+      "location": "neutral_space",
+      "orientation": "forward",
+      "symmetry": "asymmetric",
+      "finger_state": "11111",
+      "hand_shape": "open_palm",
+      "motion_direction": "up",
+      "trajectory_pattern": "linear",
+      "dominant_hand": "both",
+      "motion_speed": "unknown"
     }
   }
 }
