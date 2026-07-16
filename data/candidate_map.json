@@ -317,7 +317,8 @@
   "two_hands|unknown|neutral_space|pointing": [
     "examine",
     "careful",
-    "often"
+    "often",
+    "around"
   ],
   "one_hand|unknown|face_near|pointing": [
     "dream"
