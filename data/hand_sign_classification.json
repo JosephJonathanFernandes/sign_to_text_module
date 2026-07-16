@@ -3276,6 +3276,19 @@
       "trajectory_pattern": "circular",
       "dominant_hand": "left",
       "motion_speed": "unknown"
+    },
+    "injury": {
+      "hand_count": "two_hands",
+      "movement": "unknown",
+      "location": "neutral_space",
+      "orientation": "forward",
+      "symmetry": "symmetric",
+      "finger_state": "11111",
+      "hand_shape": "open_palm",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "both",
+      "motion_speed": "unknown"
     }
   }
 }
