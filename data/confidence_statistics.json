@@ -3001,5 +3001,18 @@
     "trajectory_pattern_agreement": "48.3%",
     "dominant_hand_agreement": "80.0%",
     "motion_speed_agreement": "37.7%"
+  },
+  "fire_extinguisher": {
+    "hand_count_agreement": "65.4%",
+    "movement_agreement": "35.4%",
+    "location_agreement": "94.3%",
+    "orientation_agreement": "70.3%",
+    "symmetry_agreement": "52.0%",
+    "finger_state_agreement": "96.9%",
+    "hand_shape_agreement": "80.0%",
+    "motion_direction_agreement": "84.9%",
+    "trajectory_pattern_agreement": "84.9%",
+    "dominant_hand_agreement": "65.4%",
+    "motion_speed_agreement": "35.4%"
   }
 }
