@@ -29,6 +29,14 @@ def main():
             sys.exit(result.returncode)
             
     print("\n" + "="*80)
+    print(f"🚀 Committing dataset heuristics and vocabulary changes to Git...")
+    print("="*80 + "\n")
+    
+    # Automatically add data files and the vocabulary CSV
+    subprocess.run(["git", "add", "data/", "docs/Vocabulary - Sheet1.csv"])
+    subprocess.run(["git", "commit", "-m", f"chore(dataset): process class '{class_name}' and update heuristics"])
+
+    print("\n" + "="*80)
     print(f"✅ Successfully processed class '{class_name}'!")
     print("="*80 + "\n")
 
