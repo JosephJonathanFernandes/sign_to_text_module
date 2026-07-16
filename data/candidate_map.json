@@ -38,6 +38,7 @@
   "one_hand|unknown|neutral_space|open_palm": [
     "alive",
     "dirty",
+    "new",
     "small_little",
     "me",
     "good_night",
@@ -48,7 +49,11 @@
     "coward",
     "please",
     "afraid",
-    "delicious"
+    "delicious",
+    "handsome",
+    "intelligent",
+    "special",
+    "never"
   ],
   "two_hands|unknown|neutral_space|unknown": [
     "alright",
@@ -67,7 +72,8 @@
     "funny",
     "tell",
     "accessible",
-    "broken"
+    "broken",
+    "hardworking"
   ],
   "one_hand|large_motion|neutral_space|unknown": [
     "bad",
@@ -96,7 +102,8 @@
   "one_hand|unknown|neutral_space|pointing": [
     "cheap",
     "itself",
-    "cancel"
+    "cancel",
+    "really"
   ],
   "one_hand|large_motion|neutral_space|open_palm": [
     "clean",
@@ -119,7 +126,8 @@
     "dead",
     "flat",
     "morning",
-    "our"
+    "our",
+    "excited"
   ],
   "two_hands|large_motion|neutral_space|open_palm": [
     "deep",
@@ -141,7 +149,8 @@
   ],
   "two_hands|unknown|upper_space|unknown": [
     "fast",
-    "rest"
+    "rest",
+    "soft_speaking"
   ],
   "one_hand|unknown|neutral_space|unknown": [
     "good",
@@ -153,7 +162,9 @@
     "hide",
     "sorry",
     "jealous",
-    "kind"
+    "kind",
+    "polite",
+    "confident"
   ],
   "two_hands|unknown|neutral_space|open_palm": [
     "happy",
@@ -171,7 +182,13 @@
     "dangerous",
     "dim",
     "equal",
-    "abstract"
+    "abstract",
+    "natural",
+    "therefore",
+    "partly",
+    "majorly",
+    "already",
+    "above"
   ],
   "one_hand|large_motion|upper_space|unknown": [
     "he",
@@ -219,16 +236,14 @@
     "your",
     "they_themselves"
   ],
-  "unknown|large_motion|neutral_space|open_palm": [
-    "new"
-  ],
   "one_hand|large_motion|upper_space|open_palm": [
     "old",
     "shallow"
   ],
   "unknown|unknown|upper_space|open_palm": [
     "pleased",
-    "ugly"
+    "ugly",
+    "frankly"
   ],
   "unknown|unknown|unknown|open_palm": [
     "poor"
@@ -247,7 +262,7 @@
     "they",
     "tight"
   ],
-  "two_hands|unknown|unknown|pointing": [
+  "one_hand|unknown|face_near|unknown": [
     "tall"
   ],
   "one_hand|medium_motion|unknown|pointing": [
@@ -276,7 +291,8 @@
   ],
   "one_hand|unknown|face_near|open_palm": [
     "afternoon",
-    "good_afternoon"
+    "good_afternoon",
+    "smart"
   ],
   "one_hand|unknown|upper_space|open_palm": [
     "walk",
@@ -284,7 +300,8 @@
     "angry",
     "easy",
     "better",
-    "cute"
+    "cute",
+    "important"
   ],
   "one_hand|unknown|upper_space|pointing": [
     "think",
@@ -296,9 +313,16 @@
   ],
   "two_hands|unknown|neutral_space|pointing": [
     "examine",
-    "careful"
+    "careful",
+    "often"
   ],
   "one_hand|unknown|face_near|pointing": [
     "dream"
+  ],
+  "two_hands|unknown|unknown|unknown": [
+    "powerful"
+  ],
+  "two_hands|unknown|upper_space|pointing": [
+    "clearly"
   ]
 }
