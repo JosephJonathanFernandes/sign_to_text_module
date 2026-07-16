@@ -2925,6 +2925,19 @@
       "trajectory_pattern": "unknown",
       "dominant_hand": "both",
       "motion_speed": "unknown"
+    },
+    "tuesday": {
+      "hand_count": "two_hands",
+      "movement": "unknown",
+      "location": "neutral_space",
+      "orientation": "forward",
+      "symmetry": "asymmetric",
+      "finger_state": "11000",
+      "hand_shape": "pointing",
+      "motion_direction": "static",
+      "trajectory_pattern": "static",
+      "dominant_hand": "both",
+      "motion_speed": "unknown"
     }
   }
 }
