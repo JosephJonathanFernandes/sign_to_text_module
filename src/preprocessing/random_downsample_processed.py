@@ -21,7 +21,7 @@ from dataclasses import dataclass
 
 
 ROOT_DIR = os.path.join("assets", "processed")
-DEFAULT_THRESHOLD = 400
+DEFAULT_THRESHOLD = 350
 
 
 @dataclass
@@ -38,9 +38,7 @@ def _list_class_dirs(root_dir: str) -> list[str]:
         raise FileNotFoundError(f"Root directory not found: {os.path.abspath(root_dir)}")
 
     return sorted(
-        os.path.join(root_dir, entry)
-        for entry in os.listdir(root_dir)
-        if os.path.isdir(os.path.join(root_dir, entry))
+        os.path.join(root_dir, entry) for entry in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, entry))
     )
 
 
@@ -140,7 +138,9 @@ def downsample_processed(
             raise ValueError(f"Class '{class_only}' not found in {os.path.abspath(root_dir)}. Available: {available}")
 
     print("=" * 90)
-    print(f"Random downsample started | ROOT_DIR={os.path.abspath(root_dir)} | THRESHOLD={threshold} | DRY_RUN={dry_run}")
+    print(
+        f"Random downsample started | ROOT_DIR={os.path.abspath(root_dir)} | THRESHOLD={threshold} | DRY_RUN={dry_run}"
+    )
     print("=" * 90)
 
     summaries: list[ClassSummary] = []

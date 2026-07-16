@@ -17,7 +17,7 @@ from dataclasses import dataclass
 
 
 ROOT_DIR = os.path.join("assets", "processed")
-TARGET_SAMPLES = 400
+TARGET_SAMPLES = 350
 WEBCAM_PREFIX = "webcam_"
 DUPLICATE_PREFIX = "webcam_dup_"
 
@@ -37,9 +37,7 @@ def _list_class_dirs(root_dir: str) -> list[str]:
         raise FileNotFoundError(f"Root directory not found: {os.path.abspath(root_dir)}")
 
     return sorted(
-        os.path.join(root_dir, entry)
-        for entry in os.listdir(root_dir)
-        if os.path.isdir(os.path.join(root_dir, entry))
+        os.path.join(root_dir, entry) for entry in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, entry))
     )
 
 
@@ -141,7 +139,9 @@ def balance_processed_dataset(
             raise ValueError(f"Class '{class_only}' not found in {os.path.abspath(root_dir)}. Available: {available}")
 
     print("=" * 90)
-    print(f"Balance processed dataset started | ROOT_DIR={os.path.abspath(root_dir)} | TARGET={target} | DRY_RUN={dry_run}")
+    print(
+        f"Balance processed dataset started | ROOT_DIR={os.path.abspath(root_dir)} | TARGET={target} | DRY_RUN={dry_run}"
+    )
     print("=" * 90)
 
     summaries: list[ClassSummary] = []
@@ -160,10 +160,7 @@ def balance_processed_dataset(
         grand_removed += summary.removed_files
 
     print("-" * 90)
-    print(
-        f"TOTAL: before={grand_total_before} after={grand_total_after} "
-        f"added={grand_added} removed={grand_removed}"
-    )
+    print(f"TOTAL: before={grand_total_before} after={grand_total_after} added={grand_added} removed={grand_removed}")
     if dry_run:
         print("NOTE: DRY_RUN=True, no files were changed.")
     print("=" * 90)
