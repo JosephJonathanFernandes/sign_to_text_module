@@ -33,7 +33,7 @@ def main():
     print("="*80 + "\n")
     
     # Automatically add data files and the vocabulary CSV
-    subprocess.run(["git", "add", "data/", "docs/Vocabulary - Sheet1.csv"])
+    subprocess.run(["git", "add", "data/", "DOCS/Vocabulary - Sheet1.csv"])
     subprocess.run(["git", "commit", "-m", f"chore(dataset): process class '{class_name}' and update heuristics"])
 
     print("\n" + "="*80)
