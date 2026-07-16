@@ -3235,5 +3235,18 @@
     "trajectory_pattern_agreement": "72.6%",
     "dominant_hand_agreement": "52.0%",
     "motion_speed_agreement": "36.0%"
+  },
+  "flood": {
+    "hand_count_agreement": "68.3%",
+    "movement_agreement": "34.2%",
+    "location_agreement": "79.7%",
+    "orientation_agreement": "61.2%",
+    "symmetry_agreement": "47.1%",
+    "finger_state_agreement": "89.8%",
+    "hand_shape_agreement": "88.3%",
+    "motion_direction_agreement": "72.9%",
+    "trajectory_pattern_agreement": "72.9%",
+    "dominant_hand_agreement": "68.3%",
+    "motion_speed_agreement": "34.2%"
   }
 }
