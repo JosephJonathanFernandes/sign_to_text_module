@@ -39,11 +39,17 @@ data/tmp*
 # Model weights & checkpoints
 adapter_weights/
 ensemble/
-models/
 checkpoints/
 generated/
 filtered_synthetic/
-model.pth
+
+# Ignore everything under models/ except the 5 specific model files
+models/*
+!models/model.pth
+!models/model.onnx
+!models/model_int8.onnx
+!models/hand_landmarker.task
+!models/face_landmarker.task
 
 # Logs
 logs/
