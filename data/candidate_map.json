@@ -81,7 +81,8 @@
     "with",
     "saturday",
     "sunday",
-    "emergency"
+    "emergency",
+    "how_many"
   ],
   "one_hand|large_motion|neutral_space|unknown": [
     "bad",
