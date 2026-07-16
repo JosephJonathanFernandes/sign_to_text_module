@@ -3061,7 +3061,7 @@
       "movement": "unknown",
       "location": "neutral_space",
       "orientation": "unknown",
-      "symmetry": "asymmetric",
+      "symmetry": "symmetric",
       "finger_state": "11111",
       "hand_shape": "open_palm",
       "motion_direction": "circular",
