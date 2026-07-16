@@ -3144,5 +3144,18 @@
     "trajectory_pattern_agreement": "77.1%",
     "dominant_hand_agreement": "99.4%",
     "motion_speed_agreement": "36.9%"
+  },
+  "doctor": {
+    "hand_count_agreement": "86.3%",
+    "movement_agreement": "32.0%",
+    "location_agreement": "92.3%",
+    "orientation_agreement": "93.7%",
+    "symmetry_agreement": "92.3%",
+    "finger_state_agreement": "90.9%",
+    "hand_shape_agreement": "87.1%",
+    "motion_direction_agreement": "46.3%",
+    "trajectory_pattern_agreement": "46.3%",
+    "dominant_hand_agreement": "86.3%",
+    "motion_speed_agreement": "32.0%"
   }
 }
