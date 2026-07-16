@@ -316,7 +316,8 @@
   "one_hand|unknown|face_near|open_palm": [
     "afternoon",
     "good_afternoon",
-    "smart"
+    "smart",
+    "exit"
   ],
   "one_hand|unknown|upper_space|open_palm": [
     "walk",
