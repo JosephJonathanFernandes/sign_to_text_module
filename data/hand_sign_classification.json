@@ -3744,6 +3744,19 @@
       "trajectory_pattern": "unknown",
       "dominant_hand": "left",
       "motion_speed": "unknown"
+    },
+    "indigo": {
+      "hand_count": "one_hand",
+      "movement": "unknown",
+      "location": "upper_space",
+      "orientation": "unknown",
+      "symmetry": "unknown",
+      "finger_state": "11000",
+      "hand_shape": "pointing",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "left",
+      "motion_speed": "unknown"
     }
   }
 }
