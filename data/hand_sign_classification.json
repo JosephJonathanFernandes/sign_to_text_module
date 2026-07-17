@@ -3796,6 +3796,19 @@
       "trajectory_pattern": "unknown",
       "dominant_hand": "unknown",
       "motion_speed": "unknown"
+    },
+    "purple": {
+      "hand_count": "unknown",
+      "movement": "unknown",
+      "location": "neutral_space",
+      "orientation": "forward",
+      "symmetry": "unknown",
+      "finger_state": "unknown",
+      "hand_shape": "unknown",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "unknown",
+      "motion_speed": "unknown"
     }
   }
 }
