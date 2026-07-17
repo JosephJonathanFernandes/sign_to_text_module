@@ -3601,6 +3601,19 @@
       "trajectory_pattern": "unknown",
       "dominant_hand": "unknown",
       "motion_speed": "unknown"
+    },
+    "cap": {
+      "hand_count": "one_hand",
+      "movement": "unknown",
+      "location": "face_near",
+      "orientation": "unknown",
+      "symmetry": "unknown",
+      "finger_state": "10000",
+      "hand_shape": "unknown",
+      "motion_direction": "left_to_right",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "unknown",
+      "motion_speed": "unknown"
     }
   }
 }
