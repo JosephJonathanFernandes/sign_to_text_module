@@ -3432,6 +3432,19 @@
       "trajectory_pattern": "unknown",
       "dominant_hand": "unknown",
       "motion_speed": "unknown"
+    },
+    "sharpener": {
+      "hand_count": "two_hands",
+      "movement": "unknown",
+      "location": "neutral_space",
+      "orientation": "forward",
+      "symmetry": "asymmetric",
+      "finger_state": "10000",
+      "hand_shape": "unknown",
+      "motion_direction": "circular",
+      "trajectory_pattern": "circular",
+      "dominant_hand": "both",
+      "motion_speed": "unknown"
     }
   }
 }
