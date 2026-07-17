@@ -419,5 +419,8 @@
   ],
   "unknown|unknown|face_near|open_palm": [
     "tsunami"
+  ],
+  "unknown|unknown|unknown|unknown": [
+    "white"
   ]
 }
