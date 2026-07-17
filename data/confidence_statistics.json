@@ -3300,5 +3300,18 @@
     "trajectory_pattern_agreement": "52.3%",
     "dominant_hand_agreement": "75.1%",
     "motion_speed_agreement": "34.8%"
+  },
+  "police": {
+    "hand_count_agreement": "81.8%",
+    "movement_agreement": "37.8%",
+    "location_agreement": "87.4%",
+    "orientation_agreement": "88.6%",
+    "symmetry_agreement": "63.7%",
+    "finger_state_agreement": "75.1%",
+    "hand_shape_agreement": "74.2%",
+    "motion_direction_agreement": "24.9%",
+    "trajectory_pattern_agreement": "44.9%",
+    "dominant_hand_agreement": "81.8%",
+    "motion_speed_agreement": "37.8%"
   }
 }
