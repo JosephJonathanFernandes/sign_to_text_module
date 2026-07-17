@@ -3653,6 +3653,19 @@
       "trajectory_pattern": "unknown",
       "dominant_hand": "left",
       "motion_speed": "unknown"
+    },
+    "bronze": {
+      "hand_count": "one_hand",
+      "movement": "unknown",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "unknown",
+      "finger_state": "11111",
+      "hand_shape": "open_palm",
+      "motion_direction": "up",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "left",
+      "motion_speed": "unknown"
     }
   }
 }
