@@ -3458,6 +3458,19 @@
       "trajectory_pattern": "unknown",
       "dominant_hand": "right",
       "motion_speed": "unknown"
+    },
+    "projector": {
+      "hand_count": "two_hands",
+      "movement": "unknown",
+      "location": "neutral_space",
+      "orientation": "unknown",
+      "symmetry": "asymmetric",
+      "finger_state": "11111",
+      "hand_shape": "open_palm",
+      "motion_direction": "down",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "both",
+      "motion_speed": "unknown"
     }
   }
 }
