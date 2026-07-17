@@ -3328,6 +3328,19 @@
       "trajectory_pattern": "unknown",
       "dominant_hand": "both",
       "motion_speed": "unknown"
+    },
+    "tsunami": {
+      "hand_count": "unknown",
+      "movement": "unknown",
+      "location": "face_near",
+      "orientation": "unknown",
+      "symmetry": "unknown",
+      "finger_state": "11111",
+      "hand_shape": "open_palm",
+      "motion_direction": "unknown",
+      "trajectory_pattern": "unknown",
+      "dominant_hand": "unknown",
+      "motion_speed": "unknown"
     }
   }
 }
