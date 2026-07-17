@@ -3469,5 +3469,18 @@
     "trajectory_pattern_agreement": "41.0%",
     "dominant_hand_agreement": "100.0%",
     "motion_speed_agreement": "39.0%"
+  },
+  "pencil": {
+    "hand_count_agreement": "91.0%",
+    "movement_agreement": "35.3%",
+    "location_agreement": "75.7%",
+    "orientation_agreement": "100.0%",
+    "symmetry_agreement": "91.0%",
+    "finger_state_agreement": "99.3%",
+    "hand_shape_agreement": "99.0%",
+    "motion_direction_agreement": "73.7%",
+    "trajectory_pattern_agreement": "73.7%",
+    "dominant_hand_agreement": "91.0%",
+    "motion_speed_agreement": "35.3%"
   }
 }
