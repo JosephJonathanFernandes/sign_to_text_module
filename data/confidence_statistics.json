@@ -3391,5 +3391,18 @@
     "trajectory_pattern_agreement": "41.7%",
     "dominant_hand_agreement": "38.0%",
     "motion_speed_agreement": "38.0%"
+  },
+  "bottle": {
+    "hand_count_agreement": "71.0%",
+    "movement_agreement": "32.0%",
+    "location_agreement": "92.3%",
+    "orientation_agreement": "84.0%",
+    "symmetry_agreement": "88.0%",
+    "finger_state_agreement": "98.7%",
+    "hand_shape_agreement": "97.3%",
+    "motion_direction_agreement": "41.0%",
+    "trajectory_pattern_agreement": "41.0%",
+    "dominant_hand_agreement": "53.3%",
+    "motion_speed_agreement": "32.0%"
   }
 }
