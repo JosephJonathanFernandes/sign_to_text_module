@@ -3820,5 +3820,18 @@
     "trajectory_pattern_agreement": "36.0%",
     "dominant_hand_agreement": "59.7%",
     "motion_speed_agreement": "34.3%"
+  },
+  "sky_blue": {
+    "hand_count_agreement": "63.0%",
+    "movement_agreement": "43.0%",
+    "location_agreement": "82.7%",
+    "orientation_agreement": "97.0%",
+    "symmetry_agreement": "37.0%",
+    "finger_state_agreement": "78.0%",
+    "hand_shape_agreement": "75.0%",
+    "motion_direction_agreement": "53.7%",
+    "trajectory_pattern_agreement": "34.0%",
+    "dominant_hand_agreement": "63.0%",
+    "motion_speed_agreement": "43.0%"
   }
 }
