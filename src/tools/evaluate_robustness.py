@@ -114,6 +114,10 @@ def evaluate_baseline():
     ds = ISLDataset(augment=False, oversample=False, neg_root=neg_root_p)
     
     reject_cls_idx = ds.class_to_idx.get("__reject__", -1)
+    if reject_cls_idx != -1 and "__reject__" not in classes:
+        # Extend the classes array to include the reject class so sklearn classification_report tracks it
+        classes.append("__reject__")
+
     domain_to_idx = ds.domain_to_idx
     idx_to_domain = {v: k for k, v in domain_to_idx.items()}
     
