@@ -41,6 +41,7 @@ The system is composed of four main layers:
 | **Sign Classes:** | `300` |
 | **Model Accuracy:** | `98.33%` (F1: 97.84%) |
 | **Inference latency:** | `~6.22 ms` (ONNX INT8) |
+| **E2E API Latency:** | `~29.42 ms` (Round-trip WebSocket) |
 | **Model Footprint:** | `4.2 MB → 1.05 MB` (INT8 Quantization) |
 | **Dataset initialization:** | `71.14 s → 0.18 s` (≈391× improvement via HDF5) |
 | **Epoch execution time:** | `98.58 s → 18.28 s` (≈5.4× improvement via HDF5) |

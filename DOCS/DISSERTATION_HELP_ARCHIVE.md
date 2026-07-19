@@ -1,4 +1,4 @@
-﻿# FILE: exhaustive_report_section_6.3.md
+# FILE: exhaustive_report_section_6.3.md
 
 
 # 6.3 SIGN-TO-SPEECH PIPELINE (Deep Technical Audit)
@@ -122,7 +122,7 @@ The architecture is a custom Hybrid **SignLanguageGRU**.
 6. **Fully Connected Head:**
    - *Input:* 128 dims.
    - *Activation:* ReLU.
-   - *Purpose:* Linear(128->96) -> Dropout(0.25) -> Linear(96->89 classes).
+   - *Purpose:* Linear(128->96) -> Dropout(0.25) -> Linear(96->300 classes).
 
 ## D. Training Details (Evidence: `docs/training_pipeline.md`, `config.py`)
 * **Epochs:** 50.

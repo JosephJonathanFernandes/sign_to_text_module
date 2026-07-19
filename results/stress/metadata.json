@@ -1,9 +1,9 @@
 {
     "experiment": "stress",
     "system": {
-        "timestamp": "2026-07-19T12:13:17.073789",
-        "commit": "unknown",
-        "python": "3.12.10",
+        "timestamp": "2026-07-19T12:55:50.976306",
+        "commit": "c29b323e",
+        "python": "3.14.0",
         "os": "Windows 11",
         "cpu": "Intel64 Family 6 Model 154 Stepping 4, GenuineIntel",
         "cpu_cores": 10,
