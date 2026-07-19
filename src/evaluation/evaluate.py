@@ -417,7 +417,7 @@ async def continual_learning_evaluation():
     start_wait = time.time()
     trained = False
     
-    while time.time() - start_wait < 120:
+    while time.time() - start_wait < 300:
         try:
             res = requests.get(f"{API_URL}/metrics")
             if res.status_code == 200:
