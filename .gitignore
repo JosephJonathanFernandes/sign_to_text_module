@@ -37,6 +37,7 @@ data/tmp*
 
 # Model weights & checkpoints
 adapter_weights/
+adapter_weights_old/
 ensemble/
 models/
 checkpoints/
