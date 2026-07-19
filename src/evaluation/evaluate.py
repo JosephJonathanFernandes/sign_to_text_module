@@ -234,6 +234,8 @@ async def long_duration_stability(minutes: float = 30.0):
         async with websockets.connect(WS_URL) as ws:
             while (time.time() - start_time) < total_seconds:
                 frame = np.random.randn(feat_dim).astype(np.float32)
+                # Fix for API Skeleton Quality Gate
+                frame[:126] = 0.5
                 
                 t0 = time.perf_counter()
                 payload = {
@@ -305,31 +307,45 @@ async def continual_learning_evaluation():
     
     # 1. Prepare Dataset
     print("Preparing train/test split for a specific sign (simulating user shift)...")
-    import glob, random
+    import random
+    import h5py
     
     # We use class '0'
     target_class = "0"
-    all_files = glob.glob(os.path.join(cfg.paths.processed_dir, target_class, "*.npy"))
-    if not all_files:
-        print("No files found for continual learning evaluation.")
+    dataset_path = os.path.join(cfg.paths.base_dir, "..", "..", "assets", "dataset.h5")
+    
+    if not os.path.exists(dataset_path):
+        print("No dataset.h5 found for continual learning evaluation.")
         return
         
-    random.shuffle(all_files)
-    train_files = all_files[:20]
-    eval_files = all_files[20:40] if len(all_files) > 20 else all_files[:5] # Fallback if small
+    with h5py.File(dataset_path, "r") as f:
+        labels = f["labels"][:]
+        indices = np.where(labels == 0)[0]
+        if len(indices) == 0:
+            print("No sequences found for class 0.")
+            return
+            
+        np.random.shuffle(indices)
+        train_indices = indices[:20]
+        eval_indices = indices[20:40] if len(indices) > 20 else indices[:5]
+        
+        train_indices.sort()
+        eval_indices.sort()
+        train_seqs_raw = f["features"][train_indices]
+        eval_seqs_raw = f["features"][eval_indices]
     
-    print(f"  Adaptation Set: {len(train_files)} sequences")
-    print(f"  Evaluation Set: {len(eval_files)} sequences")
+    print(f"  Adaptation Set: {len(train_indices)} sequences")
+    print(f"  Evaluation Set: {len(eval_indices)} sequences")
     
     # Simulate user drift (coordinate shift / noise)
-    def augment_seq(path):
-        seq = np.load(path).astype(np.float32)
+    def augment_seq(seq):
+        seq = seq.astype(np.float32)
         # Shift X coordinates slightly to confuse the baseline model
         seq += 0.05 
         return seq.tolist()
         
-    train_seqs = [augment_seq(f) for f in train_files]
-    eval_seqs = [augment_seq(f) for f in eval_files]
+    train_seqs = [augment_seq(s) for s in train_seqs_raw]
+    eval_seqs = [augment_seq(s) for s in eval_seqs_raw]
     
     # Helper for evaluating accuracy via WebSocket
     async def evaluate_set(seqs, expected_word):
@@ -446,7 +462,7 @@ async def fault_tolerance_evaluation():
     results = []
 
     def log_result(test_name, passed, detail):
-        status = "✅ PASS" if passed else "❌ FAIL"
+        status = "[PASS]" if passed else "[FAIL]"
         print(f"  {status} | {test_name:<30} | {detail}")
         results.append({"test": test_name, "passed": passed, "detail": detail})
 
