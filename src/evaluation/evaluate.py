@@ -73,6 +73,9 @@ async def simulate_ws_client(client_id: int, num_frames: int, frame_delay: float
         async with websockets.connect(WS_URL) as ws:
             for _ in range(num_frames):
                 frame = np.random.randn(feat_dim).astype(np.float32)
+                # Fix for API Skeleton Quality Gate: set raw landmarks to a constant non-zero value
+                # This prevents it from failing the zero_ratio check and the consecutive jump check
+                frame[:126] = 0.5
                 
                 t0 = time.perf_counter()
                 payload = {

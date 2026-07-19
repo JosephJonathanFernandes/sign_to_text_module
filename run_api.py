@@ -16,11 +16,11 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
     debug_mode = os.getenv("DEBUG", "false").lower() == "true"
     
-    print("════════════════════════════════════════════════════════════════════")
+    print("====================================================================")
     print(f"  Starting ISL API on port {port}")
     if debug_mode:
         print("  [WARNING] DEBUG mode is ON (sending full probability tensors)")
-    print("════════════════════════════════════════════════════════════════════")
+    print("====================================================================")
     
     # Run uvicorn programmatically
     # using string reference 'api.app:app' allows uvicorn to reload if needed
