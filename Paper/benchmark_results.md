@@ -90,7 +90,21 @@ A 5% uniform spatial coordinate drift was applied to an evaluation set of a spec
 
 *Conclusion: The architecture successfully supports non-blocking, asynchronous continual learning, allowing the system to accumulate user corrections and personalize its classification head on edge devices without backend downtime.*
 
-## 8. Methodology & Assumptions (Truth in Reporting) ⚖️
+## 8. Out-of-Distribution (OOD) Robustness & Noise Resilience 🌪️
+
+To evaluate algorithmic stability beyond standard domain shifts, the model was subjected to programmatic out-of-distribution (OOD) corruption and a dedicated `__reject__` class (3,915 sequences of pure motion epenthesis, tracking failures, and random noise). 
+
+**Motion Epenthesis Rejection:**
+- **Reject Precision:** `98.33%` (When the model actively rejects a frame sequence as invalid noise, it is almost universally correct, minimizing False Rejections).
+- **Reject Threshold Sweeping:** The base classification threshold requires strict heuristic tuning to balance False Acceptance Rates (FAR). Increasing the commit threshold to `0.80` pushes the True Reject Recall up to `76.70%` while maintaining a highly stable False Rejection Rate (FRR) of only `3.03%`.
+
+**Synthetic Algorithmic Stress:**
+- **Gaussian Coordinate Noise:** The architecture maintains a staggering `98.80%` accuracy even when 3% Gaussian noise is uniformly applied to all 506 spatial dimensions.
+- **Landmark Dropout (Occlusion):** Simulating catastrophic MediaPipe tracking failures by intentionally dropping 20% of all hand landmarks only degrades overall accuracy to `85.40%`—proving the Bi-GRU effectively reconstructs structural intent from incomplete temporal sequences.
+
+*Conclusion: The dual-branch spatial GNN and temporal Bi-GRU demonstrate extreme resilience to structural occlusion and high-frequency noise, ensuring stability in chaotic visual environments.*
+
+## 9. Methodology & Assumptions (Truth in Reporting) ⚖️
 
 To ensure absolute academic transparency and reproducibility, the following assumptions and constraints applied to all evaluations documented above:
 
