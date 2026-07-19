@@ -6,7 +6,7 @@ Edge-Optimized Perception Engine for 300-Class Indian Sign Language Translation
 **Author3:** [Last Name], [First Name], [Affiliation];
 
 **Abstract**
-Communication barriers severely restrict the societal participation of the Deaf and Hard-of-Hearing (DHH) community, largely because Indian Sign Language (ISL) is a spatial, multidimensional language rarely understood by the broader hearing population. Existing computational translation systems often face restrictive computational overhead or lack real-world stability due to inter-sign movement epenthesis. This paper presents a low-latency, edge-optimized spatial architecture designed to facilitate real-time, continuous ISL translation. The system ingests a standardized 506-dimensional spatio-temporal vector extracted via MediaPipe landmark topology tracking. This input is dynamically routed through a dual-branch feature fusion pipeline that combines a Spatial Graph Neural Network (GNN) and a Conv1D frontend. Sequential modeling is handled by a 3-layer Bidirectional Gated Recurrent Unit (BiGRU), optimized with a domain-adversarial branch to enforce signer-invariance. Compiled via ONNX FP32 optimization and stabilized by a recurrent 2-of-3 momentum window filter, the engine achieves a 98.33% unseen test accuracy and a 97.84% Macro F1-score across 300 distinct ISL classes. Operating at just 6.22 ms per frame sequence (160.7 FPS) on consumer-grade CPUs, the architecture effectively suppresses high-frequency movement epenthesis noise, providing a highly scalable, real-time foundation for bidirectional assistive communication tools.
+Communication barriers severely restrict the societal participation of the Deaf and Hard-of-Hearing (DHH) community, largely because Indian Sign Language (ISL) is a spatial, multidimensional language rarely understood by the broader hearing population. Existing computational translation systems often face restrictive computational overhead or lack real-world stability due to inter-sign movement epenthesis. This paper presents a low-latency, edge-optimized spatial architecture designed to facilitate real-time, continuous ISL translation. The system ingests a standardized 506-dimensional spatio-temporal vector extracted via MediaPipe landmark topology tracking. This input is dynamically routed through a dual-branch feature fusion pipeline that combines a Spatial Graph Neural Network (GNN) and a Conv1D frontend. Sequential modeling is handled by a 3-layer Bidirectional Gated Recurrent Unit (BiGRU), optimized with a domain-adversarial branch to enforce signer-invariance. Compiled via ONNX FP32 optimization and stabilized by a recurrent 2-of-3 momentum window filter, the engine achieves a 94.13% unseen test accuracy and a 96.12% Macro F1-score across 300 distinct ISL classes. Operating at just 6.22 ms per frame sequence (160.7 FPS) on consumer-grade CPUs, the architecture effectively suppresses high-frequency movement epenthesis noise, providing a highly scalable, real-time foundation for bidirectional assistive communication tools.
 
 **Keywords:** Indian Sign Language, Edge Computing, Graph Neural Networks, Real-Time Translation, Assistive Technology, Motion Epenthesis
 
@@ -26,8 +26,10 @@ This spatial data is buffered into a strict 20-frame sliding window and routed t
 **Results**
 The model was trained and empirically evaluated on a robust dataset comprising 93,798 samples across an expanded 300-class ISL vocabulary, compiled using an optimized HDF5 data engine. The architecture achieved:
 
-* **Unseen Test Data Accuracy:** 98.33%
-* **Macro F1-Score:** 97.84%
+* **Unseen Test Data Accuracy:** 94.13%
+* **Macro Precision:** 94.64%
+* **Macro Recall:** 98.20%
+* **Macro F1-Score:** 96.12%
 * **Inference Speed:** 6.22 ms per frame sequence (sustaining 160.7 FPS) via ONNX FP32 optimization.
 
 This 6.22 ms computational footprint utilizes only 3.1% of a standard 200 ms real-time interaction budget. During live execution, the temporal post-processor—configured with a strict 2-of-3 momentum commit strategy (`momentum_commit_count=2`, `momentum_window=3`) and a dual-stage filtering heuristic (`confidence_threshold=0.12`, `momentum_min_avg_conf=0.60`)—successfully suppressed inter-sign transition flicker and hallucinated outputs.
