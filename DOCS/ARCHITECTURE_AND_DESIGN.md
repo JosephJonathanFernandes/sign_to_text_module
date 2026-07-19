@@ -1,4 +1,4 @@
-﻿# System Architecture
+# System Architecture
 
 The ISL Sign-to-Text module is designed for real-time edge execution. It is decoupled into distinct stages: feature extraction, temporal buffering, ML inference, and Natural Language Processing (NLP).
 
@@ -171,7 +171,7 @@ Dropout(0.25)
 → ReLU
 → Dropout(0.25)
 → Linear(96 → num_classes)
-→ logits (89 classes)
+→ logits (300 classes)
 ```
 
 ## Parameter Count
@@ -282,13 +282,12 @@ Each `.npy` file is a NumPy array of shape `(20, 506)` and dtype `float32`.
 **Missing hand:** If a hand is not detected in a frame, its 63-dim raw block and 63-dim face-relative block are filled with zeros.
 
 **Missing face:** If the face landmarker fails, both face-relative blocks are zero-filled. The proximity scalar is also zeroed.
-
 ## Dataset Statistics
 
 | Metric | Value |
 |---|---|
-| Sign classes | 89 (includes `__reject__` and `__transition__`) |
-| Total stored sequences | 54,420 (processed, processed_del, processed_negatives) |
+| Sign classes | 300 (includes `__reject__` and `__transition__`) |
+| Total stored sequences | 93,798 (processed, processed_del, processed_negatives) |
 | Effective training diversity | > 100,000 (after Mixup & Phase 2 noise injection) |
 | Average samples per class | ~73 (before augmentation) |
 | Target samples per class | 850 (after balancing) |
@@ -618,7 +617,7 @@ Pre-allocated module-level buffers (`_LANDMARK_BUFFERS`) avoid per-frame NumPy a
 3. ONNX Runtime session invoke
 4. On failure → automatic PyTorch FP32 fallback
 
-Output: logits `(1, 89)` → softmax → probability vector `(89,)`
+Output: logits `(1, 300)` → softmax → probability vector `(300,)`
 
 **Ensemble mode:** `src/inference/onnx_ensemble_integration.py` averages predictions from up to 5 fold checkpoints (configured via `LiveInferenceConfig.ensemble_size`).
 

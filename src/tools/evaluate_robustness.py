@@ -183,12 +183,18 @@ def evaluate_baseline():
     domains = np.array(domains)
     
     print("\n--- 2. Overall Classification Metrics ---")
+    from sklearn.metrics import accuracy_score
+    acc = accuracy_score(y_true, y_pred)
+    print(f"Overall Accuracy: {acc:.4f}")
+    
     rep = classification_report(y_true, y_pred, labels=np.arange(len(classes)), target_names=classes, zero_division=0, output_dict=True)
-    print(f"Overall Accuracy: {rep['accuracy']:.4f}")
-    print(f"Macro Precision: {rep['macro avg']['precision']:.4f}")
-    print(f"Macro Recall: {rep['macro avg']['recall']:.4f}")
-    print(f"Macro F1: {rep['macro avg']['f1-score']:.4f}")
-    print(f"Weighted F1: {rep['weighted avg']['f1-score']:.4f}")
+    if 'macro avg' in rep:
+        print(f"Macro Precision: {rep['macro avg']['precision']:.4f}")
+        print(f"Macro Recall: {rep['macro avg']['recall']:.4f}")
+        print(f"Macro F1: {rep['macro avg']['f1-score']:.4f}")
+        print(f"Weighted F1: {rep['weighted avg']['f1-score']:.4f}")
+    else:
+        print("Detailed macro averages not supported in this scikit-learn version.")
     
     if reject_cls_idx != -1:
         print("\n--- 3. __reject__ Metrics ---")

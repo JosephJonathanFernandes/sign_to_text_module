@@ -235,6 +235,14 @@ To optimize your trained PyTorch models for faster CPU inference, you can export
 **Command:** `python main.py --predict path\to\test_video.mp4`
 **Purpose:** Runs the entire pipeline (extraction -> inference) on a single test video and prints probabilities.
 
+### FYP Evaluation Suite
+**Command:** `python src/evaluation/evaluate.py --experiment [end_to_end|stress|stability|fault_tolerance]`
+**Purpose:** Runs the rigorous, production-grade test suite required for the EMPOWER final submission. 
+- `end_to_end`: Benchmarks pure inference streaming latency (network + backend + queue).
+- `stress`: Bombards the API with concurrent clients (1 to 50) to measure degradation.
+- `stability`: A long-duration soak test to check for memory leaks or dropping frames over time.
+- `fault_tolerance`: Injects malformed schemas, NaNs, and unexpected disconnects to ensure backend survival.
+
 ---
 
 # 9. Testing Commands

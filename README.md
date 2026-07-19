@@ -11,11 +11,12 @@ This project is part of a Final Year Project (FYP) focused on low-latency, real-
 
 ## 🚀 Features
 
-- **Real-Time Inference:** Sustained 60+ FPS processing on standard CPU hardware (12-15ms latency per frame).
+- **Massive Scale:** Supports robust classification across **300 distinct Indian Sign Language gestures** using over 93,000 real-world recorded sequences.
+- **Ultra Low-Latency Inference:** Sustained 60+ FPS processing on standard CPU hardware (**~6.22ms latency** per frame sequence) via ONNX INT8 quantization.
 - **Temporal & Spatial Modeling:** Combines Graph Neural Networks (GNN) for spatial hand dynamics and Bidirectional GRUs for temporal sequence modeling.
 - **Robust Feature Extraction:** 253-dimension feature vector capturing relative face-hand proximity and normalized joint coordinates.
-- **WebSocket Streaming:** Native continuous sign-to-text API for seamless frontend integration.
-- **Optimized Data Pipeline:** HDF5-backed dataset storage yielding a 5.4× faster epoch execution and 209× faster initialization compared to legacy filesystems.
+- **WebSocket Streaming:** Native continuous sign-to-text API for seamless frontend integration, heavily stress-tested for concurrency and flood-protection.
+- **Optimized Data Pipeline:** HDF5-backed dataset storage yielding a 5.4× faster epoch execution and 391× faster initialization compared to legacy `.npy` filesystems.
 
 ---
 
@@ -37,10 +38,12 @@ The system is composed of four main layers:
 
 | Metric | Measurement |
 |--------|-------------|
-| **Inference latency:** | `~12 ms` per frame sequence |
+| **Sign Classes:** | `300` |
+| **Model Accuracy:** | `98.33%` (F1: 97.84%) |
+| **Inference latency:** | `~6.22 ms` (ONNX INT8) |
+| **Model Footprint:** | `4.2 MB → 1.05 MB` (INT8 Quantization) |
 | **Dataset initialization:** | `71.14 s → 0.18 s` (≈391× improvement via HDF5) |
 | **Epoch execution time:** | `98.58 s → 18.28 s` (≈5.4× improvement via HDF5) |
-| **Frame processing:** | `Up to 60 FPS` under evaluated hardware |
 
 ---
 

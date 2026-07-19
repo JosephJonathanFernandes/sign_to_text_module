@@ -76,3 +76,8 @@ This document tracks the major engineering and architectural decisions made duri
 * **Context**: Extracting the sequential sequence from the circular buffer currently uses `np.concatenate`, which executes a memory copy.
 * **Decision NOT Taken**: We did not use NumPy `as_strided` to create a zero-copy virtual view of the buffer.
 * **Why**: While technically more optimal, the array is incredibly small (20 × 506 floats = ~40KB). The copy takes less than 10 microseconds. Stride tricks are notoriously difficult to debug and maintain, violating the principle of premature optimization.
+
+## ADR-011: Scaling to 300 Classes & Dataset Bottlenecks
+* **Context**: The project was massively scaled from an initial 89 classes to **300 classes**, pushing the dataset from 54,000 to over **93,000 `.npy` sequences**.
+* **Decision**: We aggressively compiled the dataset into an HDF5 engine (`dataset.h5`) rather than streaming `.npy` files from disk, and implemented a rigorous `evaluate.py` test suite for API verification.
+* **Why**: Initializing a PyTorch dataloader by crawling 93,000 individual files triggered immense OS-level I/O blocking (taking over a minute just to start an epoch). Compiling into HDF5 converted this $O(N)$ operation into an $O(1)$ block read, entirely bypassing the OS filesystem bottleneck and yielding a ~391x speedup in dataset initialization. This was essential for rapid iteration during the final 300-class training push.

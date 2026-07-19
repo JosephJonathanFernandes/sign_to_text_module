@@ -1,0 +1,13 @@
+{
+    "experiment": "stress",
+    "system": {
+        "timestamp": "2026-07-19T12:13:17.073789",
+        "commit": "unknown",
+        "python": "3.12.10",
+        "os": "Windows 11",
+        "cpu": "Intel64 Family 6 Model 154 Stepping 4, GenuineIntel",
+        "cpu_cores": 10,
+        "cpu_threads": 12,
+        "ram_gb": 15.71
+    }
+}
