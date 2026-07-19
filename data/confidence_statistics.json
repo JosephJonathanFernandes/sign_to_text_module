@@ -273,17 +273,17 @@
     "motion_speed_agreement": "37.8%"
   },
   "clean": {
-    "hand_count_agreement": "90.6%",
-    "movement_agreement": "96.0%",
+    "hand_count_agreement": "90.7%",
+    "movement_agreement": "91.7%",
     "location_agreement": "98.0%",
     "orientation_agreement": "94.3%",
-    "symmetry_agreement": "90.6%",
+    "symmetry_agreement": "90.7%",
     "finger_state_agreement": "99.3%",
     "hand_shape_agreement": "99.3%",
     "motion_direction_agreement": "95.3%",
     "trajectory_pattern_agreement": "95.3%",
     "dominant_hand_agreement": "90.3%",
-    "motion_speed_agreement": "96.0%"
+    "motion_speed_agreement": "91.7%"
   },
   "cold": {
     "hand_count_agreement": "44.9%",
