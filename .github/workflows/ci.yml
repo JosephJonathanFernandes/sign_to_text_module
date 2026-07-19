@@ -24,7 +24,7 @@ jobs:
           cache: "pip"
 
       - name: Install linting tools
-        run: pip install black isort ruff
+        run: pip install black isort ruff mypy
 
       - name: ruff check
         run: ruff check src/ api/ tests/
@@ -34,6 +34,10 @@ jobs:
 
       - name: isort check
         run: isort --check-only --diff src/ api/ tests/
+
+      - name: mypy static type check
+        run: mypy src/core/config.py src/shared/feature_extractor.py api/schemas.py
+        continue-on-error: false
 
   security:
     name: Security Scan
@@ -92,6 +96,43 @@ jobs:
         with:
           file: ./coverage.xml
           fail_ci_if_error: false
+
+  perception-engine:
+    name: Perception Engine Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install numpy scipy torch --index-url https://download.pytorch.org/whl/cpu
+          pip install fastapi pydantic onnxruntime onnx
+          pip install pytest pytest-cov
+
+      - name: Schema & Dimensionality Validation
+        run: pytest tests/unit/test_schema_validation.py -v --tb=short
+
+      - name: Confidence Smoother State Machine
+        run: pytest tests/unit/test_confidence_smoother.py -v --tb=short
+
+      - name: TTA Rollback Logic
+        run: >
+          pytest tests/unit/test_tta_rollback.py
+          -k "TestRollbackTriggerLogic or TestF1Computation"
+          -v --tb=short
+
+      - name: Latency Budget (CI-safe, model-free tests only)
+        run: >
+          pytest tests/unit/test_latency_budget.py
+          -k "TestFeatureExtractionLatency"
+          -v --tb=short
 
   verify-imports:
     name: Import Smoke Check

@@ -46,3 +46,20 @@ repos:
       - id: detect-secrets
         args: ["--baseline", ".secrets.baseline"]
         exclude: ^(venv|\.env\.example)/
+
+  # ─── Static Type Checking ──────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.10.0
+    hooks:
+      - id: mypy
+        args: ["--ignore-missing-imports", "--check-untyped-defs"]
+        files: ^(src/core/config\.py|src/shared/feature_extractor\.py|api/schemas\.py)$
+        additional_dependencies: ["pydantic>=2.0.0"]
+
+  # ─── Security Audit ────────────────────────────────────────────────────────
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.9
+    hooks:
+      - id: bandit
+        args: ["-r", "src", "api", "-ll", "--configfile", "pyproject.toml"]
+        exclude: ^(venv|experimental|Paper|tests)/
