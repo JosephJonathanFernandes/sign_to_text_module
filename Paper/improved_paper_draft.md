@@ -27,9 +27,9 @@ This spatial data is buffered into a strict 20-frame sliding window and routed t
 The model was trained and empirically evaluated on a robust dataset comprising 93,798 samples across an expanded 300-class ISL vocabulary, compiled using an optimized HDF5 data engine. The architecture achieved:
 
 * **Unseen Test Data Accuracy:** 94.13%
-* **Macro Precision:** 94.64%
-* **Macro Recall:** 98.20%
-* **Macro F1-Score:** 96.12%
+* **Macro Precision:** 94.66%
+* **Macro Recall:** 97.88%
+* **Macro F1-Score:** 95.81%
 * **Inference Speed:** 6.22 ms per frame sequence (sustaining 160.7 FPS) via ONNX FP32 optimization.
 
 This 6.22 ms computational footprint utilizes only 3.1% of a standard 200 ms real-time interaction budget. During live execution, the temporal post-processor—configured with a strict 2-of-3 momentum commit strategy (`momentum_commit_count=2`, `momentum_window=3`) and a dual-stage filtering heuristic (`confidence_threshold=0.12`, `momentum_min_avg_conf=0.60`)—successfully suppressed inter-sign transition flicker and hallucinated outputs.
