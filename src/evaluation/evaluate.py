@@ -21,7 +21,7 @@ from src.preprocessing.dataset import ISLDataset
 
 cfg = get_config()
 
-WS_URL = "ws://localhost:8000/ws/translate"
+WS_URL = "ws://127.0.0.1:8000/ws/translate"
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), '../../results')
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
@@ -298,7 +298,7 @@ async def continual_learning_evaluation():
     out_dir = os.path.join(RESULTS_DIR, "continual_learning")
     save_experiment_metadata("continual_learning", get_system_info(), out_dir)
     
-    API_URL = "http://localhost:8000"
+    API_URL = "http://127.0.0.1:8000"
     
     # 1. Prepare Dataset
     print("Preparing train/test split for a specific sign (simulating user shift)...")
@@ -439,7 +439,7 @@ async def fault_tolerance_evaluation():
     out_dir = os.path.join(RESULTS_DIR, "fault_tolerance")
     save_experiment_metadata("fault_tolerance", get_system_info(), out_dir)
     
-    API_URL = "http://localhost:8000"
+    API_URL = "http://127.0.0.1:8000"
     results = []
 
     def log_result(test_name, passed, detail):

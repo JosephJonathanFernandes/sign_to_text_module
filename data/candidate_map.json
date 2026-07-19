@@ -2,7 +2,11 @@
   "one_hand|small_motion|upper_space|unknown": [
     "0",
     "3",
-    "9"
+    "9",
+    "behind",
+    "male",
+    "mean",
+    "mobile"
   ],
   "one_hand|small_motion|neutral_space|pointing": [
     "1",
@@ -10,420 +14,435 @@
     "female",
     "i_alphabet",
     "l",
+    "red",
     "u"
   ],
   "one_hand|small_motion|neutral_space|unknown": [
     "2",
     "8",
+    "good",
+    "hide",
+    "i",
+    "kind",
+    "my",
+    "nice",
     "o",
     "v"
   ],
   "one_hand|small_motion|neutral_space|open_palm": [
     "4",
-    "5"
+    "5",
+    "after",
+    "alive",
+    "coward",
+    "me",
+    "please"
   ],
   "one_hand|medium_motion|upper_space|unknown": [
     "6",
-    "famous"
+    "famous",
+    "him",
+    "himself",
+    "his"
   ],
   "one_hand|small_motion|upper_space|pointing": [
-    "7"
+    "7",
+    "blind",
+    "think"
   ],
   "two_hands|small_motion|neutral_space|unknown": [
     "a",
     "b",
+    "brown",
+    "f",
     "g",
-    "s"
+    "s",
+    "tell"
   ],
-  "one_hand|unknown|neutral_space|open_palm": [
-    "alive",
-    "dirty",
-    "new",
-    "small_little",
-    "me",
-    "good_night",
-    "night",
-    "good_evening",
-    "evening",
-    "namaste",
-    "coward",
-    "please",
-    "afraid",
-    "delicious",
-    "handsome",
-    "intelligent",
-    "special",
-    "never",
-    "after",
-    "ahead",
-    "another",
-    "which",
-    "fire",
-    "hospital",
-    "things",
-    "bottle",
-    "eraser",
-    "colors",
-    "bronze",
-    "dark_green",
-    "green",
-    "grey",
-    "calculator"
+  "two_hands|unknown|neutral_space|open_palm": [
+    "above",
+    "abstract",
+    "equal",
+    "happy",
+    "help",
+    "on",
+    "sad"
+  ],
+  "two_hands|large_motion|neutral_space|unknown": [
+    "accessible",
+    "break",
+    "broken",
+    "climb_up",
+    "cruel",
+    "cupboard",
+    "emergency",
+    "funny",
+    "hard",
+    "hardworking",
+    "long",
+    "run",
+    "tear",
+    "wear",
+    "with"
   ],
   "two_hands|unknown|neutral_space|unknown": [
-    "alright",
-    "f",
-    "hard",
-    "long",
-    "wear",
-    "tear",
-    "run",
-    "practise",
-    "climb_up",
-    "climb_down",
-    "break",
-    "cruel",
-    "fat",
-    "funny",
-    "tell",
-    "accessible",
-    "broken",
-    "hardworking",
-    "with",
-    "saturday",
-    "sunday",
-    "emergency",
-    "how_many",
     "accident",
-    "police",
-    "sharpener",
-    "chair",
-    "cupboard",
-    "brown"
-  ],
-  "one_hand|large_motion|neutral_space|unknown": [
-    "bad",
-    "young"
-  ],
-  "one_hand|medium_motion|upper_space|open_palm": [
-    "beautiful"
-  ],
-  "two_hands|unknown|upper_space|open_palm": [
-    "big_large",
-    "it",
-    "loud",
-    "sky_blue"
-  ],
-  "one_hand|medium_motion|upper_space|pointing": [
-    "blind",
-    "cool",
-    "her",
-    "herself"
+    "alright",
+    "you_all"
   ],
   "one_hand|medium_motion|neutral_space|open_palm": [
-    "bye"
+    "afraid",
+    "bye",
+    "calculator",
+    "colors",
+    "dirty",
+    "eraser",
+    "evening",
+    "green",
+    "light_pink",
+    "never",
+    "night"
   ],
-  "one_hand|small_motion|upper_space|open_palm": [
-    "c"
-  ],
-  "one_hand|unknown|neutral_space|pointing": [
-    "cheap",
-    "itself",
-    "cancel",
-    "really",
-    "ruler",
-    "pencil",
-    "red"
+  "one_hand|medium_motion|face_near|open_palm": [
+    "afternoon",
+    "low"
   ],
   "one_hand|large_motion|neutral_space|open_palm": [
+    "ahead",
+    "another",
+    "bronze",
     "clean",
-    "expensive"
-  ],
-  "unknown|unknown|neutral_space|unknown": [
-    "cold",
-    "deaf",
-    "strong",
-    "swing",
-    "ancient",
-    "pen",
-    "car",
-    "pink",
-    "purple"
-  ],
-  "one_hand|large_motion|face_near|open_palm": [
-    "curved"
-  ],
-  "two_hands|small_motion|upper_space|pointing": [
-    "d"
-  ],
-  "unknown|unknown|neutral_space|open_palm": [
-    "dead",
-    "flat",
-    "morning",
-    "our",
-    "excited",
-    "book",
-    "table"
+    "dark_green",
+    "fire",
+    "good_evening",
+    "hospital",
+    "intelligent",
+    "namaste",
+    "new",
+    "special",
+    "they",
+    "things",
+    "which"
   ],
   "two_hands|large_motion|neutral_space|open_palm": [
-    "deep",
+    "already",
+    "before",
+    "besides",
+    "brush",
+    "build",
+    "carry",
+    "cpr",
+    "cyclone",
+    "dim",
+    "door",
+    "earthquake",
+    "fire_extinguisher",
+    "flood",
+    "from",
     "h",
     "healthy",
     "heavy",
     "hot",
     "how_are_you",
+    "injury",
+    "laptop",
     "light",
     "loose",
+    "majorly",
     "narrow",
+    "natural",
+    "near",
+    "ourselves",
+    "partly",
+    "practise",
+    "safe",
     "sign",
-    "soft"
+    "thank_you",
+    "therefore",
+    "together",
+    "what",
+    "why",
+    "within"
   ],
-  "two_hands|large_motion|neutral_space|unknown": [
-    "dry",
-    "rich",
-    "we"
-  ],
-  "two_hands|unknown|upper_space|unknown": [
-    "fast",
-    "rest",
-    "soft_speaking"
-  ],
-  "one_hand|unknown|neutral_space|unknown": [
-    "good",
-    "i",
-    "nice",
-    "my",
-    "myself",
-    "good_morning",
-    "hide",
-    "sorry",
-    "jealous",
-    "kind",
-    "polite",
-    "confident",
-    "doctor",
+  "one_hand|large_motion|neutral_space|unknown": [
     "ambulance",
     "bag",
     "bike",
-    "dark_pink"
+    "good_morning",
+    "myself"
   ],
-  "two_hands|unknown|neutral_space|open_palm": [
-    "happy",
-    "sad",
-    "thank_you",
-    "w",
-    "weak",
-    "ourselves",
-    "stand",
-    "chew",
-    "carry",
-    "build",
-    "brush",
-    "welcome",
-    "dangerous",
-    "dim",
-    "equal",
-    "abstract",
-    "natural",
-    "therefore",
-    "partly",
-    "majorly",
-    "already",
-    "above",
-    "before",
+  "unknown|unknown|neutral_space|unknown": [
+    "ancient",
+    "car",
+    "cold",
+    "deaf",
+    "pen",
+    "pink",
+    "purple",
+    "strong"
+  ],
+  "one_hand|small_motion|upper_space|open_palm": [
+    "angry",
+    "c",
+    "cute",
+    "golden",
+    "important"
+  ],
+  "two_hands|small_motion|neutral_space|pointing": [
+    "around",
+    "examine",
+    "k",
+    "p",
+    "q",
+    "t",
+    "tuesday",
+    "x",
+    "y"
+  ],
+  "one_hand|medium_motion|neutral_space|unknown": [
+    "bad",
+    "dark_pink",
+    "jealous",
+    "polite",
+    "sorry",
+    "you",
+    "young"
+  ],
+  "one_hand|medium_motion|upper_space|open_palm": [
+    "beautiful",
+    "easy",
+    "hello",
+    "ignore",
+    "old",
+    "walk"
+  ],
+  "two_hands|small_motion|neutral_space|open_palm": [
     "below",
-    "besides",
     "between",
-    "in",
-    "near",
-    "on",
-    "out",
-    "together",
-    "under",
-    "within",
-    "from",
+    "dangerous",
+    "m",
     "monday",
-    "wednesday",
-    "thursday",
-    "fire_extinguisher",
-    "earthquake",
-    "why",
-    "where",
-    "when",
-    "what",
-    "cyclone",
-    "cpr",
-    "flood",
-    "help",
-    "injury",
+    "n",
+    "stand",
+    "w",
+    "z"
+  ],
+  "one_hand|unknown|upper_space|open_palm": [
+    "better",
+    "light_green",
+    "silver"
+  ],
+  "two_hands|unknown|upper_space|open_palm": [
+    "big_large",
+    "loud",
+    "slow"
+  ],
+  "one_hand|small_motion|face_near|pointing": [
+    "black",
+    "dream",
+    "fan"
+  ],
+  "one_hand|unknown|upper_space|pointing": [
+    "blue",
+    "cool",
+    "indigo",
+    "she"
+  ],
+  "unknown|large_motion|neutral_space|open_palm": [
+    "book"
+  ],
+  "one_hand|unknown|neutral_space|open_palm": [
+    "bottle",
+    "delicious",
+    "expensive",
+    "good_night",
+    "grey",
+    "handsome",
+    "small_little",
+    "them"
+  ],
+  "one_hand|large_motion|neutral_space|pointing": [
+    "cancel",
+    "cheap",
+    "itself",
+    "pencil"
+  ],
+  "one_hand|small_motion|face_near|unknown": [
+    "cap",
+    "indian",
+    "orange",
+    "tall"
+  ],
+  "two_hands|medium_motion|neutral_space|pointing": [
+    "careful",
+    "j"
+  ],
+  "two_hands|medium_motion|neutral_space|unknown": [
+    "chair",
+    "climb_down",
+    "dry",
+    "fat",
+    "how_many",
+    "police",
+    "rich",
+    "saturday",
+    "sharpener",
+    "sunday"
+  ],
+  "two_hands|medium_motion|neutral_space|open_palm": [
+    "chew",
+    "deep",
+    "in",
+    "out",
     "pain",
-    "safe",
     "projector",
-    "laptop",
-    "door"
+    "soft",
+    "thursday",
+    "under",
+    "weak",
+    "wednesday",
+    "welcome",
+    "when",
+    "where"
+  ],
+  "two_hands|large_motion|upper_space|pointing": [
+    "clearly"
+  ],
+  "two_hands|small_motion|face_near|open_palm": [
+    "comfortable",
+    "praise"
+  ],
+  "one_hand|unknown|neutral_space|unknown": [
+    "confident",
+    "doctor"
+  ],
+  "one_hand|unknown|face_near|open_palm": [
+    "curved"
+  ],
+  "two_hands|small_motion|upper_space|pointing": [
+    "d"
+  ],
+  "two_hands|large_motion|neutral_space|pointing": [
+    "danger",
+    "language"
+  ],
+  "unknown|unknown|neutral_space|open_palm": [
+    "dead",
+    "excited",
+    "flat",
+    "it",
+    "morning",
+    "table"
+  ],
+  "one_hand|large_motion|face_near|open_palm": [
+    "exit",
+    "good_afternoon"
+  ],
+  "two_hands|unknown|upper_space|unknown": [
+    "fast"
+  ],
+  "unknown|large_motion|upper_space|open_palm": [
+    "frankly"
+  ],
+  "unknown|small_motion|upper_space|unknown": [
+    "friday"
   ],
   "one_hand|large_motion|upper_space|unknown": [
     "he",
-    "him",
-    "she"
+    "yourself"
   ],
-  "two_hands|medium_motion|upper_space|open_palm": [
-    "hello"
+  "one_hand|medium_motion|upper_space|pointing": [
+    "her",
+    "herself"
   ],
-  "two_hands|large_motion|face_near|open_palm": [
+  "two_hands|medium_motion|face_near|open_palm": [
     "high"
   ],
-  "one_hand|medium_motion|face_near|unknown": [
-    "indian"
-  ],
-  "two_hands|medium_motion|neutral_space|pointing": [
-    "j",
-    "q",
-    "y"
-  ],
-  "two_hands|small_motion|neutral_space|pointing": [
-    "k",
-    "p",
-    "t",
-    "x"
-  ],
-  "two_hands|large_motion|neutral_space|pointing": [
-    "language",
+  "two_hands|unknown|neutral_space|pointing": [
+    "often",
     "short"
   ],
-  "one_hand|medium_motion|face_near|open_palm": [
-    "low",
-    "warm"
-  ],
-  "two_hands|small_motion|neutral_space|open_palm": [
-    "m",
-    "n"
-  ],
-  "one_hand|unknown|upper_space|unknown": [
-    "male",
-    "mean",
-    "himself",
-    "his",
-    "yourself",
-    "your",
-    "they_themselves",
-    "behind",
-    "mobile"
-  ],
-  "one_hand|large_motion|upper_space|open_palm": [
-    "old",
-    "shallow"
+  "unknown|medium_motion|neutral_space|open_palm": [
+    "our"
   ],
   "unknown|unknown|upper_space|open_palm": [
-    "pleased",
-    "ugly",
-    "frankly"
+    "pleased"
   ],
   "unknown|unknown|unknown|open_palm": [
-    "poor"
+    "poor",
+    "ugly"
   ],
-  "unknown|unknown|neutral_space|pointing": [
+  "two_hands|small_motion|unknown|unknown": [
+    "powerful"
+  ],
+  "one_hand|large_motion|upper_space|pointing": [
+    "proud"
+  ],
+  "unknown|small_motion|neutral_space|pointing": [
     "quiet"
   ],
   "two_hands|small_motion|upper_space|open_palm": [
     "r"
   ],
-  "two_hands|unknown|unknown|open_palm": [
+  "one_hand|medium_motion|neutral_space|pointing": [
+    "really",
+    "ruler"
+  ],
+  "two_hands|small_motion|upper_space|unknown": [
+    "rest"
+  ],
+  "one_hand|large_motion|upper_space|open_palm": [
+    "shallow"
+  ],
+  "two_hands|small_motion|unknown|open_palm": [
     "sick"
   ],
-  "two_hands|large_motion|upper_space|open_palm": [
-    "slow",
-    "they",
-    "tight"
+  "two_hands|medium_motion|upper_space|open_palm": [
+    "sky_blue"
   ],
-  "one_hand|unknown|face_near|unknown": [
-    "tall",
-    "cap",
-    "orange",
-    "yellow"
+  "one_hand|small_motion|face_near|open_palm": [
+    "smart",
+    "warm"
   ],
-  "one_hand|medium_motion|unknown|pointing": [
+  "two_hands|medium_motion|upper_space|unknown": [
+    "soft_speaking",
+    "wet"
+  ],
+  "unknown|large_motion|neutral_space|unknown": [
+    "swing"
+  ],
+  "one_hand|medium_motion|unknown|unknown": [
+    "they_themselves"
+  ],
+  "one_hand|small_motion|unknown|pointing": [
     "thick"
   ],
   "one_hand|unknown|unknown|unknown": [
     "thin"
   ],
-  "two_hands|medium_motion|upper_space|unknown": [
-    "wet"
-  ],
-  "two_hands|large_motion|unknown|open_palm": [
-    "wide"
-  ],
-  "one_hand|medium_motion|neutral_space|unknown": [
-    "you"
-  ],
-  "two_hands|large_motion|upper_space|unknown": [
-    "you_all"
-  ],
-  "two_hands|medium_motion|neutral_space|open_palm": [
-    "z"
-  ],
-  "one_hand|unknown|unknown|open_palm": [
-    "them"
-  ],
-  "one_hand|unknown|face_near|open_palm": [
-    "afternoon",
-    "good_afternoon",
-    "smart",
-    "exit"
-  ],
-  "one_hand|unknown|upper_space|open_palm": [
-    "walk",
-    "ignore",
-    "angry",
-    "easy",
-    "better",
-    "cute",
-    "important",
-    "golden",
-    "light_green",
-    "silver"
-  ],
-  "one_hand|unknown|upper_space|pointing": [
-    "think",
-    "proud",
-    "blue",
-    "indigo"
-  ],
-  "two_hands|unknown|face_near|open_palm": [
-    "praise",
-    "comfortable"
-  ],
-  "two_hands|unknown|neutral_space|pointing": [
-    "examine",
-    "careful",
-    "often",
-    "around",
-    "tuesday",
-    "danger"
-  ],
-  "one_hand|unknown|face_near|pointing": [
-    "dream",
-    "fan",
-    "black"
-  ],
-  "two_hands|unknown|unknown|unknown": [
-    "powerful"
-  ],
-  "two_hands|unknown|upper_space|pointing": [
-    "clearly"
-  ],
-  "unknown|unknown|upper_space|unknown": [
-    "friday"
-  ],
-  "one_hand|unknown|unknown|pointing": [
-    "who",
-    "whiteboard"
+  "two_hands|large_motion|upper_space|open_palm": [
+    "tight"
   ],
   "unknown|unknown|face_near|open_palm": [
     "tsunami"
   ],
+  "unknown|medium_motion|neutral_space|unknown": [
+    "we"
+  ],
   "unknown|unknown|unknown|unknown": [
     "white"
+  ],
+  "one_hand|large_motion|unknown|pointing": [
+    "whiteboard",
+    "who"
+  ],
+  "two_hands|large_motion|unknown|open_palm": [
+    "wide"
+  ],
+  "one_hand|medium_motion|face_near|unknown": [
+    "yellow"
+  ],
+  "one_hand|unknown|upper_space|unknown": [
+    "your"
   ]
 }
