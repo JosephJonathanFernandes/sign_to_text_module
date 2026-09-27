@@ -34,6 +34,7 @@ dataset.h5
 validation_report.json
 keypoints.csv
 data/tmp*
+assets/manifest_consolidated.csv
 
 # Model weights & checkpoints
 adapter_weights/
