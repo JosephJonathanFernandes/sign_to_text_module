@@ -89,7 +89,7 @@ NOTES = (
     "are not distinguishable in the files, so this group may contain label noise.\n\n"
     "refining_phase2: positive samples removed from the primary pool by a quality/diversity\n"
     "filter (composite quality score plus diversity selection) and used in Phase-2\n"
-    "fine-tuning. Pure webcam recordings were never eligible for removal.\n\n"
+    "fine-tuning. Domain is derived from filename prefix; webcam-prefixed files include augmented variants. Groups contain exact duplicate arrays (see overlap_stats).\n\n"
     "negative: reject class (23 categories: transitions, incomplete signs, idle, tracking\n"
     "failures, non-signing movement, and confusable sign categories) used in Phase-1 training.\n\n"
     "refining_negative: lower-quality reject samples removed from the same negative pool by\n"
