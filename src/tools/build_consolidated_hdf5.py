@@ -80,7 +80,7 @@ NOTES = (
     "main_positive: primary training set exported from dataset.h5 (300 classes). Per-sample\n"
     "labels (indices into class_names), weights (all 1.0, placeholder) and domains\n"
     "(cvae = synthetic sequences from a conditional VAE, webcam = live webcam recordings,\n"
-    "MVI = sequences extracted from recorded video clips, unknown = other; see\n"
+    "MVI = features extracted from videos of the INCLUDE dataset (Sridhar et al., ACM MM 2020, doi 10.1145/3394171.3413528, CC BY 4.0), unknown = other; see\n"
     "domain_names). Filenames are synthetic (hdf5_sample_NNNNNN) because source filenames\n"
     "were not stored when the set was compiled.\n\n"
     "refining_adapter: sequences collected during deployment and used to train a small MLP\n"
