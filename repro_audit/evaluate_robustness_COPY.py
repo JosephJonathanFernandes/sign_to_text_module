@@ -1,5 +1,4 @@
-import os
-import argparse
+﻿import os
 import sys
 import time
 import json
@@ -100,10 +99,10 @@ def run_degradation_experiment(models, ds, test_indices, corruption_fn, param_li
         acc = (correct / total) * 100
         print(f"{name} {param}: {acc:.2f}%")
 
-def evaluate_baseline(val_only=False):
-    os.makedirs("benchmarks", exist_ok=True)
-    os.makedirs("results_v2", exist_ok=True)
-    sys.stdout = Logger(os.path.join("results_v2", "robustness_report.txt"))
+def evaluate_baseline():
+    os.makedirs("repro_audit/out_benchmarks", exist_ok=True)
+    os.makedirs("repro_audit/out_diagrams", exist_ok=True)
+    sys.stdout = Logger(os.path.join("repro_audit/out_benchmarks", "robustness_report.txt"))
 
     print("Loading models...")
     models, classes, num_classes = load_ensemble()
@@ -141,14 +140,6 @@ def evaluate_baseline(val_only=False):
             test_indices.append(i)
             reject_indices.append(i)
             
-
-    if val_only:
-        val_idx = set(np.load("results_v2/val_idx.npy"))
-        test_indices = [i for i in test_indices if i in val_idx]
-        valid_sign_indices = [i for i in valid_sign_indices if i in val_idx]
-        reject_indices = [i for i in reject_indices if i in val_idx]
-        print(f"Filtered to VAL ONLY. Now {len(test_indices)} samples.")
-    
     print(f"Test set (natural distribution) includes {len(test_indices)} samples.")
     print(f"Of these, {len(valid_sign_indices)} are valid signs and {len(reject_indices)} are __reject__ samples.")
     
@@ -285,13 +276,13 @@ def evaluate_baseline(val_only=False):
     plt.xlabel("Predicted")
     plt.ylabel("True")
     plt.tight_layout()
-    plt.savefig(os.path.join("results_v2", "confusion_matrix.png"), dpi=150)
+    plt.savefig(os.path.join("repro_audit/out_diagrams", "confusion_matrix.png"), dpi=150)
     plt.close()
     
     if reject_cls_idx != -1:
         print("\n--- 7. Top Misclassifications Involving __reject__ ---")
         print("Saving to diagrams/misclassified_rejects.txt")
-        with open("results_v2/misclassified_rejects.txt", "w") as f:
+        with open("repro_audit/out_diagrams/misclassified_rejects.txt", "w") as f:
             f.write("Filename | True Label | Predicted Label | Confidence\n")
             f.write("-" * 80 + "\n")
             
@@ -344,7 +335,7 @@ def evaluate_baseline(val_only=False):
         plt.ylabel("Confidence")
         
         plt.tight_layout()
-        plt.savefig(os.path.join("results_v2", "confidence_distribution.png"), dpi=150)
+        plt.savefig(os.path.join("repro_audit/out_diagrams", "confidence_distribution.png"), dpi=150)
         plt.close()
         print("Saved Confidence Distribution plot to 'diagrams/confidence_distribution.png'")
         
@@ -414,7 +405,5 @@ def evaluate_baseline(val_only=False):
         print(f"Synthetic FAR (Accepted OOD as valid): {((total_ood - ood_rejected) / total_ood) * 100:.2f}%")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--val-only', action='store_true')
-    args = parser.parse_args()
-    evaluate_baseline(val_only=args.val_only)
+    evaluate_baseline()
+

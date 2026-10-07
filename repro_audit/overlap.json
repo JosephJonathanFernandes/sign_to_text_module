@@ -1,0 +1,20 @@
+{
+  "evaluate_robustness.py test set": {
+    "evaluated": 92519,
+    "in_train_idx": 64765,
+    "in_val_idx": 27754,
+    "pct_in_train": 70.0
+  },
+  "generate_report_metrics.py 'unseen/test' (webcam domain)": {
+    "evaluated": 87684,
+    "in_train_idx": 61376,
+    "in_val_idx": 26308,
+    "pct_in_train": 70.0
+  },
+  "generate_report_metrics.py 'validation' (non-webcam domains)": {
+    "evaluated": 1245,
+    "in_train_idx": 868,
+    "in_val_idx": 377,
+    "pct_in_train": 69.72
+  }
+}

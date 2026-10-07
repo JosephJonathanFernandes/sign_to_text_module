@@ -1,0 +1,52 @@
+val_split=0.3 seed=42 batch=8 epochs=50
+N=93798 classes=301 reject_idx=300 reject_count=3915
+
+[2] split: train=65659 val=28139 (sum=93798)
+[3] evaluate_robustness.py test set: evaluated=92519 in_train_idx=64765 (70.00%) in_val_idx=27754 (30.00%)
+[3] generate_report_metrics.py 'unseen/test' (webcam domain): evaluated=87684 in_train_idx=61376 (70.00%) in_val_idx=26308 (30.00%)
+[3] generate_report_metrics.py 'validation' (non-webcam domains): evaluated=1245 in_train_idx=868 (69.72%) in_val_idx=377 (30.28%)
+
+checkpoint: epoch=50 val_acc stored=83.103 num_classes=301
+  forward 10240/93798 (27s)
+  forward 20480/93798 (56s)
+  forward 30720/93798 (88s)
+  forward 40960/93798 (120s)
+  forward 51200/93798 (151s)
+  forward 61440/93798 (184s)
+  forward 71680/93798 (223s)
+  forward 81920/93798 (271s)
+  forward 92160/93798 (383s)
+
+[3b] single-model accuracy by subset (same forward pass):
+   evaluate_robustness set: n=92519 acc=94.13%
+     of which in train_idx: n=64765 acc=94.30%
+     of which in val_idx: n=27754 acc=93.72%
+   webcam-domain (generate_report_metrics 'unseen'): n=87684 acc=98.33%
+     of which in train_idx: n=61376 acc=98.49%
+     of which in val_idx: n=26308 acc=97.96%
+
+[4] HELD-OUT (val_idx only, n=28139), existing checkpoint, single-model forward
+   accuracy (all 301 incl. reject samples): 93.37%
+   macro P/R/F1, all 301 labels      : 93.96 / 97.04 / 95.06
+   macro P/R/F1, 300 sign labels only: 93.96 / 97.36 / 95.37  (reject samples still counted as errors)
+   accuracy on true-sign val samples only (n=26965): 97.36%
+   macro P/R/F1, sign samples only, 300 labels: 97.39 / 97.36 / 97.19
+   reject: support=1174 TP=19 FP=1 FN=1155 precision=95.00% recall=1.62%
+   per-class table -> repro_audit/heldout_per_class.csv ; confusion matrix -> heldout_confusion_matrix.npy
+
+[5] nearest same-class TRAIN neighbour for every val sample (flattened 20x506 features after _prepare_sequence, augment=False)
+   val samples with a same-class train neighbour: 28139/28139
+   abs L2 distance percentiles (1,5,25,50,75,95,99): 0.000, 0.000, 0.000, 8.301, 46.116, 89.106, 153.920
+   relative (d/||x||) percentiles (1,5,25,50,75,95,99): 0.0000, 0.0000, 0.0000, 0.1472, 0.5691, 0.8899, 1.0031
+   reference: train->train leave-one-out NN abs dist median=7.638
+   exact duplicates (d<=1e-6): 7497 (26.64%)
+   near-duplicate if d/||x|| <= 0.01: 13720 (48.76%)
+   near-duplicate if d/||x|| <= 0.02: 13721 (48.76%)
+   near-duplicate if d/||x|| <= 0.05: 13734 (48.81%)
+   near-duplicate if d/||x|| <= 0.10: 13843 (49.20%)
+   THRESHOLD RATIONALE: no ground-truth duplicate labels exist (h5 stores no filenames/parent ids). 1e-6 = bit-identical copy; 2% relative L2 ~ jitter smaller than the training augmentation noise; 5% is a lenient bound. The 5% figure is a convention, not a measured boundary.
+
+   composition of val_idx by domain: {'cvae': 105, 'webcam': 26308, 'unknown': 304, 'MVI': 272}
+   unique sample weights in h5 (flag for derived data?): (array([1.]), array([93798]))
+
+DONE

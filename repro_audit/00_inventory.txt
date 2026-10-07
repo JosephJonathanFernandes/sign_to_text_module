@@ -1,0 +1,24 @@
+git commit: 5f7e260c8d60d3f449ca2da21b111bc5b8fcee0f
+models/model.pth: 4402489 bytes, mtime Sat Jul 18 09:47:17 2026, sha256 e366bdbab8da63dfe82a6540edb3d5c9b8c027f7726c2e5b20a3ddd112b488da
+models/model.onnx: 433613 bytes, mtime Sat Jul 18 10:09:47 2026, sha256 23af2e5385a800c9937ea9afcc4c664bc097e94aa6fed527a6b6ba8805dc70ef
+models/model_int8.onnx: 1349391 bytes, mtime Sat Jul 18 10:11:11 2026, sha256 1d93b48423ce814d8476f76dcb3eeeab294abae1f2c60e028a29c373d64dce95
+assets/dataset.h5: 1912180312 bytes, mtime Fri Jul 17 16:02:59 2026, sha256 3056b96a8818bc47e8203dcced6b52f34784c9eedb08decd253dca95530585d7
+
+checkpoint keys: ['epoch', 'model_state_dict', 'optimizer_state_dict', 'val_acc', 'num_classes', 'classes']
+  epoch: 50
+  val_acc: 83.10301682191019
+  num_classes: 301
+  len(classes): 301 | has __reject__: True
+  domain-head params in checkpoint: []
+
+h5 attrs: {'compiler_version': '1.0', 'creation_date': np.float64(1784284379.845345), 'dataset_hash': '42962d71e4a00216088fb732fa88e3a3', 'dataset_version': '1.0', 'feature_dimension': np.int64(506), 'feature_schema_version': '1.0', 'num_classes': np.int64(300), 'sample_count': np.int64(89883), 'sequence_length': np.int64(20)}
+  /class_names: shape=() dtype=object
+  /domain_names: shape=() dtype=object
+  /domains: shape=(89883,) dtype=int32
+  /features: shape=(89883, 20, 506) dtype=float32
+  /labels: shape=(89883,) dtype=int32
+  /weights: shape=(89883,) dtype=float32
+  n samples: 89883 classes present: 300
+  h5 class_names count: 300
+  domains: {'cvae': 0, 'webcam': 1, 'unknown': 2, 'MVI': 3}
+  domain counts: {0: 325, 1: 87684, 2: 954, 3: 920}

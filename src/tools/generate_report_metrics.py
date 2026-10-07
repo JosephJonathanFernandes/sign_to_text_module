@@ -1,4 +1,5 @@
 import sys
+import os
 import numpy as np
 import torch
 import torch.nn as nn
@@ -17,7 +18,7 @@ from collections import defaultdict
 cfg = get_config()
 DEVICE = cfg.hardware.torch_device
 
-def load_data():
+def load_data(val_only=False):
     full_ds = ISLDataset(augment=False, oversample=False)
     webcam_idx = full_ds.domain_to_idx['webcam']
     unknown_idx = full_ds.domain_to_idx.get('unknown', -1)
@@ -33,7 +34,13 @@ def load_data():
             test_indices.append(i)
         elif d != unknown_idx:
             train_val_indices.append(i)
-            
+
+    if val_only:
+        val_idx = set(np.load("results_v2/val_idx.npy"))
+        test_indices = [i for i in test_indices if i in val_idx]
+        train_val_indices = [i for i in train_val_indices if i in val_idx]
+        print(f"Filtered to VAL ONLY. Now test={len(test_indices)} val={len(train_val_indices)} samples.")
+        
     test_loader = DataLoader(Subset(full_ds, test_indices), batch_size=cfg.training.batch_size, shuffle=False)
     val_loader = DataLoader(Subset(full_ds, train_val_indices), batch_size=cfg.training.batch_size, shuffle=False)
     
@@ -61,8 +68,8 @@ def evaluate(model, loader):
                 
     return np.array(all_labels), np.array(all_preds), np.array(all_domains), np.array(all_dom_preds)
 
-def generate_metrics():
-    val_loader, test_loader, nc, num_domains, classes = load_data()
+def generate_metrics(val_only=False):
+    val_loader, test_loader, nc, num_domains, classes = load_data(val_only=val_only)
     
     model_path = "models/model.pth"
     if not os.path.exists(model_path):
@@ -115,8 +122,11 @@ def generate_metrics():
                 
     pairs = sorted(confusion_pairs, key=lambda x: x[0], reverse=True)[:10]
     for count, true_cls, pred_cls in pairs:
-        print(f"  {true_cls} → {pred_cls} : {count} misclassifications")
+        print(f"  {true_cls} -> {pred_cls} : {count} misclassifications")
 
 if __name__ == "__main__":
-    import os
-    generate_metrics()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--val-only", action="store_true")
+    args = parser.parse_args()
+    generate_metrics(val_only=args.val_only)
