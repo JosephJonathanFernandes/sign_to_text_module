@@ -80,40 +80,40 @@ Processed 27000 samples...
 Processed 27500 samples...
 
 --- 2. Overall Classification Metrics ---
-Overall Accuracy: 0.9372
-Macro Precision: 0.9419
-Macro Recall: 0.9743
-Macro F1: 0.9536
-Weighted F1: 0.9185
+Overall Accuracy: 0.9389
+Macro Precision: 0.9445
+Macro Recall: 0.9765
+Macro F1: 0.9560
+Weighted F1: 0.9198
 
 --- 3. __reject__ Metrics ---
-Precision: 0.9500
-Recall:    0.0162
-F1-score:  0.0318
+Precision: 0.0000
+Recall:    0.0000
+F1-score:  0.0000
 Support:   1174.0
-True Positives (TP): 19
-False Positives (FP): 1 (Valid signs incorrectly rejected)
-False Negatives (FN): 1155 (Reject samples incorrectly accepted as valid signs)
+True Positives (TP): 0
+False Positives (FP): 0 (Valid signs incorrectly rejected)
+False Negatives (FN): 1174 (Reject samples incorrectly accepted as valid signs)
 
 --- 4. Per-category Reject Analysis ---
-cheap               : Recall 2.99% (2/67)
+cheap               : Recall 0.00% (0/67)
 daily_activities    : Recall 0.00% (0/52)
-dirty               : Recall 2.04% (1/49)
+dirty               : Recall 0.00% (0/49)
 empty_scene         : Recall 0.00% (0/61)
 good                : Recall 0.00% (0/20)
 good_afternoon      : Recall 0.00% (0/23)
-good_evening        : Recall 6.45% (2/31)
+good_evening        : Recall 0.00% (0/31)
 good_morning        : Recall 0.00% (0/28)
-good_night          : Recall 5.00% (1/20)
+good_night          : Recall 0.00% (0/20)
 hard                : Recall 0.00% (0/57)
-idle                : Recall 2.86% (2/70)
+idle                : Recall 0.00% (0/70)
 incomplete_signs    : Recall 0.00% (0/57)
 long                : Recall 0.00% (0/51)
-miscellanous        : Recall 1.75% (1/57)
-new                 : Recall 1.35% (1/74)
+miscellanous        : Recall 0.00% (0/57)
+new                 : Recall 0.00% (0/74)
 nice                : Recall 0.00% (0/40)
-other_people        : Recall 1.52% (1/66)
-random_hand_movement: Recall 13.56% (8/59)
+other_people        : Recall 0.00% (0/66)
+random_hand_movement: Recall 0.00% (0/59)
 strong              : Recall 0.00% (0/56)
 tall                : Recall 0.00% (0/60)
 thank_you           : Recall 0.00% (0/53)
@@ -122,10 +122,10 @@ transitions         : Recall 0.00% (0/57)
 
 --- 5. Per-domain Analysis ---
 [webcam]
-  Signs Acc:  97.96% (25772/26308)
-  Reject Acc: 1.75% (19/1087)
+  Signs Acc:  98.22% (25841/26308)
+  Reject Acc: 0.00% (0/1087)
 [MVI]
-  Signs Acc:  81.25% (221/272)
+  Signs Acc:  79.41% (216/272)
   Reject Acc: 0.00% (0/49)
 [cvae_0035.npy]
   Reject Acc: 0.00% (0/1)
@@ -161,54 +161,53 @@ transitions         : Recall 0.00% (0/57)
 --- 6. Confusion Matrix & Error Analysis ---
 
 [Top valid signs incorrectly classified as __reject__ (FRR contributors)]
-  poor           : 1 times
 
 [Top valid signs that __reject__ is incorrectly classified as (FAR contributors)]
-  white          : 63 times
-  ugly           : 43 times
-  poor           : 39 times
-  c              : 38 times
-  curved         : 37 times
+  ugly           : 79 times
+  white          : 62 times
+  small_little   : 55 times
+  poor           : 52 times
+  loud           : 47 times
 
 --- 7. Top Misclassifications Involving __reject__ ---
 Saving to diagrams/misclassified_rejects.txt
 
 --- 8. Confidence Analysis ---
 Valid Signs Confidence:
-  Average: 0.9636
-  Median:  0.9842
+  Average: 0.9965
+  Median:  1.0000
 __reject__ Confidence:
-  Average: 0.4727
-  Median:  0.3851
+  Average: 0.8906
+  Median:  0.9906
 Saved Confidence Distribution plot to 'diagrams/confidence_distribution.png'
 
-Expected Calibration Error (ECE): 2.28%
+Expected Calibration Error (ECE): 5.31%
 
 --- 9. Threshold Sweep (ROC Analysis for Reject) ---
 Sweeping probability threshold for accepting a sign (rejecting if below threshold or predicted as reject)
 Threshold  | Precision  | Recall     | FAR        | FRR       
 ------------------------------------------------------------
-0.2        | 0.8397     | 0.2453     | 3.2323%    | 0.2069%   
-0.3        | 0.7747     | 0.3807     | 2.6751%    | 0.4891%   
-0.4        | 0.6796     | 0.5077     | 2.1505%    | 1.0572%   
-0.5        | 0.6505     | 0.5818     | 1.8387%    | 1.3807%   
-0.6        | 0.5107     | 0.6499     | 1.5651%    | 2.7502%   
-0.7        | 0.4938     | 0.7121     | 1.2970%    | 3.2242%   
-0.8        | 0.4893     | 0.7760     | 1.0158%    | 3.5779%   
-0.9        | 0.4581     | 0.8518     | 0.6805%    | 4.4507%   
+0.2        | 0.0000     | 0.0000     | 4.2300%    | 0.0000%   
+0.3        | 0.7000     | 0.0060     | 4.2063%    | 0.0113%   
+0.4        | 0.6410     | 0.0213     | 4.1458%    | 0.0527%   
+0.5        | 0.6667     | 0.0528     | 4.0201%    | 0.1166%   
+0.6        | 0.6429     | 0.0997     | 3.8336%    | 0.2445%   
+0.7        | 0.6013     | 0.1542     | 3.6171%    | 0.4515%   
+0.8        | 0.6040     | 0.2300     | 3.3105%    | 0.6659%   
+0.9        | 0.5689     | 0.2990     | 3.0328%    | 1.0008%   
 
 --- 10. Synthetic Stress Test ---
 WARNING: This tests purely synthetic corruptions (Gaussian noise, temporal shuffling).
 These are OUTSIDE the training distribution and evaluate algorithmic stability, not real-world deployment performance.
 
 --- EXPERIMENT: Gaussian Noise Degradation Curve ---
-Gaussian Noise 0.01: 96.80%
-Gaussian Noise 0.03: 96.80%
+Gaussian Noise 0.01: 97.80%
+Gaussian Noise 0.03: 97.80%
 
 --- EXPERIMENT: Landmark Dropout Degradation Curve ---
-Landmark Dropout 0.1: 91.20%
-Landmark Dropout 0.2: 82.80%
+Landmark Dropout 0.1: 92.00%
+Landmark Dropout 0.2: 81.80%
 
 Synthetic OOD (Pure Noise/Shuffling):
-Synthetic OOD Rejection Rate: 3.80%
-Synthetic FAR (Accepted OOD as valid): 96.20%
+Synthetic OOD Rejection Rate: 0.20%
+Synthetic FAR (Accepted OOD as valid): 99.80%
