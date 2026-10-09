@@ -332,6 +332,13 @@ def ensemble_predict(
     t_model_forward = 0
     num_forward_passes = 0
     
+    # Try importing tent for live adaptation
+    try:
+        from src.inference.tent import TentWrapper
+        has_tent = True
+    except ImportError:
+        has_tent = False
+    
     for seq in tta_seqs:
         seq = _align_sequence_dim(seq)
         tensor = torch.from_numpy(seq).unsqueeze(0).float().to(DEVICE)
@@ -342,7 +349,15 @@ def ensemble_predict(
 
         for model in models:
             t_fwd_start = time.time()
-            logits = model(tensor, proximity=proximity)
+            if use_tta and has_tent:
+                if not hasattr(model, 'tent_wrapper'):
+                    model.tent_wrapper = TentWrapper(model, lr=1e-4, reset_state=False)
+                logits = model.tent_wrapper.adapt_and_predict(tensor, proximity=proximity)
+                model.eval()
+            else:
+                with torch.no_grad():
+                    logits = model(tensor, proximity=proximity)
+                    
             t_fwd_end = time.time()
             t_model_forward += (t_fwd_end - t_fwd_start)
             

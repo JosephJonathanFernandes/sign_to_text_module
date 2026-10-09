@@ -167,7 +167,7 @@ def _choose_class():
     return choice.lower().strip()
 
 
-def record_samples(cls_name, num_samples=None, pipeline_log: PipelineLogger | None = None):
+def record_samples(cls_name, num_samples=None, pipeline_log: PipelineLogger | None = None, out_dir=None):
     """
     Open webcam and record gesture samples for the given class.
 
@@ -175,14 +175,21 @@ def record_samples(cls_name, num_samples=None, pipeline_log: PipelineLogger | No
         cls_name: class label (e.g. 'happy')
         num_samples: if set, auto-quit after this many. Otherwise loop.
         pipeline_log: optional PipelineLogger for structured event logging
+        out_dir: override output directory (default is PROCESSED_DIR)
     """
     if pipeline_log:
         pipeline_log.event("record_start", class_name=cls_name, target_samples=num_samples)
     
-    save_dir = os.path.join(PROCESSED_DIR, cls_name)
+    if out_dir is None:
+        out_dir = PROCESSED_DIR
+        
+    save_dir = os.path.join(out_dir, cls_name)
     os.makedirs(save_dir, exist_ok=True)
 
-    existing_count = _count_samples(cls_name)
+    if out_dir == PROCESSED_DIR:
+        existing_count = _count_samples(cls_name)
+    else:
+        existing_count = len([f for f in os.listdir(save_dir) if f.endswith(".npy")])
     print(f"\n[Collect] Class: '{cls_name}'")
     print(f"[Collect] Existing samples: {existing_count}")
     print(f"[Collect] Recording: {WEBCAM_RECORD_FRAMES} frames "
@@ -431,7 +438,7 @@ def record_samples(cls_name, num_samples=None, pipeline_log: PipelineLogger | No
     return saved
 
 
-def collect_interactive(pipeline_log: PipelineLogger | None = None):
+def collect_interactive(pipeline_log: PipelineLogger | None = None, out_dir=None):
     """Interactive loop: pick class -> record -> pick again."""
     if pipeline_log:
         pipeline_log.event("collect_session_start")
@@ -459,7 +466,7 @@ def collect_interactive(pipeline_log: PipelineLogger | None = None):
         ).strip()
         n = int(n_str) if n_str.isdigit() else None
 
-        record_samples(cls, num_samples=n, pipeline_log=pipeline_log)
+        record_samples(cls, num_samples=n, pipeline_log=pipeline_log, out_dir=out_dir)
 
         cont = input("\nRecord another class? (y/n): ").strip().lower()
         if cont != "y":
@@ -497,9 +504,13 @@ if __name__ == "__main__":
         "--n", type=int, default=None,
         help="Number of samples to record (default: unlimited)",
     )
+    parser.add_argument(
+        "--out-dir", type=str, default=None,
+        help="Custom output directory. If not specified, saves to standard training dataset.",
+    )
     args = parser.parse_args()
 
     if args.cls:
-        record_samples(args.cls.lower().strip(), num_samples=args.n)
+        record_samples(args.cls.lower().strip(), num_samples=args.n, out_dir=args.out_dir)
     else:
-        collect_interactive()
+        collect_interactive(out_dir=args.out_dir)

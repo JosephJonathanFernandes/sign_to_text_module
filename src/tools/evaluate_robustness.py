@@ -84,7 +84,7 @@ def get_reject_category(fpath):
             pass
     return "unknown"
 
-def run_degradation_experiment(models, ds, test_indices, corruption_fn, param_list, name):
+def run_degradation_experiment(models, ds, test_indices, corruption_fn, param_list, name, use_tta=False):
     print(f"\n--- EXPERIMENT: {name} Degradation Curve ---")
     for param in param_list:
         correct = 0
@@ -94,16 +94,18 @@ def run_degradation_experiment(models, ds, test_indices, corruption_fn, param_li
             sequence = seq_t.numpy()
             cls_idx = ds.samples[i][1]
             corrupted_seq = corruption_fn(sequence, param)
-            pred_idx, _, _ = ensemble_predict(models, corrupted_seq)
+            pred_idx, _, _ = ensemble_predict(models, corrupted_seq, use_tta=use_tta)
             if pred_idx == cls_idx:
                 correct += 1
         acc = (correct / total) * 100
         print(f"{name} {param}: {acc:.2f}%")
 
-def evaluate_baseline(val_only=False):
+def evaluate_baseline(val_only=False, use_tta=False):
     os.makedirs("benchmarks", exist_ok=True)
     os.makedirs("results_v2", exist_ok=True)
-    sys.stdout = Logger(os.path.join("results_v2", "robustness_report.txt"))
+    
+    out_file = "robustness_report_tta.txt" if use_tta else "robustness_report.txt"
+    sys.stdout = Logger(os.path.join("results_v2", out_file))
 
     print("Loading models...")
     models, classes, num_classes = load_ensemble()
@@ -167,7 +169,7 @@ def evaluate_baseline(val_only=False):
         fpath = ds.samples[idx][0]
         d_idx = ds.samples[idx][3]
         
-        pred_idx, conf, _ = ensemble_predict(models, sequence)
+        pred_idx, conf, _ = ensemble_predict(models, sequence, use_tta=use_tta)
         
         y_true.append(cls_idx)
         y_pred.append(pred_idx)
@@ -394,8 +396,8 @@ def evaluate_baseline(val_only=False):
         else:
             stress_indices = valid_sign_indices
             
-        run_degradation_experiment(models, ds, stress_indices, apply_gaussian_noise, [0.01, 0.03], "Gaussian Noise")
-        run_degradation_experiment(models, ds, stress_indices, apply_landmark_dropout, [0.10, 0.20], "Landmark Dropout")
+        run_degradation_experiment(models, ds, stress_indices, apply_gaussian_noise, [0.01, 0.03], "Gaussian Noise", use_tta)
+        run_degradation_experiment(models, ds, stress_indices, apply_landmark_dropout, [0.10, 0.20], "Landmark Dropout", use_tta)
         
         print("\nSynthetic OOD (Pure Noise/Shuffling):")
         ood_rejected = 0
@@ -403,7 +405,7 @@ def evaluate_baseline(val_only=False):
         for i in stress_indices:
             seq_t, _, _, _, _ = ds[i]
             ood_seq = generate_synthetic_ood(seq_t.numpy())
-            pred_idx, conf, all_probs = ensemble_predict(models, ood_seq)
+            pred_idx, conf, all_probs = ensemble_predict(models, ood_seq, use_tta=use_tta)
             
             # Rejected if it predicts __reject__ OR fails threshold
             is_ood, _ = check_ood(all_probs)
@@ -416,5 +418,6 @@ def evaluate_baseline(val_only=False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--val-only', action='store_true')
+    parser.add_argument('--use-tta', action='store_true')
     args = parser.parse_args()
-    evaluate_baseline(val_only=args.val_only)
+    evaluate_baseline(val_only=args.val_only, use_tta=args.use_tta)

@@ -57,15 +57,13 @@ from src.training.model import SignLanguageGRU
 def _compute_inverse_class_weights(
     labels: np.ndarray,
     num_classes: int,
+    reject_idx: int = -1,
+    reject_multiplier: float = 50.0,
 ) -> torch.Tensor:
     """
     Compute inverse-frequency class weights with configurable power:
         w_c = (1 / count_c) ^ power
     Normalized so average weight ~= 1 for stable optimization.
-    
-    power=1.0: full inverse frequency (strong weighting)
-    power=0.7: smooth weighting (moderate)
-    power=0.0: uniform weights
     """
     class_counts = np.bincount(labels, minlength=num_classes)
     
@@ -76,6 +74,10 @@ def _compute_inverse_class_weights(
     # Apply power transformation only for valid classes
     class_weights[valid_mask] = (1.0 / class_counts[valid_mask].astype(float)) ** CLASS_WEIGHT_POWER
     
+    # Explicitly boost the reject class weight to force epenthesis suppression
+    if reject_idx != -1 and reject_idx < num_classes and valid_mask[reject_idx]:
+        class_weights[reject_idx] *= reject_multiplier
+        
     # Normalize so average weight of valid classes is exactly 1.0
     num_valid = valid_mask.sum()
     if num_valid > 0:
@@ -396,8 +398,9 @@ def create_data_loaders(
 
     # Compute class weights (inverse frequency)
     train_labels = labels[train_idx]
+    reject_idx = full_ds.class_to_idx.get("__reject__", -1)
     class_weights = _compute_inverse_class_weights(
-        train_labels, full_ds.num_classes,
+        train_labels, full_ds.num_classes, reject_idx=reject_idx, reject_multiplier=50.0
     )
 
     print(
@@ -890,8 +893,9 @@ def _train_fold(
 
     # Class weights from this fold's training set (inverse frequency)
     train_labels = labels[train_idx]
+    reject_idx = full_ds.class_to_idx.get("__reject__", -1)
     class_weights = _compute_inverse_class_weights(
-        train_labels, num_classes,
+        train_labels, num_classes, reject_idx=reject_idx, reject_multiplier=50.0
     )
 
     model = SignLanguageGRU(num_classes=num_classes).to(DEVICE)
