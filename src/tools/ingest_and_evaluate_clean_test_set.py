@@ -6,7 +6,7 @@ import torch
 from src.core.config import get_config
 from src.inference.ensemble import load_ensemble, ensemble_predict
 
-def evaluate_clean_npy_test_set(input_dir: str):
+def evaluate_clean_npy_test_set(input_dir: str, use_tta: bool = False):
     """
     Evaluates the model on a clean directory of .npy recordings.
     
@@ -19,7 +19,7 @@ def evaluate_clean_npy_test_set(input_dir: str):
        │   ├── file1.npy
        │   └── file2.npy
     """
-    print(f"--- Starting Clean NPY Evaluation ---")
+    print(f"--- Starting Clean NPY Evaluation (use_tta={use_tta}) ---")
     print(f"Reading features from: {input_dir}")
     
     cfg = get_config()
@@ -80,7 +80,7 @@ def evaluate_clean_npy_test_set(input_dir: str):
         true_idx = class_to_idx[clean_true_label]
         
         # Predict
-        pred_idx, conf, _ = ensemble_predict(models, seq)
+        pred_idx, conf, _ = ensemble_predict(models, seq, use_tta=use_tta)
         
         is_correct = (pred_idx == true_idx)
         if is_correct:
@@ -92,13 +92,14 @@ def evaluate_clean_npy_test_set(input_dir: str):
         
     if total > 0:
         accuracy = (correct / total) * 100
-        print(f"\nFinal Clean Test Accuracy: {accuracy:.2f}% ({correct}/{total})")
+        print(f"\nFinal Clean Test Accuracy (use_tta={use_tta}): {accuracy:.2f}% ({correct}/{total})")
     else:
         print("\nNo valid samples evaluated.")
         
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate a clean independent test set of .npy files.")
     parser.add_argument("--input-dir", type=str, required=True, help="Path to .npy files grouped by sign.")
+    parser.add_argument("--use-tta", action="store_true", help="Enable Entropy-Gated TENT + TTA during evaluation.")
     args = parser.parse_args()
     
-    evaluate_clean_npy_test_set(args.input_dir)
+    evaluate_clean_npy_test_set(args.input_dir, use_tta=args.use_tta)

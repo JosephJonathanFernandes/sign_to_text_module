@@ -323,8 +323,15 @@ def ensemble_predict(
     # and saves N-1 softmax operations when using ensemble or TTA
     all_logits = []
 
+    # Try importing tent for live adaptation
+    try:
+        from src.inference.tent import TentWrapper
+        has_tent = True
+    except ImportError:
+        has_tent = False
+
     tta_seqs = [sequence]
-    if use_tta and TTA_ROUNDS > 1:
+    if use_tta and not has_tent and TTA_ROUNDS > 1:
         for _ in range(TTA_ROUNDS - 1):
             tta_seqs.append(_tta_augment(sequence))
 
@@ -332,14 +339,7 @@ def ensemble_predict(
     t_model_forward = 0
     num_forward_passes = 0
     
-    # Try importing tent for live adaptation
-    try:
-        from src.inference.tent import TentWrapper
-        has_tent = True
-    except ImportError:
-        has_tent = False
-    
-    for seq in tta_seqs:
+    for seq_idx, seq in enumerate(tta_seqs):
         seq = _align_sequence_dim(seq)
         tensor = torch.from_numpy(seq).unsqueeze(0).float().to(DEVICE)
         if PROXIMITY_FEAT_DIM > 0 and tensor.shape[-1] >= FRAME_FEAT_DIM:
@@ -351,9 +351,13 @@ def ensemble_predict(
             t_fwd_start = time.time()
             if use_tta and has_tent:
                 if not hasattr(model, 'tent_wrapper'):
-                    model.tent_wrapper = TentWrapper(model, lr=1e-4, reset_state=False)
-                logits = model.tent_wrapper.adapt_and_predict(tensor, proximity=proximity)
-                model.eval()
+                    model.tent_wrapper = TentWrapper(model, lr=1e-5, reset_state=False)
+                # Only adapt parameters on the primary unaugmented sequence (seq_idx == 0)
+                logits = model.tent_wrapper.adapt_and_predict(
+                    tensor,
+                    proximity=proximity,
+                    adapt=(seq_idx == 0),
+                )
             else:
                 with torch.no_grad():
                     logits = model(tensor, proximity=proximity)
@@ -379,6 +383,13 @@ def ensemble_predict(
     
     pred_idx = int(np.argmax(avg_probs))
     confidence = float(avg_probs[pred_idx])
+
+    # Entropy-based Epenthesis / Transition Jitter Suppression Gate (when TTA is active and __reject__ class exists)
+    if use_tta and len(avg_probs) == 301:
+        max_ent = float(np.log(len(avg_probs)))
+        norm_ent = float(-np.sum(avg_probs * np.log(avg_probs + 1e-9)) / max_ent)
+        if confidence < 0.45 or norm_ent > 0.35:
+            pred_idx = 300  # Route high-entropy transition jitter to __reject__
 
     # ════════════════════════════════════════════════════════════════════════════════════
     # PHASE 3: Latency Tracking
